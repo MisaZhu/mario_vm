@@ -1,4 +1,4 @@
-SRCS = test.c
+SRCS = demo.c
 CFLAGS = -g -I./
 
 all:
