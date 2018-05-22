@@ -1,2 +1,2 @@
 # Mario
-simple js engine in single head file.
+very tiny simple js engine in one single head file.
