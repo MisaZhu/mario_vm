@@ -1,3 +1,7 @@
+/**
+very tiny js engine in single file.
+*/
+
 #ifndef MARIO_JS
 #define MARIO_JS
 
@@ -113,6 +117,20 @@ void str_release(str_t* str) {
 		str->cstr = NULL;
 	}
 	str->max = str->len = 0;
+}
+
+int str_to_int(const char* str) {
+	int i = 0;
+	if(strstr(str, "0x") != NULL ||
+			strstr(str, "0x") != NULL)
+		i = strtol(str, NULL, 16);
+	else
+		i = strtol(str, NULL, 10);
+	return i;
+}
+
+float str_to_float(const char* str) {
+	return atof(str);
 }
 
 /**
@@ -826,24 +844,480 @@ Interpretor
 */
 
 bool statement(lex_t*);
+bool factor(lex_t*);
+bool base(lex_t*);
 
-LEX_TYPES block(lex_t* l) {
-	LEX_TYPES ret = LEX_EOF;
+bool factor(lex_t* l) {
+	if (l->tk=='(') {
+		lex_chkread(l, '(');
+		base(l);
+		lex_chkread(l, ')');
+	}
+	else if (l->tk==LEX_R_TRUE) {
+		lex_chkread(l, LEX_R_TRUE);
+		//bytecode->gen(INSTR_TRUE);
+	}
+	else if (l->tk==LEX_R_FALSE) {
+		lex_chkread(l, LEX_R_FALSE);
+		//bytecode->gen(INSTR_FALSE);
+	}
+	else if (l->tk==LEX_R_NULL) {
+		lex_chkread(l, LEX_R_NULL);
+		//bytecode->gen(INSTR_NULL);
+	}
+	else if (l->tk==LEX_R_UNDEFINED) {
+		lex_chkread(l, LEX_R_UNDEFINED);
+		//bytecode->gen(INSTR_UNDEF);
+	}
+	else if (l->tk==LEX_INT) {
+		//bytecode->gen(INSTR_INT, l->tkStr);
+		int i = str_to_int(l->tkStr.cstr);
+		lex_chkread(l, LEX_INT);
+	}
+	else if (l->tk==LEX_FLOAT) {
+		//bytecode->gen(INSTR_FLOAT, l->tkStr);
+		float f = str_to_float(l->tkStr.cstr);
+		lex_chkread(l, LEX_FLOAT);
+	}
+	else if (l->tk==LEX_STR) {
+		//bytecode->gen(INSTR_STR, l->tkStr);
+		lex_chkread(l, LEX_STR);
+	}
+	else if(l->tk==LEX_R_FUNCTION) {
+		lex_chkread(l, LEX_R_FUNCTION);
+		//string name;
+		//defFunc(name);
+	}
+	else if(l->tk==LEX_R_CLASS) {
+		//defClass();
+	}
+	/*else if (l->tk==LEX_R_NEW) {
+		// new -> create a new object
+		lex_chkread(l, LEX_R_NEW);
+		std::string className = l->tkStr;
+		lex_chkread(l, LEX_ID);
+		if (l->tk == '(') {
+			//lex_chkread(l, '(');
+			int argNum;
+			callFunc(argNum);
+			//lex_chkread(l, ')');
+			if(argNum > 0)
+				className = className + "$" + StringUtil::from(argNum);
+			bytecode->gen(INSTR_NEW, className);
+		}
+	}
+
+	if (l->tk=='{') {
+		// JSON-style object definition
+		lex_chkread(l, '{');
+		bytecode->gen(INSTR_OBJ);
+		while (l->tk != '}') {
+			string id = l->tkStr;
+			// we only allow strings or IDs on the left hand side of an initialisation
+			if (l->tk==LEX_STR) lex_chkread(l, LEX_STR);
+			else lex_chkread(l, LEX_ID);
+			lex_chkread(l, ':');
+			base();
+			bytecode->gen(INSTR_MEMBERN, id);
+			// no need to clean here, as it will definitely be used
+			if (l->tk != '}') lex_chkread(l, ',');
+		}
+		bytecode->gen(INSTR_OBJ_END);
+		lex_chkread(l, '}');
+	}
+	else if(l->tk==LEX_ID) {
+		string name = l->tkStr;
+		lex_chkread(l, LEX_ID);
+
+		bool load = true;
+		vector<string> names;
+		while (l->tk=='(' || l->tk=='.' || l->tk=='[') {
+			if (l->tk=='(') { // ------------------------------------- Function Call
+				StringUtil::split(name, '.', names);
+				name = "";
+				int sz = (int)(names.size()-1);
+				string s = names[sz];
+					
+				if(sz == 0 && load) {
+					bytecode->gen(INSTR_LOAD, "this");	
+					int argNum;
+					callFunc(argNum);
+					if(argNum > 0)
+						s = s + "$" + StringUtil::from(argNum);
+					bytecode->gen(INSTR_CALL, s);	
+				}
+				else {
+					for(int i=0; i<sz; i++) {
+						bytecode->gen(load ? INSTR_LOAD:INSTR_GET, names[i]);	
+						load = false;
+					}
+					int argNum;
+					callFunc(argNum);
+					if(argNum > 0)
+						s = s + "$" + StringUtil::from(argNum);
+					bytecode->gen(INSTR_CALLO, s);	
+				}
+				load = false;
+			} 
+			else if (l->tk == '.') { // ------------------------------------- Record Access
+				lex_chkread(l, '.');
+				if(name.length() == 0)
+					name = l->tkStr;
+				else 
+					name = name + "." + l->tkStr;
+				lex_chkread(l, LEX_ID);
+			} 
+			else { // ------------------------------------- Array Access
+				StringUtil::split(name, '.', names);
+				name = "";
+				int sz = (int)names.size();
+				for(int i=0; i<sz; i++) {
+					bytecode->gen(load ? INSTR_LOAD:INSTR_GET, names[i]);	
+					load = false;
+				}
+
+				lex_chkread(l, '[');
+				base();
+				lex_chkread(l, ']');
+				bytecode->gen(INSTR_ARRAY_AT);
+			} 
+		}
+		if(name.length() > 0) {
+			StringUtil::split(name, '.', names);
+			name = "";
+			int sz = (int)names.size();
+			for(int i=0; i<sz; i++) {
+				bytecode->gen(load ? INSTR_LOAD:INSTR_GET, names[i]);	
+				load = false;
+			}
+		}
+	}
+	else if (l->tk=='[') {
+		// JSON-style array 
+		lex_chkread(l, '[');
+		bytecode->gen(INSTR_ARRAY);
+		while (l->tk != ']') {
+			base();
+			bytecode->gen(INSTR_MEMBER);
+			if (l->tk != ']') lex_chkread(l, ',');
+		}
+		lex_chkread(l, ']');
+		bytecode->gen(INSTR_ARRAY_END);
+	}
+	*/
+
+	return true;
+}
+
+bool unary(lex_t* l) {
+	//OprCode instr = INSTR_END;
+	if (l->tk == '!') {
+		lex_chkread(l, '!');
+	//	instr = INSTR_NOT;
+	} else if(l->tk == LEX_R_TYPEOF) {
+		lex_chkread(l, LEX_R_TYPEOF);
+	//	instr = INSTR_TYPEOF;
+	}
+
+	if(!factor(l))
+		return false;
+
+	//if(instr != INSTR_END) {
+	//	bytecode->gen(instr);
+	//}
+	return true;	
+}
+
+bool term(lex_t* l) {
+	if(!unary(l))
+		return false;
+
+	while (l->tk=='*' || l->tk=='/' || l->tk=='%') {
+		LEX_TYPES op = l->tk;
+		lex_chkread(l, l->tk);
+		unary(l);
+
+		if(op == '*') {
+		//	bytecode->gen(INSTR_MULTI);
+		}
+		else if(op == '/') {
+		//	bytecode->gen(INSTR_DIV);
+		}
+		else {
+		//	bytecode->gen(INSTR_MOD);
+		}
+	}
+
+	return true;	
+}
+
+bool expr(lex_t* l) {
+	LEX_TYPES pre = l->tk;
+
+	if (l->tk=='-') {
+		lex_chkread(l, '-');
+	}
+	else if(l->tk==LEX_PLUSPLUS) {
+		lex_chkread(l, LEX_PLUSPLUS);
+	}
+	else if(l->tk==LEX_MINUSMINUS) {
+		lex_chkread(l, LEX_MINUSMINUS);
+	}
+
+	if(!term(l))
+		return false;
+
+	if (pre == '-') {
+	//	bytecode->gen(INSTR_NEG);
+	}
+	else if(pre==LEX_PLUSPLUS) {
+	//	bytecode->gen(INSTR_PPLUS_PRE);
+	}
+	else if(pre==LEX_MINUSMINUS) {
+	//	bytecode->gen(INSTR_MMINUS_PRE);
+	}
+
+	while (l->tk=='+' || l->tk=='-' ||
+			l->tk==LEX_PLUSPLUS || l->tk==LEX_MINUSMINUS) {
+		int op = l->tk;
+		lex_chkread(l, l->tk);
+		if (op==LEX_PLUSPLUS) {
+		//	bytecode->gen(INSTR_PPLUS);
+		}
+		else if(op==LEX_MINUSMINUS) {
+		//	bytecode->gen(INSTR_MMINUS);
+		}
+		else {
+			if(!term(l))
+				return false;
+			if(op== '+') {
+			//	bytecode->gen(INSTR_PLUS);
+			}
+			else if(op=='-') {
+			//	bytecode->gen(INSTR_MINUS);
+			}
+		}
+	}
+
+	return true;	
+}
+
+bool shift(lex_t* l) {
+	if(!expr(l))
+		return false;
+
+	if (l->tk==LEX_LSHIFT || l->tk==LEX_RSHIFT || l->tk==LEX_RSHIFTUNSIGNED) {
+		int op = l->tk;
+		lex_chkread(l, op);
+		if(!base(l))
+			return false;
+
+		if (op==LEX_LSHIFT) {
+		//	bytecode->gen(INSTR_LSHIFT);
+		}
+		else if (op==LEX_RSHIFT) {
+		//	bytecode->gen(INSTR_RSHIFT);
+		}
+		else {
+		//	bytecode->gen(INSTR_URSHIFT);
+		}
+	}
+	return true;	
+}
+
+bool condition(lex_t *l) {
+	if(!shift(l))
+		return false;
+
+	while (l->tk==LEX_EQUAL || l->tk==LEX_NEQUAL ||
+			l->tk==LEX_TYPEEQUAL || l->tk==LEX_NTYPEEQUAL ||
+			l->tk==LEX_LEQUAL || l->tk==LEX_GEQUAL ||
+			l->tk=='<' || l->tk=='>') {
+		int op = l->tk;
+		lex_chkread(l, l->tk);
+		if(!shift(l))
+			return false;
+
+		if(op == LEX_EQUAL) {
+		//	bytecode->gen(INSTR_EQ);
+		}
+		else if(op == LEX_NEQUAL) {
+		//	bytecode->gen(INSTR_NEQ);
+		}
+		else if(op == LEX_TYPEEQUAL) {
+		//	bytecode->gen(INSTR_TEQ);
+		}
+		else if(op == LEX_NTYPEEQUAL) {
+		//	bytecode->gen(INSTR_NTEQ);
+		}
+		else if(op == LEX_LEQUAL) {
+		//	bytecode->gen(INSTR_LEQ);
+		}
+		else if(op == LEX_GEQUAL) {
+		//	bytecode->gen(INSTR_GEQ);
+		}
+		else if(op == '>') {
+		//	bytecode->gen(INSTR_GRT);
+		}
+		else if(op == '<') {
+		//	bytecode->gen(INSTR_LES);
+		}
+	}
+
+	return true;	
+}
+
+bool logic(lex_t* l) {
+	if(!condition(l))
+		return false;
+
+	while (l->tk=='&' || l->tk=='|' || l->tk=='^' || l->tk==LEX_ANDAND || l->tk==LEX_OROR) {
+		int op = l->tk;
+		lex_chkread(l, l->tk);
+		if(!condition(l))
+			return false;
+
+		if (op==LEX_ANDAND) {
+		//	bytecode->gen(INSTR_AAND);
+		} 
+		else if (op==LEX_OROR) {
+		//	bytecode->gen(INSTR_OOR);
+		}
+		else if (op=='|') {
+		//	bytecode->gen(INSTR_OR);
+		}
+		else if (op=='&') {
+		//	bytecode->gen(INSTR_AND);
+		}
+		else if (op=='^') {
+		//	bytecode->gen(INSTR_XOR);
+		}
+	}
+	return true;	
+}
+
+
+bool ternary(lex_t *l) {
+	if(!logic(l))
+		return false;
+	
+	if (l->tk=='?') {
+	/*
+		PC pc1 = bytecode->reserve(); //keep for jump
+		lex_chkread(l, '?');
+		base(); //first choice
+		PC pc2 = bytecode->reserve(); //keep for jump
+		lex_chkread(l, ':');
+		bytecode->setInstr(pc1, INSTR_NJMP);
+		base(); //second choice
+		bytecode->setInstr(pc2, INSTR_JMP);
+		*/
+	} 
+	return true;	
+}
+
+bool base(lex_t* l) {
+	if(!ternary(l))
+		return false;
+
+	if (l->tk=='=' || 
+			l->tk==LEX_PLUSEQUAL ||
+			l->tk==LEX_MULTIEQUAL ||
+			l->tk==LEX_DIVEQUAL ||
+			l->tk==LEX_MODEQUAL ||
+			l->tk==LEX_MINUSEQUAL) {
+		LEX_TYPES op = l->tk;
+		lex_chkread(l, l->tk);
+		base(l);
+		// sort out initialiser
+		if (op == '=')  {
+	//		bytecode->gen(INSTR_ASIGN);
+		}
+		else if(op == LEX_PLUSEQUAL) {
+		//	bytecode->gen(INSTR_PLUSEQ);
+		}
+		else if(op == LEX_MINUSEQUAL) {
+		//	bytecode->gen(INSTR_MINUSEQ);
+		}
+		else if(op == LEX_MULTIEQUAL) {
+		//	bytecode->gen(INSTR_MULTIEQ);
+		}
+		else if(op == LEX_DIVEQUAL) {
+		//	bytecode->gen(INSTR_DIVEQ);
+		}
+		else if(op == LEX_MODEQUAL) {
+		//	bytecode->gen(INSTR_MODEQ);
+		}
+	}
+	return true;
+}
+
+bool block(lex_t* l) {
 	lex_chkread(l, '{');
 
 	while (l->tk && l->tk!='}'){
-		statement(l);
+		if(!statement(l))
+			return false;
 	}
 
 	lex_chkread(l, '}');
-	return ret;
+	return true;
 }
 
 bool statement(lex_t* l) {
 	if (l->tk=='{') {
 		/* A block of code */
-		block(l);
+		if(!block(l))
+			return false;
 	}
+	else if (l->tk==LEX_ID    ||
+			l->tk==LEX_INT   ||
+			l->tk==LEX_FLOAT ||
+			l->tk==LEX_STR   ||
+			l->tk==LEX_PLUSPLUS   ||
+			l->tk==LEX_MINUSMINUS ||
+			l->tk=='-'    ) {
+		/* Execute a simple statement that only contains basic arithmetic... */
+		if(!base(l))
+			return false;
+		lex_chkread(l, ';');
+	}
+	else if (l->tk==LEX_R_VAR || l->tk == LEX_R_CONST) {
+		bool beConst;
+		if(l->tk == LEX_R_VAR) {
+			lex_chkread(l, LEX_R_VAR);
+			beConst = false;
+		}
+		else {
+			lex_chkread(l, LEX_R_CONST);
+			beConst = true;
+		}
+
+		while (l->tk != ';') {
+			const char* vname = l->tkStr.cstr;
+			lex_chkread(l, LEX_ID);
+			// now do stuff defined with dots
+			/*while (l->tk == '.') {
+				lex_chkread(l, '.');
+				vname = vname + "." + l->tkStr;
+				lex_chkread(l, LEX_ID);
+			}*/
+			//bytecode->gen(beConst ? INSTR_CONST : INSTR_VAR, vname);
+			// sort out initialiser
+			if (l->tk == '=') {
+				lex_chkread(l, '=');
+				//bytecode->gen(INSTR_LOAD, vname);
+				base(l);
+				//bytecode->gen(INSTR_ASIGN);
+				//bytecode->gen(INSTR_POP);
+			}
+
+			if (l->tk != ';')
+				lex_chkread(l, ',');
+		}      
+		lex_chkread(l, ';');
+	}
+
 	return true;
 }
 

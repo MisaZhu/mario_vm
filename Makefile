@@ -1,5 +1,8 @@
+SRCS = test.c
+CFLAGS = -g -I./
+
 all:
-	gcc -g -o mario *.c -I./
+	gcc -o mario $(CFLAGS) $(SRCS)
 
 clean:
-	rm -fr mario *.dSYM
+	rm -fr $(OBJS) mario *.dSYM
