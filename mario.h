@@ -27,10 +27,7 @@ typedef int bool;
 #endif
 
 
-/**
-memory functions.
------------------------------
-*/
+/** memory functions.-----------------------------*/
 #ifndef PRE_ALLOC
 #include <stdlib.h>
 	#define _malloc malloc
@@ -42,10 +39,7 @@ memory functions.
 
 typedef void (*free_func_t)(void* p);
 
-/**
-array functions.
------------------------------
-*/
+/** array functions.-----------------------------*/
 
 #define ARRAY_BUF 16
 
@@ -99,10 +93,7 @@ void array_clean(m_array_t* array, free_func_t fr) {
 	array->max = array->size = 0;
 }
 
-/**
-str functions.
------------------------------
-*/
+/** str functions.-----------------------------*/
 
 #define STR_BUF 16
 
@@ -234,10 +225,7 @@ void str_split(const char* str, char c, m_array_t* array) {
 	}
 }
 
-/**
-stack functions.
------------------------------
-*/
+/** stack functions. -----------------------------*/
 typedef struct st_stack {
 	struct st_stack* next;
 	void* data;
@@ -276,10 +264,7 @@ void stack_free(m_stack_t* s, free_func_t fr) {
 	_free(s); /*free stack item*/
 }
 
-/**
-Script Lex.
------------------------------
-*/
+/** Script Lex. -----------------------------*/
 
 typedef enum {
   LEX_EOF = 0,
@@ -840,10 +825,7 @@ std::string CScriptLex::getPosition(int pos) {
 }
 */
 
-/**
-Script Var
------------------------------
-*/
+/** Script Var -----------------------------*/
 #define UNDEF  0
 #define INT    1
 #define FLOAT  2
@@ -864,10 +846,8 @@ typedef struct st_var {
 
 	m_array_t* children;
 } var_t;
-/**
-JS bytecode.
------------------------------
-*/
+
+/** JS bytecode.-----------------------------*/
 
 typedef uint16_t OprCode;
 typedef uint32_t PC;
@@ -1271,10 +1251,7 @@ void bc_dump(bytecode_t* bc, dump_func_t dump) {
 
 #endif
 
-/**
-Compiler
------------------------------
-*/
+/** Compiler -----------------------------*/
 
 bool statement(lex_t*, bytecode_t*, bool);
 bool factor(lex_t*, bytecode_t*);
@@ -1830,5 +1807,7 @@ bool compile_run(compile_t* compile) {
 	}
 	return true;
 }
+
+/** Interpreter-----------------------------*/
 
 #endif
