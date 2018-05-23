@@ -1082,10 +1082,11 @@ const char* bc_getstr(bytecode_t* bc, int i) {
 
 uint16_t bc_getstrindex(bytecode_t* bc, const char* str) {
 	uint16_t sz = bc->strTable.size;
+	uint16_t i;
 	if(str == NULL || str[0] == 0)
 		return 0xFFFF;
 
-	for(uint16_t i=0; i<sz; ++i) {
+	for(i=0; i<sz; ++i) {
 		char* s = (char*)bc->strTable.items[i];
 		if(s != NULL && strcmp(s, str) == 0)
 			return i;
@@ -1221,13 +1222,13 @@ void bc_get_instr_str(bytecode_t* bc, PC *i, bool step, str_t* ret) {
 }
 
 void bc_dump(bytecode_t* bc, dump_func_t dump) {
-	PC i = 0;
+	PC i;
 	PC ins = 0;
 	char index[8];
-	uint16_t sz = bc->strTable.size;
+	PC sz = bc->strTable.size;
 
 	dump("-------string table--------------------\n");
-	for(uint16_t i=0; i<sz; ++i) {
+	for(i=0; i<sz; ++i) {
 		sprintf(index, "%04X: ", i);
 		dump(index);
 		dump((const char*)bc->strTable.items[i]);
