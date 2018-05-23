@@ -7,6 +7,9 @@ very tiny js engine in single file.
 
 #include <inttypes.h>
 #include <string.h>
+#include <stdio.h>
+
+#define MARIO_DUMP 
 
 /*typedef int int32_t;
 typedef unsigned char uint8_t;
@@ -144,6 +147,11 @@ char* str_cpy(str_t* str, const char* src) {
 	return str->cstr;
 }
 
+void str_inits(str_t* str, const char* s) {
+	str_init(str);
+	str_cpy(str, s);
+}
+
 char* str_append(str_t* str, const char* src) {
 	if(src == NULL || src[0] == 0) {
 		return str->cstr;
@@ -182,6 +190,12 @@ void str_release(str_t* str) {
 		str->cstr = NULL;
 	}
 	str->max = str->len = 0;
+}
+
+const char* str_from_int(int i) {
+	static char s[16];
+	snprintf(s, 16, "%d", i);
+	return s;
 }
 
 int str_to_int(const char* str) {
@@ -337,36 +351,16 @@ typedef struct st_lex {
 	int32_t tkStart, tkEnd, tkLastEnd;
 } lex_t;
 
-static unsigned char cmap[256]={
-	//+0 +1 +2 +3 +4 +5 +6 +7 +8 +9 +A +B +C +D +E +F
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 0,//00
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,//10
-	1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,//20
-	2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0,//30
-	0, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,//40
-	4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 0, 0, 0, 0, 4,//50
-	0, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,//60
-	4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0,//70
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,//80
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,//90
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,//A0
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,//B0
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,//C0
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,//D0
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,//E0
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,//F0
-}; 
-
 bool is_whitespace(unsigned char ch) {
-	if((cmap[ch]&1) == 0)
-		return false;
-	return true;
+	if(ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r')
+		return true;
+	return false;
 }
 
 bool is_numeric(unsigned char ch) {
-	if((cmap[ch]&2) == 0)
-		return false;
-	return true;
+	if(ch >= '0' && ch <= '9')
+		return true;
+	return false;
 }
 
 bool is_number(const char* cstr) {
@@ -388,9 +382,10 @@ bool is_hexadecimal(unsigned char ch) {
 }
 
 bool is_alpha(unsigned char ch) {
-	if((cmap[ch]&4) == 0)
-		return false;
-	return true;
+	if(((ch>='a') && (ch<='z')) ||
+		((ch>='A') && (ch<='Z')))
+		return true;
+	return false;
 }
 
 char* oneLine(const char *s, int ptr,int end) {
@@ -849,17 +844,17 @@ std::string CScriptLex::getPosition(int pos) {
 Script Var
 -----------------------------
 */
-const static uint8_t UNDEF = 0;
-const static uint8_t INT = 1;
-const static uint8_t FLOAT = 2;
-const static uint8_t STRING = 3;
-const static uint8_t POINT = 4;
-const static uint8_t FUNC = 5;
-const static uint8_t NFUNC = 6;
-const static uint8_t OBJECT = 7;
-const static uint8_t CLASS = 8;
-const static uint8_t BYTES = 9;
-const static uint8_t ARRAY = 10;
+#define UNDEF  0
+#define INT    1
+#define FLOAT  2
+#define STRING 3
+#define POINT  4
+#define FUNC   5
+#define NFUNC  6
+#define OBJECT 7
+#define CLASS  8
+#define BYTES  9
+#define ARRAY  10
 
 typedef struct st_var {
 	int32_t refs:24;
@@ -869,26 +864,432 @@ typedef struct st_var {
 
 	m_array_t* children;
 } var_t;
-
 /**
-Interpretor
+JS bytecode.
 -----------------------------
 */
 
-bool statement(lex_t*);
-bool factor(lex_t*);
-bool base(lex_t*);
+typedef uint16_t OprCode;
+typedef uint32_t PC;
 
-int callFunc(lex_t* l) {
+#define ILLEGAL_PC 0x0FFFFFFF
+#define INS(ins, off) (((((int32_t)ins) << 16) & 0xFFFF0000) | ((off) & 0x0000FFFF))
+
+#define INSTR_NIL					 0x0000 // NIL									: Do nothing.
+
+#define INSTR_VAR					 0x0001 // VAR x								: declare var x
+#define INSTR_CONST				 0x0002 // CONST x							: declare const x
+#define INSTR_LOAD				 0x0003 // LOAD x								: load and push x 
+#define INSTR_STORE				 0x0004 // STORE x							: pop and store to x
+#define INSTR_GET					 0x0005 // getfield
+#define INSTR_ASIGN				 0x0006 // ASIGN								: =
+
+#define INSTR_INT					 0x0007 // INT int 							: push int
+#define INSTR_FLOAT				 0x0008 // FLOAT float					: push float 
+#define INSTR_STR					 0x0009 // STR "str"						: push str
+#define INSTR_ARRAY_AT		 0x000A // ARRAT 								: get array element at
+#define INSTR_ARRAY				 0x000B // ARRAY 								: array start
+#define INSTR_ARRAY_END		 0x000C // ARRAY_END 						: array end
+
+#define INSTR_FUNC				 0x0010 // FUNC x								: function definetion x
+#define INSTR_FUNC_GET		 0x0011 // GET FUNC x						: class get function definetion x
+#define INSTR_FUNC_SET		 0x0012 // SET FUNC x						: class set function definetion x
+#define INSTR_CALL				 0x0013 // CALL x								: call function x and push res
+#define INSTR_CALLO				 0x0014 // CALL obj.x						: call object member function x and push res
+#define INSTR_CLASS				 0x0015 // class								: define class
+#define INSTR_CLASS_END		 0x0016 // class end						: end of class definition
+#define INSTR_MEMBER			 0x0017 // member without name
+#define INSTR_MEMBERN			 0x0018 // : member with name
+#define INSTR_EXTENDS			 0x0019 // : class extends
+
+#define INSTR_NOT					 0x0020 // NOT									: !
+#define INSTR_MULTI				 0x0021 // MULTI								: *
+#define INSTR_DIV					 0x0022 // DIV									: /
+#define INSTR_MOD					 0x0023 // MOD									: %
+#define INSTR_PLUS				 0x0024 // PLUS									: + 
+#define INSTR_MINUS				 0x0025 // MINUS								: - 
+#define INSTR_NEG					 0x0026 // NEG									: negate -
+#define INSTR_PPLUS				 0x0027 // PPLUS								: x++
+#define INSTR_MMINUS			 0x0028 // MMINUS								: x--
+#define INSTR_PPLUS_PRE		 0x0029 // PPLUS								: ++x
+#define INSTR_MMINUS_PRE	 0x002A // MMINUS								: --x
+#define INSTR_LSHIFT			 0x002B // LSHIFT								: <<
+#define INSTR_RSHIFT			 0x002C // RSHIFT								: >>
+#define INSTR_URSHIFT			 0x002D // URSHIFT							: >>>
+
+#define INSTR_EQ					 0x0030 // EQ										: ==
+#define INSTR_NEQ					 0x0031 // NEQ									: !=
+#define INSTR_LEQ					 0x0032 // LEQ									: <=
+#define INSTR_GEQ					 0x0033 // GEQ									: >=
+#define INSTR_GRT					 0x0034 // GRT									: >
+#define INSTR_LES					 0x0035 // LES									: <
+
+#define INSTR_PLUSEQ			 0x0036 // +=
+#define INSTR_MINUSEQ			 0x0037 // -=	
+#define INSTR_MULTIEQ			 0x0038 // *=
+#define INSTR_DIVEQ				 0x0039 // /=
+#define INSTR_MODEQ				 0x003A // %=
+
+#define INSTR_AAND				 0x0040 // AAND									: &&
+#define INSTR_OOR					 0x0041 // OOR									: ||
+#define INSTR_OR					 0x0042 // OR										: |
+#define INSTR_XOR					 0x0043 // XOR									: ^
+#define INSTR_AND					 0x0044 // AND									: &
+
+#define INSTR_TEQ					 0x0046 // TEQ										: ===
+#define INSTR_NTEQ				 0x0047 // NTEQ									: !==
+#define INSTR_TYPEOF			0x0048 // TYPEOF									: typeof
+
+#define INSTR_BREAK				 0x0050 // : break
+#define INSTR_CONTINUE		 0x0051 // : continue
+#define INSTR_RETURN			 0x0052 // : return none value
+#define INSTR_RETURNV			 0x0053 // : return with value
+
+#define INSTR_NJMP				 0x0054 // NJMP x								: Condition not JMP offset x 
+#define INSTR_JMPB				 0x0055 // JMP back x						: JMP back offset x  
+#define INSTR_NJMPB				 0x0056 // NJMP back x					: Condition not JMP back offset x 
+#define INSTR_JMP					 0x0057 // JMP x								: JMP offset x  
+
+#define INSTR_TRUE				 0x0060 // : true
+#define INSTR_FALSE				 0x0061 // : false
+#define INSTR_NULL				 0x0062 // : null
+#define INSTR_UNDEF				 0x0063 // : undefined
+
+#define INSTR_NEW					 0x0070 // : new
+
+#define INSTR_POP					 0x0080 // : pop and release
+
+#define INSTR_OBJ					 0x0090 // : object for JSON 
+#define INSTR_OBJ_END			 0x0091 // : object end for JSON 
+
+#define INSTR_BLOCK				 0x00A0 // : block 
+#define INSTR_BLOCK_END		 0x00A1 // : block end 
+
+#define INSTR_THROW				 0x00B0 // : throw
+#define INSTR_MOV_EXCP		 0x00B1 // : move exception
+
+#define INSTR_END					 0x00FF // END									: end of code.
+
+
+const char* instr_str(OprCode ins) {
+	switch(ins) {
+		case  INSTR_NIL					: return "nil";
+		case  INSTR_END					: return "end";
+		case  INSTR_OBJ					: return "obj";
+		case  INSTR_OBJ_END			: return "obje";
+		case  INSTR_MEMBER			: return "member";
+		case  INSTR_MEMBERN			: return "membern";
+		case  INSTR_POP					: return "pop";
+		case  INSTR_VAR					: return "var";
+		case  INSTR_CONST				: return "const";
+		case  INSTR_INT					: return "int";
+		case  INSTR_FLOAT				: return "float";
+		case  INSTR_STR					: return "str";
+		case  INSTR_ARRAY_AT		: return "arrat";
+		case  INSTR_ARRAY				: return "arr";
+		case  INSTR_ARRAY_END		: return "arre";
+		case  INSTR_LOAD				: return "load";
+		case  INSTR_STORE				: return "store";
+		case  INSTR_JMP					: return "jmp";
+		case  INSTR_NJMP				: return "njmp";
+		case  INSTR_JMPB				: return "jmpb";
+		case  INSTR_NJMPB				: return "njmpb";
+		case  INSTR_FUNC				: return "func";
+		case  INSTR_FUNC_GET		: return "funcget";
+		case  INSTR_FUNC_SET		: return "funcset";
+		case  INSTR_CLASS				: return "class";
+		case  INSTR_CLASS_END		: return "classe";
+		case  INSTR_EXTENDS			: return "extends";
+		case  INSTR_CALL				: return "call";
+		case  INSTR_CALLO				: return "callo";
+		case  INSTR_NOT					: return "not";
+		case  INSTR_MULTI				: return "multi";
+		case  INSTR_DIV					: return "div";
+		case  INSTR_MOD					: return "mod";
+		case  INSTR_PLUS				: return "plus";
+		case  INSTR_MINUS				: return "minus";
+		case  INSTR_NEG					: return "neg";
+		case  INSTR_PPLUS				: return "pplus";
+		case  INSTR_MMINUS			: return "mminus";
+		case  INSTR_PPLUS_PRE		: return "pplusp";
+		case  INSTR_MMINUS_PRE	: return "mminusp";
+		case  INSTR_LSHIFT			: return "lshift";
+		case  INSTR_RSHIFT			: return "rshift";
+		case  INSTR_URSHIFT			: return "urshift";
+		case  INSTR_EQ					: return "eq";
+		case  INSTR_NEQ					: return "neq";
+		case  INSTR_LEQ					: return "leq";
+		case  INSTR_GEQ					: return "geq";
+		case  INSTR_GRT					: return "grt";
+		case  INSTR_LES					: return "les";
+		case  INSTR_PLUSEQ			: return "pluseq";
+		case  INSTR_MINUSEQ			: return "minuseq";
+		case  INSTR_MULTIEQ			: return "multieq";
+		case  INSTR_DIVEQ				: return "diveq";
+		case  INSTR_MODEQ				: return "modeq";
+		case  INSTR_AAND				: return "aand";
+		case  INSTR_OOR					: return "oor";
+		case  INSTR_OR					: return "or";
+		case  INSTR_XOR					: return "xor";
+		case  INSTR_AND					: return "and";
+		case  INSTR_ASIGN				: return "asign";
+		case  INSTR_BREAK				: return "break";
+		case  INSTR_CONTINUE		: return "continue";
+		case  INSTR_RETURN			: return "return";
+		case  INSTR_RETURNV			: return "returnv";
+		case  INSTR_TRUE				: return "true";
+		case  INSTR_FALSE				: return "false";
+		case  INSTR_NULL				: return "null";
+		case  INSTR_UNDEF				: return "undef";
+		case  INSTR_NEW					: return "new";
+		case  INSTR_GET					: return "get";
+		case  INSTR_BLOCK				: return "block";
+		case  INSTR_BLOCK_END		: return "blocke";
+		case  INSTR_THROW				: return "throw";
+		case  INSTR_MOV_EXCP		: return "movexcp";
+		default									: return "";
+	}
+}
+
+#define BC_BUF_SIZE  3232
+
+typedef struct st_bytecode {
+	PC cindex;
+	m_array_t strTable;
+	PC *codeBuf;
+	uint32_t bufSize;
+} bytecode_t;
+
+void bc_init(bytecode_t* bc) {
+	bc->cindex = 0;
+	bc->codeBuf = NULL;
+	bc->bufSize = 0;
+	array_init(&bc->strTable);
+}
+
+void bc_release(bytecode_t* bc) {
+	array_clean(&bc->strTable, NULL);
+	if(bc->codeBuf != NULL)
+		_free(bc->codeBuf);
+}
+
+void bc_add(bytecode_t* bc, PC ins) {
+	if(bc->cindex >= bc->bufSize) {
+		bc->bufSize = bc->cindex + BC_BUF_SIZE;
+		PC *newBuf = (PC*)_malloc(bc->bufSize*sizeof(PC));
+
+		if(bc->cindex > 0 && bc->codeBuf != NULL) {
+			memcpy(newBuf, bc->codeBuf, bc->cindex*sizeof(PC));
+			_free(bc->codeBuf);
+		}
+		bc->codeBuf = newBuf;
+	}
+
+	bc->codeBuf[bc->cindex] = ins;
+	bc->cindex++;
+}
+	
+PC bc_reserve(bytecode_t* bc) {
+	bc_add(bc, INS(INSTR_NIL, 0xFFFF));
+  return bc->cindex-1;
+}
+
+const char* bc_getstr(bytecode_t* bc, int i) {
+	if(i<0 || i == 0xFFFF ||  i>=bc->strTable.size)
+		return "";
+	return (const char*)bc->strTable.items[i];
+}	
+
+uint16_t bc_getstrindex(bytecode_t* bc, const char* str) {
+	uint16_t sz = bc->strTable.size;
+	if(str == NULL || str[0] == 0)
+		return 0xFFFF;
+
+	for(uint16_t i=0; i<sz; ++i) {
+		char* s = (char*)bc->strTable.items[i];
+		if(s != NULL && strcmp(s, str) == 0)
+			return i;
+	}
+	char* p = (char*)_malloc(strlen(str) + 1);
+	strcpy(p, str);
+	array_add(&bc->strTable, p);
+	return sz;
+}	
+
+PC bc_bytecode(bytecode_t* bc, OprCode instr, const char* str) {
+	OprCode r = instr;
+	OprCode i = 0xFFFF;
+
+	if(str != NULL && str[0] != 0)
+		i = bc_getstrindex(bc, str);
+
+	return INS(r, i);
+}
+		
+PC bc_gen_str(bytecode_t* bc, OprCode instr, const char* str) {
+	int i = 0;
+	float f = 0.0;
+	const char* s = str;
+
+	if(instr == INSTR_INT) {
+		if(strstr(str, "0x") != NULL ||
+				strstr(str, "0x") != NULL)
+			i = strtol(str, NULL, 16);
+		else
+			i = strtol(str, NULL, 10);
+		s = NULL;
+	}
+	else if(instr == INSTR_FLOAT) {
+		f = atof(str);
+		s = NULL;
+	}
+	
+	PC ins = bc_bytecode(bc, instr, s);
+	bc_add(bc, ins);
+
+	if(instr == INSTR_INT) {
+		bc_add(bc, i);
+	}
+	else if(instr == INSTR_FLOAT) {
+		memcpy(&i, &f, sizeof(PC));
+		bc_add(bc, i);
+	}
+	return bc->cindex;
+}
+
+PC bc_gen(bytecode_t* bc, OprCode instr) {
+	return bc_gen_str(bc, instr, "");
+}
+
+PC bc_gen_int(bytecode_t* bc, OprCode instr, int i) {
+	PC ins = bc_bytecode(bc, instr, "");
+	bc_add(bc, ins);
+	bc_add(bc, i);
+	return bc->cindex;
+}
+
+void bc_set_instr(bytecode_t* bc, PC anchor, OprCode op, PC target) {
+	if(target == ILLEGAL_PC)
+		target = bc->cindex;
+
+	int offset = target > anchor ? (target-anchor) : (anchor-target);
+	PC ins = INS(op, offset);
+	bc->codeBuf[anchor] = ins;
+}
+
+void bc_add_instr(bytecode_t* bc, PC anchor, OprCode op, PC target) {
+	if(target == ILLEGAL_PC)
+		target = bc->cindex;
+
+	int offset = target > anchor ? (target-anchor) : (anchor-target);
+	PC ins = INS(op, offset);
+	bc_add(bc, ins);
+} 
+
+typedef void (*dump_func_t)(const char*);
+
+#ifdef MARIO_DUMP
+
+void bc_get_instr_str(bytecode_t* bc, PC *i, bool step, str_t* ret) {
+	PC ins = bc->codeBuf[*i];
+	OprCode instr = (ins >> 16) & 0xFFFF;
+	OprCode strIndex = ins & 0xFFFF;
+
+	char s[32];
+	str_reset(ret);
+
+	if(strIndex == 0xFFFF) {
+		sprintf(s, "  |%04d 0x%08X ; %s", *i, ins, instr_str(instr));	
+		str_append(ret, s);
+	}
+	else {
+		if(instr == INSTR_JMP || 
+				instr == INSTR_NJMP || 
+				instr == INSTR_NJMPB ||
+				instr == INSTR_JMPB) {
+			sprintf(s, "  |%04d 0x%08X ; %s %d", *i, ins, instr_str(instr), strIndex);	
+			str_append(ret, s);
+		}
+		else if(instr == INSTR_STR) {
+			sprintf(s, "  |%04d 0x%08X ; %s \"", *i, ins, instr_str(instr));	
+			str_append(ret, s);
+			str_append(ret, bc_getstr(bc, strIndex));
+		}
+		else {
+			sprintf(s, "  |%04d 0x%08X ; %s ", *i, ins, instr_str(instr));	
+			str_append(ret, s);
+			str_append(ret, bc_getstr(bc, strIndex));
+		}
+	}
+	
+	if(instr == INSTR_INT) {
+		ins = bc->codeBuf[*i+1];
+		sprintf(s, "\n  |%04d 0x%08X ; (%d)", *i+1, ins, ins);	
+		str_append(ret, s);
+		if(step)
+			(*i)++;
+	}
+	else if(instr == INSTR_FLOAT) {
+		ins = bc->codeBuf[*i+1];
+		float f;
+		memcpy(&f, &ins, sizeof(PC));
+		sprintf(s, "\n  |%04d 0x%08X ; (%f)", *i+1, ins, f);	
+		str_append(ret, s);
+		if(step)
+			(*i)++;
+	}	
+}
+
+void bc_dump(bytecode_t* bc, dump_func_t dump) {
+	PC i = 0;
+	PC ins = 0;
+	char index[8];
+	uint16_t sz = bc->strTable.size;
+
+	dump("-------string table--------------------\n");
+	for(uint16_t i=0; i<sz; ++i) {
+		sprintf(index, "%04X: ", i);
+		dump(index);
+		dump((const char*)bc->strTable.items[i]);
+		dump("\n");
+	}
+	dump("---------------------------------------\n");
+
+	int line = -1;
+	str_t s;
+	str_init(&s);
+	while(i < bc->cindex) {
+		ins = bc->codeBuf[i];
+		OprCode instr = (ins >> 16) & 0xFFFF;
+		bc_get_instr_str(bc, &i, true, &s);
+		dump(s.cstr);
+		dump("\n");
+		i++;
+	}
+	str_release(&s);
+}
+
+#endif
+
+/**
+Compiler
+-----------------------------
+*/
+
+bool statement(lex_t*, bytecode_t*, bool);
+bool factor(lex_t*, bytecode_t*);
+bool base(lex_t*, bytecode_t*);
+
+int callFunc(lex_t* l, bytecode_t* bc) {
 	lex_chkread(l, '(');
 	int argNum = 0;
 	while(true) {
-		//PC pc1 = bytecode->getPC();
-		if(!base(l))
+		PC pc1 = bc->cindex;
+		if(!base(l, bc))
 			return -1;
-		//PC pc2 = bytecode->getPC();
-		//if(pc2 > pc1) //not empty, means valid arguemnt.
-		argNum++;
+		PC pc2 = bc->cindex;
+		if(pc2 > pc1) //not empty, means valid arguemnt.
+			argNum++;
 
 		if (l->tk!=')')
 			lex_chkread(l, ',');	
@@ -899,40 +1300,38 @@ int callFunc(lex_t* l) {
 	return argNum;
 }
 
-bool factor(lex_t* l) {
+bool factor(lex_t* l, bytecode_t* bc) {
 	if (l->tk=='(') {
 		lex_chkread(l, '(');
-		base(l);
+		base(l, bc);
 		lex_chkread(l, ')');
 	}
 	else if (l->tk==LEX_R_TRUE) {
 		lex_chkread(l, LEX_R_TRUE);
-		//bytecode->gen(INSTR_TRUE);
+		bc_gen(bc, INSTR_TRUE);
 	}
 	else if (l->tk==LEX_R_FALSE) {
 		lex_chkread(l, LEX_R_FALSE);
-		//bytecode->gen(INSTR_FALSE);
+		bc_gen(bc, INSTR_FALSE);
 	}
 	else if (l->tk==LEX_R_NULL) {
 		lex_chkread(l, LEX_R_NULL);
-		//bytecode->gen(INSTR_NULL);
+		bc_gen(bc, INSTR_NULL);
 	}
 	else if (l->tk==LEX_R_UNDEFINED) {
 		lex_chkread(l, LEX_R_UNDEFINED);
-		//bytecode->gen(INSTR_UNDEF);
+		bc_gen(bc, INSTR_UNDEF);
 	}
 	else if (l->tk==LEX_INT) {
-		//bytecode->gen(INSTR_INT, l->tkStr);
-		int i = str_to_int(l->tkStr.cstr);
+		bc_gen_str(bc, INSTR_INT, l->tkStr.cstr);
 		lex_chkread(l, LEX_INT);
 	}
 	else if (l->tk==LEX_FLOAT) {
-		//bytecode->gen(INSTR_FLOAT, l->tkStr);
-		float f = str_to_float(l->tkStr.cstr);
+		bc_gen_str(bc, INSTR_FLOAT, l->tkStr.cstr);
 		lex_chkread(l, LEX_FLOAT);
 	}
 	else if (l->tk==LEX_STR) {
-		//bytecode->gen(INSTR_STR, l->tkStr);
+		bc_gen_str(bc, INSTR_STR, l->tkStr.cstr);
 		lex_chkread(l, LEX_STR);
 	}
 	else if(l->tk==LEX_R_FUNCTION) {
@@ -943,42 +1342,48 @@ bool factor(lex_t* l) {
 	else if(l->tk==LEX_R_CLASS) {
 		//defClass();
 	}
-	/*else if (l->tk==LEX_R_NEW) {
+	else if (l->tk==LEX_R_NEW) {
 		// new -> create a new object
 		lex_chkread(l, LEX_R_NEW);
-		std::string className = l->tkStr;
+		str_t className;
+		str_init(&className);
+		str_cpy(&className, l->tkStr.cstr);
+
 		lex_chkread(l, LEX_ID);
 		if (l->tk == '(') {
 			//lex_chkread(l, '(');
-			int argNum;
-			callFunc(argNum);
+			int argNum = callFunc(l, bc);
 			//lex_chkread(l, ')');
-			if(argNum > 0)
-				className = className + "$" + StringUtil::from(argNum);
-			bytecode->gen(INSTR_NEW, className);
+			if(argNum > 0) {
+				str_append(&className, "$");
+				str_append(&className, str_from_int(argNum));
+			}
+			bc_gen_str(bc, INSTR_NEW, className.cstr);
 		}
+		str_release(&className);
 	}
-	*/
 
 	if (l->tk=='{') {
 		// JSON-style object definition
 		lex_chkread(l, '{');
-		//bytecode->gen(INSTR_OBJ);
+		bc_gen(bc, INSTR_OBJ);
 		while (l->tk != '}') {
-			//string id = l->tkStr;
+			str_t id;
+			str_inits(&id, l->tkStr.cstr);
 			// we only allow strings or IDs on the left hand side of an initialisation
 			if (l->tk==LEX_STR) 
 				lex_chkread(l, LEX_STR);
 			else 
 				lex_chkread(l, LEX_ID);
 			lex_chkread(l, ':');
-			base(l);
-			//bytecode->gen(INSTR_MEMBERN, id);
+			base(l, bc);
+			bc_gen_str(bc, INSTR_MEMBERN, id.cstr);
 			// no need to clean here, as it will definitely be used
 			if (l->tk != '}') 
 				lex_chkread(l, ',');
+			str_release(&id);
 		}
-		//bytecode->gen(INSTR_OBJ_END);
+		bc_gen(bc, INSTR_OBJ_END);
 		lex_chkread(l, '}');
 	}
 	else if(l->tk==LEX_ID) {
@@ -998,26 +1403,29 @@ bool factor(lex_t* l) {
 
 				int sz = (int)(names.size-1);
 				str_t s;
-				str_init(&s);
-				str_cpy(&s, (const char*)names.items[sz]);
+				str_inits(&s, (const char*)names.items[sz]);
 					
 				if(sz == 0 && load) {
-					//bytecode->gen(INSTR_LOAD, "this");	
-					int argNum = callFunc(l);
-					//if(argNum > 0)
-					//	s = s + "$" + StringUtil::from(argNum);
-					//bytecode->gen(INSTR_CALL, s);	
+					bc_gen_str(bc, INSTR_LOAD, "this");	
+					int argNum = callFunc(l, bc);
+					if(argNum > 0) {
+						str_append(&s, "$");
+						str_append(&s, str_from_int(argNum));
+					}
+					bc_gen_str(bc, INSTR_CALL, s.cstr);	
 				}
 				else {
 					int i;
 					for(i=0; i<sz; i++) {
-						//bytecode->gen(load ? INSTR_LOAD:INSTR_GET, names[i]);	
+						bc_gen_str(bc, load ? INSTR_LOAD:INSTR_GET, (const char*)names.items[i]);	
 						load = false;
 					}
-					int argNum = callFunc(l);
-					//if(argNum > 0)
-					//	s = s + "$" + StringUtil::from(argNum);
-					//bytecode->gen(INSTR_CALLO, s);	
+					int argNum = callFunc(l, bc);
+					if(argNum > 0) {
+						str_append(&s, "$");
+						str_append(&s, str_from_int(argNum));
+					}
+					bc_gen_str(bc, INSTR_CALLO, s.cstr);	
 				}
 				load = false;
 				array_clean(&names, NULL);
@@ -1041,14 +1449,14 @@ bool factor(lex_t* l) {
 				str_reset(&name);
 				sz = names.size;
 				for(i=0; i<sz; i++) {
-				//	bytecode->gen(load ? INSTR_LOAD:INSTR_GET, names[i]);	
+					bc_gen_str(bc, load ? INSTR_LOAD:INSTR_GET, (const char*)names.items[i]);	
 					load = false;
 				}
 
 				lex_chkread(l, '[');
-				base(l);
+				base(l, bc);
 				lex_chkread(l, ']');
-				//bytecode->gen(INSTR_ARRAY_AT);
+				bc_gen(bc, INSTR_ARRAY_AT);
 			} 
 		}
 		if(name.len > 0) {
@@ -1057,7 +1465,7 @@ bool factor(lex_t* l) {
 			str_reset(&name);
 			sz = names.size;
 			for(i=0; i<sz; i++) {
-				//bytecode->gen(load ? INSTR_LOAD:INSTR_GET, names[i]);	
+				bc_gen_str(bc, load ? INSTR_LOAD:INSTR_GET, (const char*)names.items[i]);	
 				load = false;
 			}
 		}
@@ -1066,63 +1474,63 @@ bool factor(lex_t* l) {
 	else if (l->tk=='[') {
 		// JSON-style array 
 		lex_chkread(l, '[');
-		//bytecode->gen(INSTR_ARRAY);
+		bc_gen(bc, INSTR_ARRAY);
 		while (l->tk != ']') {
-			base(l);
-		//	bytecode->gen(INSTR_MEMBER);
+			base(l, bc);
+			bc_gen(bc, INSTR_MEMBER);
 			if (l->tk != ']') 
 				lex_chkread(l, ',');
 		}
 		lex_chkread(l, ']');
-		//bytecode->gen(INSTR_ARRAY_END);
+		bc_gen(bc, INSTR_ARRAY_END);
 	}
 
 	return true;
 }
 
-bool unary(lex_t* l) {
-	//OprCode instr = INSTR_END;
+bool unary(lex_t* l, bytecode_t* bc) {
+	OprCode instr = INSTR_END;
 	if (l->tk == '!') {
 		lex_chkread(l, '!');
-	//	instr = INSTR_NOT;
+		instr = INSTR_NOT;
 	} else if(l->tk == LEX_R_TYPEOF) {
 		lex_chkread(l, LEX_R_TYPEOF);
-	//	instr = INSTR_TYPEOF;
+		instr = INSTR_TYPEOF;
 	}
 
-	if(!factor(l))
+	if(!factor(l, bc))
 		return false;
 
-	//if(instr != INSTR_END) {
-	//	bytecode->gen(instr);
-	//}
+	if(instr != INSTR_END) {
+		bc_gen(bc, instr);
+	}
 	return true;	
 }
 
-bool term(lex_t* l) {
-	if(!unary(l))
+bool term(lex_t* l, bytecode_t* bc) {
+	if(!unary(l, bc))
 		return false;
 
 	while (l->tk=='*' || l->tk=='/' || l->tk=='%') {
 		LEX_TYPES op = l->tk;
 		lex_chkread(l, l->tk);
-		unary(l);
+		unary(l, bc);
 
 		if(op == '*') {
-		//	bytecode->gen(INSTR_MULTI);
+			bc_gen(bc, INSTR_MULTI);
 		}
 		else if(op == '/') {
-		//	bytecode->gen(INSTR_DIV);
+			bc_gen(bc, INSTR_DIV);
 		}
 		else {
-		//	bytecode->gen(INSTR_MOD);
+			bc_gen(bc, INSTR_MOD);
 		}
 	}
 
 	return true;	
 }
 
-bool expr(lex_t* l) {
+bool expr(lex_t* l, bytecode_t* bc) {
 	LEX_TYPES pre = l->tk;
 
 	if (l->tk=='-') {
@@ -1135,17 +1543,17 @@ bool expr(lex_t* l) {
 		lex_chkread(l, LEX_MINUSMINUS);
 	}
 
-	if(!term(l))
+	if(!term(l, bc))
 		return false;
 
 	if (pre == '-') {
-	//	bytecode->gen(INSTR_NEG);
+		bc_gen(bc, INSTR_NEG);
 	}
 	else if(pre==LEX_PLUSPLUS) {
-	//	bytecode->gen(INSTR_PPLUS_PRE);
+		bc_gen(bc, INSTR_PPLUS_PRE);
 	}
 	else if(pre==LEX_MINUSMINUS) {
-	//	bytecode->gen(INSTR_MMINUS_PRE);
+		bc_gen(bc, INSTR_MMINUS_PRE);
 	}
 
 	while (l->tk=='+' || l->tk=='-' ||
@@ -1153,19 +1561,19 @@ bool expr(lex_t* l) {
 		int op = l->tk;
 		lex_chkread(l, l->tk);
 		if (op==LEX_PLUSPLUS) {
-		//	bytecode->gen(INSTR_PPLUS);
+			bc_gen(bc, INSTR_PPLUS);
 		}
 		else if(op==LEX_MINUSMINUS) {
-		//	bytecode->gen(INSTR_MMINUS);
+			bc_gen(bc, INSTR_MMINUS);
 		}
 		else {
-			if(!term(l))
+			if(!term(l, bc))
 				return false;
 			if(op== '+') {
-			//	bytecode->gen(INSTR_PLUS);
+				bc_gen(bc, INSTR_PLUS);
 			}
 			else if(op=='-') {
-			//	bytecode->gen(INSTR_MINUS);
+				bc_gen(bc, INSTR_MINUS);
 			}
 		}
 	}
@@ -1173,31 +1581,31 @@ bool expr(lex_t* l) {
 	return true;	
 }
 
-bool shift(lex_t* l) {
-	if(!expr(l))
+bool shift(lex_t* l, bytecode_t* bc) {
+	if(!expr(l, bc))
 		return false;
 
 	if (l->tk==LEX_LSHIFT || l->tk==LEX_RSHIFT || l->tk==LEX_RSHIFTUNSIGNED) {
 		int op = l->tk;
 		lex_chkread(l, op);
-		if(!base(l))
+		if(!base(l, bc))
 			return false;
 
 		if (op==LEX_LSHIFT) {
-		//	bytecode->gen(INSTR_LSHIFT);
+			bc_gen(bc, INSTR_LSHIFT);
 		}
 		else if (op==LEX_RSHIFT) {
-		//	bytecode->gen(INSTR_RSHIFT);
+			bc_gen(bc, INSTR_RSHIFT);
 		}
 		else {
-		//	bytecode->gen(INSTR_URSHIFT);
+			bc_gen(bc, INSTR_URSHIFT);
 		}
 	}
 	return true;	
 }
 
-bool condition(lex_t *l) {
-	if(!shift(l))
+bool condition(lex_t *l, bytecode_t* bc) {
+	if(!shift(l, bc))
 		return false;
 
 	while (l->tk==LEX_EQUAL || l->tk==LEX_NEQUAL ||
@@ -1206,89 +1614,87 @@ bool condition(lex_t *l) {
 			l->tk=='<' || l->tk=='>') {
 		int op = l->tk;
 		lex_chkread(l, l->tk);
-		if(!shift(l))
+		if(!shift(l, bc))
 			return false;
 
 		if(op == LEX_EQUAL) {
-		//	bytecode->gen(INSTR_EQ);
+			bc_gen(bc, INSTR_EQ);
 		}
 		else if(op == LEX_NEQUAL) {
-		//	bytecode->gen(INSTR_NEQ);
+			bc_gen(bc, INSTR_NEQ);
 		}
 		else if(op == LEX_TYPEEQUAL) {
-		//	bytecode->gen(INSTR_TEQ);
+			bc_gen(bc, INSTR_TEQ);
 		}
 		else if(op == LEX_NTYPEEQUAL) {
-		//	bytecode->gen(INSTR_NTEQ);
+			bc_gen(bc, INSTR_NTEQ);
 		}
 		else if(op == LEX_LEQUAL) {
-		//	bytecode->gen(INSTR_LEQ);
+			bc_gen(bc, INSTR_LEQ);
 		}
 		else if(op == LEX_GEQUAL) {
-		//	bytecode->gen(INSTR_GEQ);
+			bc_gen(bc, INSTR_GEQ);
 		}
 		else if(op == '>') {
-		//	bytecode->gen(INSTR_GRT);
+			bc_gen(bc, INSTR_GRT);
 		}
 		else if(op == '<') {
-		//	bytecode->gen(INSTR_LES);
+			bc_gen(bc, INSTR_LES);
 		}
 	}
 
 	return true;	
 }
 
-bool logic(lex_t* l) {
-	if(!condition(l))
+bool logic(lex_t* l, bytecode_t* bc) {
+	if(!condition(l, bc))
 		return false;
 
 	while (l->tk=='&' || l->tk=='|' || l->tk=='^' || l->tk==LEX_ANDAND || l->tk==LEX_OROR) {
 		int op = l->tk;
 		lex_chkread(l, l->tk);
-		if(!condition(l))
+		if(!condition(l, bc))
 			return false;
 
 		if (op==LEX_ANDAND) {
-		//	bytecode->gen(INSTR_AAND);
+			bc_gen(bc, INSTR_AAND);
 		} 
 		else if (op==LEX_OROR) {
-		//	bytecode->gen(INSTR_OOR);
+			bc_gen(bc, INSTR_OOR);
 		}
 		else if (op=='|') {
-		//	bytecode->gen(INSTR_OR);
+			bc_gen(bc, INSTR_OR);
 		}
 		else if (op=='&') {
-		//	bytecode->gen(INSTR_AND);
+			bc_gen(bc, INSTR_AND);
 		}
 		else if (op=='^') {
-		//	bytecode->gen(INSTR_XOR);
+			bc_gen(bc, INSTR_XOR);
 		}
 	}
 	return true;	
 }
 
 
-bool ternary(lex_t *l) {
-	if(!logic(l))
+bool ternary(lex_t *l, bytecode_t* bc) {
+	if(!logic(l, bc))
 		return false;
 	
 	if (l->tk=='?') {
-	/*
-		PC pc1 = bytecode->reserve(); //keep for jump
+		PC pc1 = bc_reserve(bc); //keep for jump
 		lex_chkread(l, '?');
-		base(); //first choice
-		PC pc2 = bytecode->reserve(); //keep for jump
+		base(l, bc); //first choice
+		PC pc2 = bc_reserve(bc); //keep for jump
 		lex_chkread(l, ':');
-		bytecode->setInstr(pc1, INSTR_NJMP);
-		base(); //second choice
-		bytecode->setInstr(pc2, INSTR_JMP);
-		*/
+		bc_set_instr(bc, pc1, INSTR_NJMP, ILLEGAL_PC);
+		base(l, bc); //second choice
+		bc_set_instr(bc, pc2, INSTR_JMP, ILLEGAL_PC);
 	} 
 	return true;	
 }
 
-bool base(lex_t* l) {
-	if(!ternary(l))
+bool base(lex_t* l, bytecode_t* bc) {
+	if(!ternary(l, bc))
 		return false;
 
 	if (l->tk=='=' || 
@@ -1299,35 +1705,35 @@ bool base(lex_t* l) {
 			l->tk==LEX_MINUSEQUAL) {
 		LEX_TYPES op = l->tk;
 		lex_chkread(l, l->tk);
-		base(l);
+		base(l, bc);
 		// sort out initialiser
 		if (op == '=')  {
-	//		bytecode->gen(INSTR_ASIGN);
+			bc_gen(bc, INSTR_ASIGN);
 		}
 		else if(op == LEX_PLUSEQUAL) {
-		//	bytecode->gen(INSTR_PLUSEQ);
+			bc_gen(bc, INSTR_PLUSEQ);
 		}
 		else if(op == LEX_MINUSEQUAL) {
-		//	bytecode->gen(INSTR_MINUSEQ);
+			bc_gen(bc, INSTR_MINUSEQ);
 		}
 		else if(op == LEX_MULTIEQUAL) {
-		//	bytecode->gen(INSTR_MULTIEQ);
+			bc_gen(bc, INSTR_MULTIEQ);
 		}
 		else if(op == LEX_DIVEQUAL) {
-		//	bytecode->gen(INSTR_DIVEQ);
+			bc_gen(bc, INSTR_DIVEQ);
 		}
 		else if(op == LEX_MODEQUAL) {
-		//	bytecode->gen(INSTR_MODEQ);
+			bc_gen(bc, INSTR_MODEQ);
 		}
 	}
 	return true;
 }
 
-bool block(lex_t* l) {
+bool block(lex_t* l, bytecode_t* bc) {
 	lex_chkread(l, '{');
 
 	while (l->tk && l->tk!='}'){
-		if(!statement(l))
+		if(!statement(l, bc, true))
 			return false;
 	}
 
@@ -1335,10 +1741,10 @@ bool block(lex_t* l) {
 	return true;
 }
 
-bool statement(lex_t* l) {
+bool statement(lex_t* l, bytecode_t* bc, bool pop) {
 	if (l->tk=='{') {
 		/* A block of code */
-		if(!block(l))
+		if(!block(l, bc))
 			return false;
 	}
 	else if (l->tk==LEX_ID    ||
@@ -1349,11 +1755,12 @@ bool statement(lex_t* l) {
 			l->tk==LEX_MINUSMINUS ||
 			l->tk=='-'    ) {
 		/* Execute a simple statement that only contains basic arithmetic... */
-		if(!base(l))
+		if(!base(l, bc))
 			return false;
 		lex_chkread(l, ';');
 	}
 	else if (l->tk==LEX_R_VAR || l->tk == LEX_R_CONST) {
+		pop = false;
 		bool beConst;
 		if(l->tk == LEX_R_VAR) {
 			lex_chkread(l, LEX_R_VAR);
@@ -1365,7 +1772,8 @@ bool statement(lex_t* l) {
 		}
 
 		while (l->tk != ';') {
-			const char* vname = l->tkStr.cstr;
+			str_t vname;
+			str_inits(&vname, l->tkStr.cstr);
 			lex_chkread(l, LEX_ID);
 			// now do stuff defined with dots
 			/*while (l->tk == '.') {
@@ -1373,45 +1781,51 @@ bool statement(lex_t* l) {
 				vname = vname + "." + l->tkStr;
 				lex_chkread(l, LEX_ID);
 			}*/
-			//bytecode->gen(beConst ? INSTR_CONST : INSTR_VAR, vname);
+			bc_gen_str(bc, beConst ? INSTR_CONST : INSTR_VAR, vname.cstr);
 			// sort out initialiser
 			if (l->tk == '=') {
 				lex_chkread(l, '=');
-				//bytecode->gen(INSTR_LOAD, vname);
-				base(l);
-				//bytecode->gen(INSTR_ASIGN);
-				//bytecode->gen(INSTR_POP);
+				bc_gen_str(bc, INSTR_LOAD, vname.cstr);
+				base(l, bc);
+				bc_gen(bc, INSTR_ASIGN);
+				bc_gen(bc, INSTR_POP);
 			}
-
 			if (l->tk != ';')
 				lex_chkread(l, ',');
+			str_release(&vname);
 		}      
 		lex_chkread(l, ';');
 	}
 
+	if(pop)
+		bc_gen(bc, INSTR_POP);
 	return true;
 }
 
-static lex_t _globalLex;
+typedef struct st_compile {
+	lex_t lex;
+	bytecode_t bc;
+} compile_t;
 
-void js_load(const char* input) {
-	lex_init(&_globalLex, input);
+void compile_load(compile_t* compile, const char* input) {
+	lex_init(&compile->lex, input);
+	bc_init(&compile->bc);
 }
 
-void js_close() {
-	lex_release(&_globalLex);
+void compile_close(compile_t* compile) {
+	lex_release(&compile->lex);
+	bc_release(&compile->bc);
 }
 
-bool js_step() {
-	if(_globalLex.tk) {
-		return statement(&_globalLex);
-	}
-	return false;
+void compile_dump(compile_t* compile, dump_func_t dump) {
+#ifdef MARIO_DUMP
+	bc_dump(&compile->bc, dump);
+#endif
 }
 
-bool js_run() {
-	while(_globalLex.tk) {
-		if(!statement(&_globalLex))
+bool compile_run(compile_t* compile) {
+	while(compile->lex.tk) {
+		if(!statement(&compile->lex, &compile->bc, true))
 			return false;
 	}
 	return true;
