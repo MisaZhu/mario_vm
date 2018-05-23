@@ -5,16 +5,19 @@ very tiny js engine in single file.
 #ifndef MARIO_JS
 #define MARIO_JS
 
-typedef int int32_t;
+#include <inttypes.h>
+#include <string.h>
+
+/*typedef int int32_t;
 typedef unsigned char uint8_t;
 typedef unsigned int uint32_t;
 typedef unsigned short uint16_t;
+*/
 
 typedef int bool;
 static const int true = 1;
 static const int false = 0;
 
-#include <string.h>
 
 /**
 memory functions.
@@ -30,6 +33,63 @@ memory functions.
 #endif
 
 typedef void (*free_func_t)(void* p);
+
+/**
+array functions.
+-----------------------------
+*/
+
+#define ARRAY_BUF 16
+
+typedef struct st_array {
+	void** items;
+	uint32_t max: 16;
+	uint32_t size: 16;
+} m_array_t;
+
+void array_init(m_array_t* array) {
+	array->items = NULL;
+	array->max = 0;
+	array->size = 0;
+}
+
+void* array_add(m_array_t* array, void* item) {
+	int new_size = array->size + 1;
+	if(array->max <= new_size) {
+		new_size = array->size + ARRAY_BUF; /*ARRAY BUF for buffer*/
+		array->items = (void**)_realloc(array->items, new_size*sizeof(void*));
+		array->max = new_size;
+	}
+
+	array->items[array->size] = item;
+	array->size++;
+	array->items[array->size] = NULL;
+	return item;
+}
+
+void* array_get(m_array_t* array, uint32_t index) {
+	if(array->items == NULL || index >= array->size)
+		return NULL;
+	return array->items[index];
+}
+
+void array_clean(m_array_t* array, free_func_t fr) {
+	if(array->items != NULL) {
+		int i;
+		for(i=0; i<array->size; i++) {
+			void* p = array->items[i];
+			if(p != NULL) {
+				if(fr != NULL)
+					fr(p);
+				else
+					_free(p);
+			}
+		}
+		_free(array->items);
+		array->items = NULL;
+	}
+	array->max = array->size = 0;
+}
 
 /**
 str functions.
@@ -133,60 +193,26 @@ float str_to_float(const char* str) {
 	return atof(str);
 }
 
-/**
-array functions.
------------------------------
-*/
+void str_split(const char* str, char c, m_array_t* array) {
+	int i = 0;
+	char offc = str[i];
+	while(true) {
+		if(offc == c || offc == 0) {
+			char* p = (char*)_malloc(i+1);
+			strncpy(p, str, i);
+			array_add(array, p);
+			if(offc == 0)
+				break;
 
-#define ARRAY_BUF 16
-
-typedef struct st_array {
-	void** items;
-	uint32_t max: 16;
-	uint32_t size: 16;
-} m_array_t;
-
-void array_init(m_array_t* array) {
-	array->items = NULL;
-	array->max = 0;
-	array->size = 0;
-}
-
-void* array_add(m_array_t* array, void* item) {
-	int new_size = array->size + 1;
-	if(array->max <= new_size) {
-		new_size = array->size + ARRAY_BUF; /*ARRAY BUF for buffer*/
-		array->items = (void**)_realloc(array->items, new_size*sizeof(void*));
-		array->max = new_size;
-	}
-
-	array->items[array->size] = item;
-	array->size++;
-	array->items[array->size] = NULL;
-	return item;
-}
-
-void* array_get(m_array_t* array, uint32_t index) {
-	if(array->items == NULL || index >= array->size)
-		return NULL;
-	return array->items[index];
-}
-
-void array_clean(m_array_t* array, free_func_t fr) {
-	if(array->items != NULL) {
-		for(int i=0; i<array->size; i++) {
-			void* p = array->items[i];
-			if(p != NULL) {
-				if(fr != NULL)
-					fr(p);
-				else
-					_free(p);
-			}
+			str = str +  i + 1;
+			i = 0;
+			offc = str[i]; 
 		}
-		_free(array->items);
-		array->items = NULL;
+		else {
+			i++;
+			offc = str[i]; 
+		}
 	}
-	array->max = array->size = 0;
 }
 
 /**
@@ -705,10 +731,11 @@ void lex_init(lex_t * lex, const char* input) {
 	lex->data = input;
 	lex->dataStart = 0;
 	lex->dataEnd = strlen(lex->data);
+	str_init(&lex->tkStr);
 	lex_reset(lex);
 }
 
-void lex_free(lex_t* lex) {
+void lex_release(lex_t* lex) {
 	str_release(&lex->tkStr);
 }
 
@@ -847,6 +874,26 @@ bool statement(lex_t*);
 bool factor(lex_t*);
 bool base(lex_t*);
 
+int callFunc(lex_t* l) {
+	lex_chkread(l, '(');
+	int argNum = 0;
+	while(true) {
+		//PC pc1 = bytecode->getPC();
+		if(!base(l))
+			return -1;
+		//PC pc2 = bytecode->getPC();
+		//if(pc2 > pc1) //not empty, means valid arguemnt.
+		argNum++;
+
+		if (l->tk!=')')
+			lex_chkread(l, ',');	
+		else
+			break;
+	}
+	lex_chkread(l, ')');
+	return argNum;
+}
+
 bool factor(lex_t* l) {
 	if (l->tk=='(') {
 		lex_chkread(l, '(');
@@ -906,105 +953,124 @@ bool factor(lex_t* l) {
 			bytecode->gen(INSTR_NEW, className);
 		}
 	}
+	*/
 
 	if (l->tk=='{') {
 		// JSON-style object definition
 		lex_chkread(l, '{');
-		bytecode->gen(INSTR_OBJ);
+		//bytecode->gen(INSTR_OBJ);
 		while (l->tk != '}') {
-			string id = l->tkStr;
+			//string id = l->tkStr;
 			// we only allow strings or IDs on the left hand side of an initialisation
-			if (l->tk==LEX_STR) lex_chkread(l, LEX_STR);
-			else lex_chkread(l, LEX_ID);
+			if (l->tk==LEX_STR) 
+				lex_chkread(l, LEX_STR);
+			else 
+				lex_chkread(l, LEX_ID);
 			lex_chkread(l, ':');
-			base();
-			bytecode->gen(INSTR_MEMBERN, id);
+			base(l);
+			//bytecode->gen(INSTR_MEMBERN, id);
 			// no need to clean here, as it will definitely be used
-			if (l->tk != '}') lex_chkread(l, ',');
+			if (l->tk != '}') 
+				lex_chkread(l, ',');
 		}
-		bytecode->gen(INSTR_OBJ_END);
+		//bytecode->gen(INSTR_OBJ_END);
 		lex_chkread(l, '}');
 	}
 	else if(l->tk==LEX_ID) {
-		string name = l->tkStr;
+		str_t name;
+		str_init(&name);
+		str_cpy(&name, l->tkStr.cstr);
 		lex_chkread(l, LEX_ID);
 
+		m_array_t names;
+		array_init(&names);
+
 		bool load = true;
-		vector<string> names;
 		while (l->tk=='(' || l->tk=='.' || l->tk=='[') {
 			if (l->tk=='(') { // ------------------------------------- Function Call
-				StringUtil::split(name, '.', names);
-				name = "";
-				int sz = (int)(names.size()-1);
-				string s = names[sz];
+				str_split(name.cstr, '.', &names);
+				str_reset(&name);
+
+				int sz = (int)(names.size-1);
+				str_t s;
+				str_init(&s);
+				str_cpy(&s, (const char*)names.items[sz]);
 					
 				if(sz == 0 && load) {
-					bytecode->gen(INSTR_LOAD, "this");	
-					int argNum;
-					callFunc(argNum);
-					if(argNum > 0)
-						s = s + "$" + StringUtil::from(argNum);
-					bytecode->gen(INSTR_CALL, s);	
+					//bytecode->gen(INSTR_LOAD, "this");	
+					int argNum = callFunc(l);
+					//if(argNum > 0)
+					//	s = s + "$" + StringUtil::from(argNum);
+					//bytecode->gen(INSTR_CALL, s);	
 				}
 				else {
-					for(int i=0; i<sz; i++) {
-						bytecode->gen(load ? INSTR_LOAD:INSTR_GET, names[i]);	
+					int i;
+					for(i=0; i<sz; i++) {
+						//bytecode->gen(load ? INSTR_LOAD:INSTR_GET, names[i]);	
 						load = false;
 					}
-					int argNum;
-					callFunc(argNum);
-					if(argNum > 0)
-						s = s + "$" + StringUtil::from(argNum);
-					bytecode->gen(INSTR_CALLO, s);	
+					int argNum = callFunc(l);
+					//if(argNum > 0)
+					//	s = s + "$" + StringUtil::from(argNum);
+					//bytecode->gen(INSTR_CALLO, s);	
 				}
 				load = false;
+				array_clean(&names, NULL);
+				str_release(&s);
 			} 
 			else if (l->tk == '.') { // ------------------------------------- Record Access
 				lex_chkread(l, '.');
-				if(name.length() == 0)
-					name = l->tkStr;
-				else 
-					name = name + "." + l->tkStr;
+				if(name.len == 0)
+					str_cpy(&name, l->tkStr.cstr);
+				else {
+					str_append(&name, ".");
+					str_append(&name, l->tkStr.cstr);
+				}
 				lex_chkread(l, LEX_ID);
 			} 
 			else { // ------------------------------------- Array Access
-				StringUtil::split(name, '.', names);
-				name = "";
-				int sz = (int)names.size();
-				for(int i=0; i<sz; i++) {
-					bytecode->gen(load ? INSTR_LOAD:INSTR_GET, names[i]);	
+				int i;
+				int sz;
+
+				str_split(name.cstr, '.', &names);
+				str_reset(&name);
+				sz = names.size;
+				for(i=0; i<sz; i++) {
+				//	bytecode->gen(load ? INSTR_LOAD:INSTR_GET, names[i]);	
 					load = false;
 				}
 
 				lex_chkread(l, '[');
-				base();
+				base(l);
 				lex_chkread(l, ']');
-				bytecode->gen(INSTR_ARRAY_AT);
+				//bytecode->gen(INSTR_ARRAY_AT);
 			} 
 		}
-		if(name.length() > 0) {
-			StringUtil::split(name, '.', names);
-			name = "";
-			int sz = (int)names.size();
-			for(int i=0; i<sz; i++) {
-				bytecode->gen(load ? INSTR_LOAD:INSTR_GET, names[i]);	
+		if(name.len > 0) {
+			int i, sz;
+			str_split(name.cstr, '.', &names);
+			str_reset(&name);
+			sz = names.size;
+			for(i=0; i<sz; i++) {
+				//bytecode->gen(load ? INSTR_LOAD:INSTR_GET, names[i]);	
 				load = false;
 			}
 		}
+		str_release(&name);
 	}
 	else if (l->tk=='[') {
 		// JSON-style array 
 		lex_chkread(l, '[');
-		bytecode->gen(INSTR_ARRAY);
+		//bytecode->gen(INSTR_ARRAY);
 		while (l->tk != ']') {
-			base();
-			bytecode->gen(INSTR_MEMBER);
-			if (l->tk != ']') lex_chkread(l, ',');
+			base(l);
+		//	bytecode->gen(INSTR_MEMBER);
+			if (l->tk != ']') 
+				lex_chkread(l, ',');
 		}
 		lex_chkread(l, ']');
-		bytecode->gen(INSTR_ARRAY_END);
+		//bytecode->gen(INSTR_ARRAY_END);
 	}
-	*/
 
 	return true;
 }
@@ -1330,6 +1396,8 @@ bool js_exec(const char* input) {
 		if(!statement(&lex))
 			break;
 	}
+
+	lex_release(&lex);
 	return true;
 }
 
