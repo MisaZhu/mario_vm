@@ -3,8 +3,8 @@
 
 int main(int argc, char** argv) {
 	const char* s = "var abc = f(123, 00);";
-	while(true) {
-		js_exec(s);
-	}
+	js_load(s);
+	js_run();
+	js_close();
 	return 0;
 }

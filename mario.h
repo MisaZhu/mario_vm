@@ -14,9 +14,14 @@ typedef unsigned int uint32_t;
 typedef unsigned short uint16_t;
 */
 
+#ifndef bool
 typedef int bool;
-static const int true = 1;
-static const int false = 0;
+#endif
+
+#ifndef true
+#define true  1
+#define false  0
+#endif
 
 
 /**
@@ -1387,17 +1392,28 @@ bool statement(lex_t* l) {
 	return true;
 }
 
+static lex_t _globalLex;
 
-bool js_exec(const char* input) {
-	lex_t lex;
-	lex_init(&lex, input);
+void js_load(const char* input) {
+	lex_init(&_globalLex, input);
+}
 
-	while (lex.tk) {
-		if(!statement(&lex))
-			break;
+void js_close() {
+	lex_release(&_globalLex);
+}
+
+bool js_step() {
+	if(_globalLex.tk) {
+		return statement(&_globalLex);
 	}
+	return false;
+}
 
-	lex_release(&lex);
+bool js_run() {
+	while(_globalLex.tk) {
+		if(!statement(&_globalLex))
+			return false;
+	}
 	return true;
 }
 

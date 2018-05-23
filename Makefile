@@ -12,11 +12,11 @@ SRCS = demo.c
 CFLAGS =  -I./
 
 ifeq ($(CROSS_COMPILE), avr-)
-CFLAGS =  -I./ -mmcu=atmega128
+CFLAGS =  -I./ -Os -DF_CPU=16000000UL -mmcu=atmega328p
 endif
 
 all:
 	$(CC) -o mario $(CFLAGS) $(SRCS)
 
 clean:
-	rm -fr $(OBJS) mario *.dSYM
+	rm -fr *.o mario *.dSYM
