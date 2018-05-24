@@ -26,6 +26,10 @@ typedef int bool;
 #define false  0
 #endif
 
+#ifndef null
+#define null NULL
+#endif
+
 
 /** memory functions.-----------------------------*/
 #ifndef PRE_ALLOC
@@ -73,6 +77,31 @@ void* array_get(m_array_t* array, uint32_t index) {
 	if(array->items == NULL || index >= array->size)
 		return NULL;
 	return array->items[index];
+}
+
+void* array_remove(m_array_t* array, uint32_t index) { //remove out but not free
+	if(index >= array->size)
+		return NULL;
+
+	void *p = array->items[index];
+	uint32_t i;
+	for(i=index; i<(array->size-1); i++) {
+		array->items[i] = array->items[i+1];	
+	}
+
+	array->size--;
+	array->items[array->size] = NULL;
+	return p;
+}
+
+void array_del(m_array_t* array, uint32_t index, free_func_t fr) { // remove out and free.
+	void* p = array_remove(array, index);
+	if(p != NULL) {
+		if(fr != NULL)
+			fr(p);
+		else
+			_free(p);
+	}
 }
 
 void array_clean(m_array_t* array, free_func_t fr) {
@@ -223,45 +252,6 @@ void str_split(const char* str, char c, m_array_t* array) {
 			offc = str[i]; 
 		}
 	}
-}
-
-/** stack functions. -----------------------------*/
-typedef struct st_stack {
-	struct st_stack* next;
-	void* data;
-} m_stack_t;
-
-/**push new item to stack and return it as the top of stack
-if return the input top, means pushing failed.
-*/
-m_stack_t* stack_push(m_stack_t* top, void* data) {
-	m_stack_t *s = (m_stack_t*)_malloc(sizeof(m_stack_t));
-	if(s == NULL) /*malloc error, push nothing.*/
-		return top;
-	
-	s->data = data;
-	s->next = top;
-	return s;	
-}
-
-/**return the top of stack and pop it up.*/
-m_stack_t* stack_pop(m_stack_t** stack) {
-	m_stack_t *s = *stack;
-	*stack = (*stack)->next;
-	return s;
-}
-
-void stack_free(m_stack_t* s, free_func_t fr) {
-	if(s == NULL)
-		return;
-
-	if(s->data != NULL) { /*free stack item data*/
-		if(fr != NULL)
-			fr(s->data);
-		else
-			_free(s->data);
-	}
-	_free(s); /*free stack item*/
 }
 
 /** Script Lex. -----------------------------*/
@@ -825,27 +815,6 @@ std::string CScriptLex::getPosition(int pos) {
 }
 */
 
-/** Script Var -----------------------------*/
-#define UNDEF  0
-#define INT    1
-#define FLOAT  2
-#define STRING 3
-#define POINT  4
-#define FUNC   5
-#define NFUNC  6
-#define OBJECT 7
-#define CLASS  8
-#define BYTES  9
-#define ARRAY  10
-
-typedef struct st_var {
-	int32_t refs:24;
-	int32_t type:8;
-
-	void* value;
-
-	m_array_t* children;
-} var_t;
 
 /** JS bytecode.-----------------------------*/
 
@@ -1239,6 +1208,8 @@ void bc_dump(bytecode_t* bc, dump_func_t dump) {
 	int line = -1;
 	str_t s;
 	str_init(&s);
+
+	i = 0;
 	while(i < bc->cindex) {
 		ins = bc->codeBuf[i];
 		OprCode instr = (ins >> 16) & 0xFFFF;
@@ -1771,7 +1742,7 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop) {
 			if (l->tk != ';')
 				lex_chkread(l, ',');
 			str_release(&vname);
-		}      
+		}
 		lex_chkread(l, ';');
 	}
 
@@ -1780,35 +1751,814 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop) {
 	return true;
 }
 
-typedef struct st_compile {
+bool compile(bytecode_t *bc, const char* input, dump_func_t dump) {
 	lex_t lex;
-	bytecode_t bc;
-} compile_t;
+	lex_init(&lex, input);
 
-void compile_load(compile_t* compile, const char* input) {
-	lex_init(&compile->lex, input);
-	bc_init(&compile->bc);
-}
-
-void compile_close(compile_t* compile) {
-	lex_release(&compile->lex);
-	bc_release(&compile->bc);
-}
-
-void compile_dump(compile_t* compile, dump_func_t dump) {
-#ifdef MARIO_DUMP
-	bc_dump(&compile->bc, dump);
-#endif
-}
-
-bool compile_run(compile_t* compile) {
-	while(compile->lex.tk) {
-		if(!statement(&compile->lex, &compile->bc, true))
+	while(lex.tk) {
+		if(!statement(&lex, bc, true)) {
+			lex_release(&lex);
 			return false;
+		}
 	}
+
+	lex_release(&lex);
+#ifdef MARIO_DUMP
+	if(dump != NULL)
+		bc_dump(bc, dump);
+#endif
 	return true;
 }
 
+/** vm var-----------------------------*/
+#define V_UNDEF  0
+#define V_INT    1
+#define V_FLOAT  2
+#define V_STRING 3
+#define V_POINT  4
+#define V_FUNC   5
+#define V_NFUNC  6
+#define V_OBJECT 7
+#define V_CLASS  8
+#define V_BYTES  9
+#define V_ARRAY  10
+
+//script var
+typedef struct st_var {
+	int32_t magic; //0 for var
+	int32_t refs:24;
+	int32_t type:8;
+
+	void* value;
+
+	m_array_t children;
+} var_t;
+
+//script node for var member children
+typedef struct st_node {
+	int32_t magic; //1 for node
+	char* name;
+	bool beConst;
+	var_t* var;
+} node_t;
+
+var_t* var_new();
+var_t* var_ref(var_t*);
+void var_unref(var_t*, bool);
+
+node_t* node_new(const char* name) {
+	node_t* node = (node_t*)_malloc(sizeof(node_t));
+	node->magic = 1;
+	node->name = (char*)_malloc(strlen(name)+1);
+	node->beConst = false;
+	strcpy(node->name, name);
+	node->var = var_ref(var_new());	
+}
+
+void node_free(void* p) {
+	node_t* node = (node_t*)p;
+	if(node == NULL)
+		return;
+
+	_free(node->name);
+	var_unref(node->var, true);
+	_free(node);
+}
+
+var_t* node_replace(node_t* node, var_t* v) {
+	var_t* old = node->var;
+	node->var = var_ref(v);
+	var_unref(old, true);
+	return node->var;
+}
+
+void var_removeAll(var_t* var) {
+	/*free children*/
+	array_clean(&var->children, node_free);
+}
+
+node_t* var_find(var_t* var, const char*name) {
+	int i;
+	for(i=0; i<var->children.size; i++) {
+		node_t* node = (node_t*)var->children.items[i];
+		if(node != NULL) {
+			if(strcmp(node->name, name) == 0)
+				return node;
+		}
+	}
+	return NULL;
+}
+
+node_t* var_add(var_t* var, const char* name) {
+	node_t* node = node_new(name);
+	if(node != NULL) {
+		array_add(&var->children, node);
+	}
+}
+
+void var_free(void* p) {
+	var_t* var = (var_t*)p;
+	if(var == NULL || var->refs > 0)
+		return;
+
+	/*free children*/
+	var_removeAll(var);	
+
+	/*free value*/
+	if(var->value != NULL)
+		_free(var->value);
+	
+	_free(var);
+}
+
+void var_unref(var_t* var, bool del) {
+	if(var != NULL) {
+		var->refs--;
+		if(var->refs <= 0 && del) {
+			var_free(var);
+		}
+	}
+}
+
+var_t* var_ref(var_t* var) {
+	if(var != NULL)
+		var->refs++;
+	return var;
+}
+
+var_t* var_new() {
+	var_t* var = (var_t*)_malloc(sizeof(var_t));
+	var->magic = 0;
+	var->refs = 0;
+	var->type = V_UNDEF;
+	
+	var->value = NULL;
+	array_init(&var->children);
+	return var;
+}
+
+var_t* var_new_object() {
+	var_t* var = var_new();
+	var->type = V_OBJECT;
+	return var;
+}
+
+var_t* var_new_int(int i) {
+	var_t* var = var_new();
+	var->type = V_INT;
+	var->value = _malloc(sizeof(int));
+	memcpy(var->value, &i, sizeof(int));
+	return var;
+}
+
+var_t* var_new_float(float i) {
+	var_t* var = var_new();
+	var->type = V_FLOAT;
+	var->value = _malloc(sizeof(float));
+	memcpy(var->value, &i, sizeof(float));
+	return var;
+}
+
+var_t* var_new_str(const char* s) {
+	var_t* var = var_new();
+	var->type = V_STRING;
+	var->value = _malloc(strlen(s) + 1);
+	strcpy((char*)var->value, s);
+	return var;
+}
+
 /** Interpreter-----------------------------*/
+
+typedef struct st_vm {
+	bytecode_t bc;
+	m_array_t scopes;
+	m_array_t stack;
+
+	var_t* root;
+} vm_t;
+
+var_t* vm_push_var(vm_t* vm, var_t* var) {
+	var_ref(var);
+	array_add(&vm->stack, var);
+	return var;
+}
+
+node_t* vm_push_node(vm_t* vm, node_t* node) {
+	if(node == NULL)
+		return NULL;
+
+	var_ref(node->var);
+	array_add(&vm->stack, node);
+	return node;
+}
+
+void vm_pop(vm_t* vm) {
+	if(vm->stack.size <= 0)
+		return;
+
+	int32_t magic = *(int32_t*)vm->stack.items[vm->stack.size-1];
+	if(magic == 0) {//var
+		var_t* var = (var_t*)array_remove(&vm->stack, vm->stack.size-1);
+		var_unref(var, true);
+	}
+	else { //node
+		node_t* node = (node_t*)array_remove(&vm->stack, vm->stack.size-1);
+		if(node != NULL)
+			var_unref(node->var, true);
+	}
+}
+
+node_t* vm_pop2node(vm_t* vm) {
+	int index = vm->stack.size-1;
+	if(index < 0)
+		return NULL;
+
+	int32_t magic = *(int32_t*)vm->stack.items[index];
+	if(magic != 1) //not node!
+		return NULL;
+
+	return (node_t*)array_remove(&vm->stack, index);
+}
+
+var_t* vm_pop2var(vm_t* vm) {
+	int index = vm->stack.size-1;
+	if(index < 0)
+		return NULL;
+
+	int32_t magic = *(int32_t*)vm->stack.items[index];
+	if(magic != 0) //not var!
+		return NULL;
+
+	return (var_t*)array_remove(&vm->stack, index);
+}
+
+//scope of vm runing
+typedef struct st_scope {
+	var_t* var;
+	PC pc; //stack pc
+} scope_t;
+
+scope_t* scope_new(var_t* var, PC pc) {
+	scope_t* sc = (scope_t*)_malloc(sizeof(scope_t));
+	sc->var = var_ref(var);
+	sc->pc = pc;
+	return sc;
+}
+
+void scope_free(void* p) {
+	scope_t* sc = (scope_t*)p;
+	if(sc == NULL)
+		return;
+	var_unref(sc->var, true);
+	_free(sc);
+}
+
+scope_t* vm_get_scope(vm_t* vm) {
+	int i = ((int)vm->scopes.size) - 1;
+	return (i < 0 ? NULL : (scope_t*)vm->scopes.items[i]);
+}
+
+void vm_push_scope(vm_t* vm, scope_t* sc) {
+	array_add(&vm->scopes, sc);	
+}
+
+PC vm_pop_scope(vm_t* vm) {
+	if(vm->scopes.size <= 0)
+		return 0;
+
+	PC pc = 0;
+	scope_t* sc = vm_get_scope(vm);
+	if(sc == NULL)
+		return 0;
+
+	if(sc->pc != 0xFFFFFFFF)
+		pc = sc->pc;
+	array_del(&vm->scopes, vm->scopes.size-1, scope_free);
+}
+
+void vm_init(vm_t* vm) {
+	bc_init(&vm->bc);
+	array_init(&vm->stack);	
+	array_init(&vm->scopes);	
+
+	vm->root = var_ref(var_new_object());
+}
+
+void vm_close(vm_t* vm) {
+	var_unref(vm->root, true);
+
+	array_clean(&vm->scopes, NULL);	
+	array_clean(&vm->stack, var_free);	
+	bc_release(&vm->bc);
+}	
+
+bool vm_load(vm_t* vm, const char* s, dump_func_t dump) {
+	return compile(&vm->bc, s, dump);
+}
+
+node_t* vm_find(vm_t* vm, const char* name) {
+	scope_t* sc = vm_get_scope(vm);
+	if(sc == NULL || sc->var == NULL)
+		return NULL;
+	return var_find(sc->var, name);	
+}
+
+node_t* vm_load_node(vm_t* vm, const char* name, bool create) {
+	scope_t* sc = vm_get_scope(vm);
+	var_t* var = vm->root;
+	if(sc != NULL && sc->var != NULL)
+		var = sc->var;
+
+	node_t* n =  var_find(var, name);	
+	if(n != NULL)
+		return n;
+
+	if(create)
+		n =var_add(var, name);	
+	else
+		n = NULL;
+
+	return n;
+}
+
+void vm_run_code(vm_t* vm) {
+	int32_t scDeep = vm->scopes.size;
+	bool needPopSC = false;
+	PC pc = 0;
+	PC codeSize = vm->bc.cindex;
+	PC* code = vm->bc.codeBuf;
+
+	while(pc < codeSize) {
+		PC ins = code[pc++];
+		OprCode instr = ins >> 16;
+		OprCode offset = ins & 0x0000FFFF;
+		str_t str;
+
+		if(instr == INSTR_END)
+			break;
+		
+		switch(instr) {
+			case INSTR_NIL: {	break; }
+			case INSTR_BLOCK: 
+			{
+				scope_t* bl = vm_get_scope(vm);
+				scope_t* sc;
+				if(bl != NULL) 
+					sc = scope_new(bl->var, bl->pc);
+				else
+					sc = scope_new(NULL, 0);
+				vm_push_scope(vm, sc);
+				break;
+			}
+			case INSTR_BLOCK_END: 
+			{
+				vm_pop_scope(vm);
+				break;
+			}
+			case INSTR_TRUE: 
+			{
+				var_t* v = var_new_int(1);	
+				vm_push_var(vm, v);
+				break;
+			}
+			case INSTR_FALSE: 
+			{
+				var_t* v = var_new_int(1);	
+				vm_push_var(vm, v);
+				break;
+			}
+			case INSTR_UNDEF: 
+			{
+				var_t* v = var_new();	
+				vm_push_var(vm, v);
+				break;
+			}
+			case INSTR_POP: 
+			{
+				vm_pop(vm);
+				break;
+			}
+			case INSTR_JMP: 
+			{
+				pc = pc + offset - 1;
+				break;
+			}
+			case INSTR_JMPB: 
+			{
+				pc = pc - offset - 1;
+				break;
+			}
+			/*
+			case INSTR_NJMP: {
+												 StackItem* i = pop2();
+												 if(i != NULL) {
+													 BCVar* v = VAR(i);
+													 if(v->type == BCVar::UNDEF || v->getInt() == 0)
+														 pc = pc + offset - 1;
+													 v->unref();
+												 }
+												 break;
+											 }
+			case INSTR_NEG: {
+												StackItem* i = pop2();
+												if(i != NULL) {
+													BCVar* v = VAR(i);
+													if(v->isInt()) {
+														int n = v->getInt();
+														v->setInt(-n);
+													}
+													else if(v->isFloat()) {
+														float n = v->getFloat();
+														v->setFloat(-n);
+													}
+													push(v);
+												}
+												break;
+											}
+			case INSTR_NOT: {
+												StackItem* i = pop2();
+												if(i != NULL) {
+													BCVar* v = VAR(i);
+													int c = 0;
+													if(v->type == BCVar::UNDEF || v->getInt() == 0)
+														c = 1;
+													v->unref();
+													v = new BCVar(c);
+													push(v->ref());	
+												}
+												break;
+											}
+			case INSTR_EQ: 
+			case INSTR_NEQ: 
+			case INSTR_TEQ:
+			case INSTR_NTEQ:
+			case INSTR_LES: 
+			case INSTR_GRT: 
+			case INSTR_LEQ: 
+			case INSTR_GEQ: {
+												StackItem* i2 = pop2();
+												StackItem* i1 = pop2();
+												if(i1 != NULL && i2 != NULL) {
+													BCVar* v1 = VAR(i1);
+													BCVar* v2 = VAR(i2);
+													compare(instr, v1, v2);
+
+													v1->unref();
+													v2->unref();
+												}
+												break;
+											}
+			case INSTR_AAND: 
+			case INSTR_OOR: {
+												StackItem* i2 = pop2();
+												StackItem* i1 = pop2();
+												if(i1 != NULL && i2 != NULL) {
+													BCVar* v1 = VAR(i1);
+													BCVar* v2 = VAR(i2);
+
+													int r = 0;
+													if(instr == INSTR_AAND)
+														r = (v1->getInt() != 0) && (v2->getInt() != 0);
+													else
+														r = (v1->getInt() != 0) || (v2->getInt() != 0);
+													BCVar* v = new BCVar(r);
+													push(v->ref());
+
+													v1->unref();
+													v2->unref();
+												}
+												break;
+											}
+			case INSTR_PLUS: 
+			case INSTR_RSHIFT: 
+			case INSTR_LSHIFT: 
+			case INSTR_AND: 
+			case INSTR_OR: 
+			case INSTR_PLUSEQ: 
+			case INSTR_MULTIEQ: 
+			case INSTR_DIVEQ: 
+			case INSTR_MODEQ: 
+			case INSTR_MINUS: 
+			case INSTR_MINUSEQ: 
+			case INSTR_DIV: 
+			case INSTR_MULTI: 
+			case INSTR_MOD: {
+												StackItem* i2 = pop2();
+												StackItem* i1 = pop2();
+												if(i1 != NULL && i2 != NULL) {
+													BCVar* v1 = VAR(i1);
+													BCVar* v2 = VAR(i2);
+													mathOp(instr, v1, v2);
+
+													v1->unref();
+													v2->unref();
+												}
+												break;
+											}
+			case INSTR_MMINUS_PRE: {
+															 StackItem* it = pop2();
+															 if(it != NULL) {
+																 BCVar* v = VAR(it);
+																 int i = v->getInt() - 1;
+																 v->setInt(i);
+																 push(v);
+															 }
+															 break;
+														 }
+			case INSTR_MMINUS: {
+													 StackItem* it = pop2();
+													 if(it != NULL) {
+														 BCVar* v = VAR(it);
+														 int i = v->getInt();
+														 v->setInt(i-1);
+														 v->unref();
+														 v = new BCVar(i);
+														 push(v->ref());
+													 }
+													 break;
+												 }
+			case INSTR_PPLUS_PRE: {
+															StackItem* it = pop2();
+															if(it != NULL) {
+																BCVar* v = VAR(it);
+																int i = v->getInt() + 1;
+																v->setInt(i);
+																push(v);
+															}
+															break;
+														}
+			case INSTR_PPLUS: {
+													StackItem* it = pop2();
+													if(it != NULL) {
+														BCVar* v = VAR(it);
+														int i = v->getInt();
+														v->setInt(i+1);
+														v->unref();
+														v = new BCVar(i);
+														push(v->ref());
+													}
+													break;
+												}
+			case INSTR_RETURN:  //return without value
+			case INSTR_RETURNV: { //return with value
+														VMScope* sc = scope();
+														if(sc != NULL) {
+															if(instr == INSTR_RETURN) {//return without value, push "this" to stack
+																BCVar* thisVar = sc->var->getThisVar();
+																push(thisVar->ref());
+															}
+															else {
+																StackItem* it = pop2();
+																if(it != NULL)
+																push(VAR(it));
+															}
+
+															pc = sc->pc;
+															if(scDeep == scopes.size() && bc == NULL) { //usually means call js function.
+																popScope();
+																return;
+															}
+															popScope();
+															if(scopes.size() == 0)  //scope size = 0, not return in function,means exit.
+																return;
+														}
+														break;
+													}
+					*/
+			case INSTR_VAR:
+			case INSTR_CONST: 
+			{
+				const char* s = bc_getstr(&vm->bc, offset);
+				node_t *node = vm_find(vm, s);
+				if(node != NULL) { //find just in current scope
+					//TODO
+					//ERR("Warning: %s has already existed. %s\n", str.c_str(), DEBUG_LINE);
+				}
+				else {
+					scope_t* sc = vm_get_scope(vm);
+					if(sc != NULL) 
+						node = var_add(sc->var, s);
+					else 
+						node = var_add(vm->root, s);
+
+					if(node != NULL && instr == INSTR_CONST)
+						node->beConst = true;
+				}
+				break;
+			}
+			case INSTR_INT:
+			{
+				var_t* v = var_new_int((int)code[pc++]);
+				vm_push_var(vm, v);
+				break;
+			}
+			case INSTR_FLOAT: 
+			{
+				var_t* v = var_new_float((float)code[pc++]);
+				vm_push_var(vm, v);
+				break;
+			}
+			case INSTR_STR: 
+			{
+				const char* s = bc_getstr(&vm->bc, offset);
+				var_t* v = var_new_str(s);
+				vm_push_var(vm, v);
+				break;
+			}
+			case INSTR_ASIGN: 
+			{
+				var_t* v = vm_pop2var(vm);
+				node_t* n = vm_pop2node(vm);
+				if(v != NULL && n != NULL) {
+					bool modi = (!n->beConst || n->var->type == V_UNDEF);
+					var_unref(n->var, true);
+					if(modi) 
+						node_replace(n, v);
+					else {
+					//TODO
+					//	ERR("Can not change a const variable: %s! %s\n", node->name.c_str(), DEBUG_LINE);
+					}
+					var_unref(v, true);
+					vm_push_var(vm, n->var);
+				}
+				break;
+			}
+			case INSTR_LOAD: 
+			{
+				const char* s = bc_getstr(&vm->bc, offset);
+				node_t* n = vm_load_node(vm, s, true); //load variable, create if not exist.
+				vm_push_node(vm, n);
+				break;
+			}
+			case INSTR_GET: 
+			{
+				const char* s = bc_getstr(&vm->bc, offset);
+				var_t* v = vm_pop2var(vm);
+				if(v != NULL) {
+					//doGet(v, s); //TODO
+					var_unref(v, true);
+				}
+				break;
+			}
+
+			/*
+			case INSTR_ARRAY_AT: {
+														 StackItem* i2 = pop2();
+														 StackItem* i1 = pop2();
+														 if(i1 != NULL && i1->isNode && i2 != NULL) {
+															 BCNode* node = (BCNode*)i1;
+
+															 BCVar* v = VAR(i2);
+															 int at = v->getInt();
+															 v->unref();
+
+															 BCNode* n = node->var->getChildOrCreate(at);
+															 if(n != NULL) {
+																 n->var->ref();
+																 push(n);
+															 }
+															 node->var->unref();
+														 }
+														 break;
+													 }
+			case INSTR_OBJ:
+			case INSTR_ARRAY: {
+													BCVar* obj = new BCVar();
+													if(instr == INSTR_OBJ)
+														obj->type = BCVar::OBJECT;
+													else
+														obj->type = BCVar::ARRAY;
+													VMScope sc;
+													sc.var = obj->ref();
+													pushScope(sc);
+													break;
+												}
+			case INSTR_ARRAY_END: 
+			case INSTR_OBJ_END: {
+														BCVar* obj = scope()->var;
+														push(obj->ref()); //that actually means currentObj->ref() for push and unref for unasign.
+														popScope();
+														break;
+													}
+			case INSTR_MEMBER: 
+			case INSTR_MEMBERN: {
+														str = instr == INSTR_MEMBER ? "" : bcode->getStr(offset);
+														StackItem* i = pop2();
+														if(i != NULL) {
+															BCVar* v = VAR(i);
+															if(v->isFunction()) {
+																FuncT* func = v->getFunc();
+																size_t argNum = func->args.size();
+																if(argNum > 0)
+																	str = str + "$" + StringUtil::from((int)argNum);
+															}
+															scope()->var->addChild(str, v);
+															v->unref();
+														}
+														break;
+													}
+			case INSTR_FUNC: 
+			case INSTR_FUNC_GET: 
+			case INSTR_FUNC_SET: {
+														 str = bcode->getStr(offset);
+														 BCVar* v = funcDef(str, (instr == INSTR_FUNC ? true:false));
+														 if(v != NULL)
+															 push(v->ref());
+														 break;
+													 }
+			case INSTR_CLASS: {
+													str = bcode->getStr(offset);
+													BCVar* v = getOrAddClass(str);
+													//read extends
+													ins = code[pc];
+													instr = ins >> 16;
+													if(instr == INSTR_EXTENDS) {
+														pc++;
+														offset = ins & 0x0000FFFF;
+														str = bcode->getStr(offset);
+														doExtends(v, str);
+													}
+
+													VMScope sc;
+													sc.var = v->ref();
+													pushScope(sc);
+													break;
+												}
+			case INSTR_CLASS_END: {
+															BCVar* v = scope()->var;
+															push(v->ref());
+															popScope();
+															break;
+														}
+			case INSTR_CALL: 
+			case INSTR_CALLO: {
+												 str = bcode->getStr(offset);
+												 size_t pos = str.find("$");
+												 int argsNum = 0;
+												 if(pos != string::npos) {
+													 string args = str.substr(pos+1);
+													 argsNum = atoi(args.c_str());
+												 }
+
+												 StackItem* i = vStack[stackTop+argsNum];
+												 BCVar* obj = VAR(i);
+												 BCNode* func = findFunc(obj, str, true);
+												 if(func != NULL) {
+													 funcCall(NULL, func->var);
+												 }
+												 doInterrupt();
+												 break;
+												}
+			case INSTR_NEW: {
+												doNew(bcode->getStr(offset));
+												break;
+											}
+			case INSTR_TYPEOF: {
+												StackItem* i = pop2();
+												BCVar* var = VAR(i);
+												string tp = var ? var->getTypeString() : "null" ;
+												BCVar *type = new BCVar(tp);
+												push(type->ref());
+												break;
+											}
+			case INSTR_THROW: {
+				BCVar *var = reinterpret_cast<BCVar*>(pop2());
+				exception = var->ref();
+
+				// walk through scopes to find exception handle
+				VMScope* sc = scope();
+				while(sc != NULL) {
+					PC target = bcode->getTryTarget(pc);
+					if(target != ILLEGAL_PC) {
+						pc = target;
+						break;
+					}
+					pc = sc->pc;
+					popScope();
+					sc = scope();
+				}
+				if(sc == NULL) {
+					ERR("uncaught exception:%s\n", exception->getString().c_str());
+					return;
+				}
+
+				break;
+			}
+			case INSTR_MOV_EXCP: {
+				BCNode *node = reinterpret_cast<BCNode*>(pop2());
+				node->replace(VAR(exception));
+				exception = NULL;
+				break;
+			}
+			*/
+		}
+	}
+	if(needPopSC)
+		vm_pop_scope(vm);
+}
+bool vm_run(vm_t* vm) {
+	vm_run_code(vm);
+	return true;
+}
 
 #endif
