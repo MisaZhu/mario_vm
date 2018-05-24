@@ -6,13 +6,11 @@ void dump(const char* s) {
 }
 
 int main(int argc, char** argv) {
-	const char* s = "if(true) {  } ";
-	while(true) {
+	const char* s = "f(1,2);";
 	vm_t vm;
 	vm_init(&vm);
 	vm_load(&vm, s, dump);
 	vm_run(&vm);
 	vm_close(&vm);
-	}
 	return 0;
 }

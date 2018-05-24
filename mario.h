@@ -2065,14 +2065,16 @@ node_t* vm_pop2node(vm_t* vm) {
 	return (node_t*)array_remove(&vm->stack, index);
 }
 
-var_t* vm_pop2var(vm_t* vm) {
+var_t* vm_pop2(vm_t* vm) {
 	int index = vm->stack.size-1;
 	if(index < 0)
 		return NULL;
 
 	int32_t magic = *(int32_t*)vm->stack.items[index];
-	if(magic != 0) //not var!
-		return NULL;
+	if(magic == 1) {//node
+		node_t* node = (node_t*)array_remove(&vm->stack, index);
+		return node->var;
+	}
 
 	return (var_t*)array_remove(&vm->stack, index);
 }
@@ -2234,17 +2236,19 @@ void vm_run_code(vm_t* vm) {
 				pc = pc - offset - 1;
 				break;
 			}
+			case INSTR_NJMP: 
+			{
+				var_t* v = vm_pop2(vm);
+				if(v != NULL) {
+					if(v->type == V_UNDEF ||
+							v->value == NULL ||
+							*(int*)(v->value) == 0)
+						pc = pc + offset - 1;
+					var_unref(v, true);
+				}
+				break;
+			}
 			/*
-			case INSTR_NJMP: {
-												 StackItem* i = pop2();
-												 if(i != NULL) {
-													 BCVar* v = VAR(i);
-													 if(v->type == BCVar::UNDEF || v->getInt() == 0)
-														 pc = pc + offset - 1;
-													 v->unref();
-												 }
-												 break;
-											 }
 			case INSTR_NEG: {
 												StackItem* i = pop2();
 												if(i != NULL) {
@@ -2453,7 +2457,7 @@ void vm_run_code(vm_t* vm) {
 			}
 			case INSTR_ASIGN: 
 			{
-				var_t* v = vm_pop2var(vm);
+				var_t* v = vm_pop2(vm);
 				node_t* n = vm_pop2node(vm);
 				if(v != NULL && n != NULL) {
 					bool modi = (!n->beConst || n->var->type == V_UNDEF);
@@ -2479,11 +2483,31 @@ void vm_run_code(vm_t* vm) {
 			case INSTR_GET: 
 			{
 				const char* s = bc_getstr(&vm->bc, offset);
-				var_t* v = vm_pop2var(vm);
+				var_t* v = vm_pop2(vm);
 				if(v != NULL) {
 					//doGet(v, s); //TODO
 					var_unref(v, true);
 				}
+				break;
+			}
+			case INSTR_CALL: 
+			case INSTR_CALLO: 
+			{
+				const char* s = bc_getstr(&vm->bc, offset);
+				const char* pos = strchr(s, '$');
+				int argsNum = 0;
+				if(pos != NULL) {
+					argsNum = atoi(pos+1);
+				}
+
+				/*StackItem* i = vStack[stackTop+argsNum];
+				BCVar* obj = VAR(i);
+				BCNode* func = findFunc(obj, str, true);
+				if(func != NULL) {
+					funcCall(NULL, func->var);
+				}
+				doInterrupt();
+				*/
 				break;
 			}
 
@@ -2576,25 +2600,6 @@ void vm_run_code(vm_t* vm) {
 															popScope();
 															break;
 														}
-			case INSTR_CALL: 
-			case INSTR_CALLO: {
-												 str = bcode->getStr(offset);
-												 size_t pos = str.find("$");
-												 int argsNum = 0;
-												 if(pos != string::npos) {
-													 string args = str.substr(pos+1);
-													 argsNum = atoi(args.c_str());
-												 }
-
-												 StackItem* i = vStack[stackTop+argsNum];
-												 BCVar* obj = VAR(i);
-												 BCNode* func = findFunc(obj, str, true);
-												 if(func != NULL) {
-													 funcCall(NULL, func->var);
-												 }
-												 doInterrupt();
-												 break;
-												}
 			case INSTR_NEW: {
 												doNew(bcode->getStr(offset));
 												break;
