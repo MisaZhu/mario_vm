@@ -1140,8 +1140,8 @@ typedef void (*dump_func_t)(const char*);
 
 #ifdef MARIO_DUMP
 
-void bc_get_instr_str(bytecode_t* bc, PC *i, bool step, str_t* ret) {
-	PC ins = bc->codeBuf[*i];
+PC bc_get_instr_str(bytecode_t* bc, PC i, str_t* ret) {
+	PC ins = bc->codeBuf[i];
 	OprCode instr = (ins >> 16) & 0xFFFF;
 	OprCode strIndex = ins & 0xFFFF;
 
@@ -1149,7 +1149,7 @@ void bc_get_instr_str(bytecode_t* bc, PC *i, bool step, str_t* ret) {
 	str_reset(ret);
 
 	if(strIndex == 0xFFFF) {
-		sprintf(s, "  |%04d 0x%08X ; %s", *i, ins, instr_str(instr));	
+		sprintf(s, "  |%04d 0x%08X ; %s", i, ins, instr_str(instr));	
 		str_append(ret, s);
 	}
 	else {
@@ -1157,37 +1157,36 @@ void bc_get_instr_str(bytecode_t* bc, PC *i, bool step, str_t* ret) {
 				instr == INSTR_NJMP || 
 				instr == INSTR_NJMPB ||
 				instr == INSTR_JMPB) {
-			sprintf(s, "  |%04d 0x%08X ; %s %d", *i, ins, instr_str(instr), strIndex);	
+			sprintf(s, "  |%04d 0x%08X ; %s %d", i, ins, instr_str(instr), strIndex);	
 			str_append(ret, s);
 		}
 		else if(instr == INSTR_STR) {
-			sprintf(s, "  |%04d 0x%08X ; %s \"", *i, ins, instr_str(instr));	
+			sprintf(s, "  |%04d 0x%08X ; %s \"", i, ins, instr_str(instr));	
 			str_append(ret, s);
 			str_append(ret, bc_getstr(bc, strIndex));
 		}
 		else {
-			sprintf(s, "  |%04d 0x%08X ; %s ", *i, ins, instr_str(instr));	
+			sprintf(s, "  |%04d 0x%08X ; %s ", i, ins, instr_str(instr));	
 			str_append(ret, s);
 			str_append(ret, bc_getstr(bc, strIndex));
 		}
 	}
 	
 	if(instr == INSTR_INT) {
-		ins = bc->codeBuf[*i+1];
-		sprintf(s, "\n  |%04d 0x%08X ; (%d)", *i+1, ins, ins);	
+		ins = bc->codeBuf[i+1];
+		sprintf(s, "\n  |%04d 0x%08X ; (%d)", i+1, ins, ins);	
 		str_append(ret, s);
-		if(step)
-			(*i)++;
+		i++;
 	}
 	else if(instr == INSTR_FLOAT) {
-		ins = bc->codeBuf[*i+1];
+		ins = bc->codeBuf[i+1];
 		float f;
 		memcpy(&f, &ins, sizeof(PC));
-		sprintf(s, "\n  |%04d 0x%08X ; (%f)", *i+1, ins, f);	
+		sprintf(s, "\n  |%04d 0x%08X ; (%f)", i+1, ins, f);	
 		str_append(ret, s);
-		if(step)
-			(*i)++;
+		i++;
 	}	
+	return i;
 }
 
 void bc_dump(bytecode_t* bc, dump_func_t dump) {
@@ -1211,9 +1210,7 @@ void bc_dump(bytecode_t* bc, dump_func_t dump) {
 
 	i = 0;
 	while(i < bc->cindex) {
-		ins = bc->codeBuf[i];
-		OprCode instr = (ins >> 16) & 0xFFFF;
-		bc_get_instr_str(bc, &i, true, &s);
+		i = bc_get_instr_str(bc, i, &s);
 		dump(s.cstr);
 		dump("\n");
 		i++;
