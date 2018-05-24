@@ -7,7 +7,7 @@ void dump(const char* s) {
 }
 
 void setup() {  
-  Serial.begin(9600);
+  Serial.begin(19200);
   delay(200);
   
   const char* s = "var abc = 0;";

@@ -6,7 +6,7 @@ void dump(const char* s) {
 }
 
 int main(int argc, char** argv) {
-	const char* s = "var abc = 1;";
+	const char* s = "if(true) {  } ";
 	while(true) {
 	vm_t vm;
 	vm_init(&vm);
