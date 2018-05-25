@@ -1284,7 +1284,7 @@ int callFunc(lex_t* l, bytecode_t* bc) {
 	lex_chkread(l, ')');
 	return argNum;
 }
-		
+
 bool block(lex_t* l, bytecode_t* bc) {
 	lex_chkread(l, '{');
 
@@ -1859,6 +1859,19 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop) {
 		}
 		pop = false;
 	}
+	else if (l->tk == LEX_R_WHILE) {
+		lex_chkread(l, LEX_R_WHILE);
+		lex_chkread(l, '(');
+		PC cpc = bc->cindex;
+		base(l, bc); //condition
+		lex_chkread(l, ')');
+		PC pc = bc_reserve(bc);
+		statement(l, bc, true);
+		bc_add_instr(bc, cpc, INSTR_JMPB, ILLEGAL_PC); //coninue anchor;
+		bc_set_instr(bc, pc, INSTR_NJMP, ILLEGAL_PC); // end anchor;
+		pop = false;
+	}
+
 
 	if(pop)
 		bc_gen(bc, INSTR_POP);
@@ -2131,6 +2144,10 @@ typedef struct st_scope {
 	struct st_scope* prev;
 	var_t* var;
 	PC pc; //stack pc
+
+	//continue and break anchor for loop(while/for)
+	PC continue_anchor;
+	PC break_anchor;
 } scope_t;
 
 scope_t* scope_new(var_t* var, PC pc) {
@@ -2370,7 +2387,7 @@ void vm_run_code(vm_t* vm) {
 			}
 			case INSTR_FALSE: 
 			{
-				var_t* v = var_new_int(1);	
+				var_t* v = var_new_int(0);	
 				vm_push_var(vm, v);
 				break;
 			}
