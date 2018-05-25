@@ -9,7 +9,7 @@ LD := $(CROSS_COMPILE)g++
 
 SRCS = demo.c
 
-CFLAGS =  -I./ -g
+CFLAGS =  -I./ -g -Wall
 
 ifeq ($(CROSS_COMPILE), avr-)
 CFLAGS =  -I./ -Os -DF_CPU=16000000UL -mmcu=atmega328p
