@@ -15,7 +15,7 @@ var_t* native_print(vm_t* vm, var_t* env, void* data) {
 }
 
 int main(int argc, char** argv) {
-	const char* s = "while(true) { print('aaa\n'); }";
+	const char* s = "while(true) { print('aaa\n'); break;}";
 //	while(true) {
 		vm_t vm;
 		vm_init(&vm);

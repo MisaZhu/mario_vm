@@ -1148,13 +1148,14 @@ void bc_set_instr(bytecode_t* bc, PC anchor, OprCode op, PC target) {
 	bc->codeBuf[anchor] = ins;
 }
 
-void bc_add_instr(bytecode_t* bc, PC anchor, OprCode op, PC target) {
+PC bc_add_instr(bytecode_t* bc, PC anchor, OprCode op, PC target) {
 	if(target == ILLEGAL_PC)
 		target = bc->cindex;
 
 	int offset = target > anchor ? (target-anchor) : (anchor-target);
 	PC ins = INS(op, offset);
 	bc_add(bc, ins);
+	return bc->cindex;
 } 
 
 typedef void (*dump_func_t)(const char*);
@@ -1241,7 +1242,12 @@ void bc_dump(bytecode_t* bc, dump_func_t dump) {
 
 /** Compiler -----------------------------*/
 
-bool statement(lex_t*, bytecode_t*, bool);
+typedef struct st_loop {
+	PC continueAnchor;
+	PC breakAnchor;
+} loop_t;
+
+bool statement(lex_t*, bytecode_t*, bool, loop_t*);
 bool factor(lex_t*, bytecode_t*);
 bool base(lex_t*, bytecode_t*);
 
@@ -1285,11 +1291,11 @@ int callFunc(lex_t* l, bytecode_t* bc) {
 	return argNum;
 }
 
-bool block(lex_t* l, bytecode_t* bc) {
+bool block(lex_t* l, bytecode_t* bc, loop_t* loop) {
 	lex_chkread(l, '{');
 
 	while (l->tk && l->tk!='}'){
-		if(!statement(l, bc, true))
+		if(!statement(l, bc, true, loop))
 			return false;
 	}
 
@@ -1329,7 +1335,7 @@ bool defFunc(lex_t* l, bytecode_t* bc, str_t* name) {
 	}
 	lex_chkread(l, ')');
 	PC pc = bc_reserve(bc);
-	block(l, bc);
+	block(l, bc, NULL);
 	
 	OprCode op = bc->codeBuf[bc->cindex - 1] >> 16;
 
@@ -1763,10 +1769,10 @@ bool base(lex_t* l, bytecode_t* bc) {
 	return true;
 }
 
-bool statement(lex_t* l, bytecode_t* bc, bool pop) {
+bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 	if (l->tk=='{') {
 		/* A block of code */
-		if(!block(l, bc))
+		if(!block(l, bc, loop))
 			return false;
 		pop = false;
 	}
@@ -1845,13 +1851,13 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop) {
 		base(l, bc); //condition
 		lex_chkread(l, ')');
 		PC pc = bc_reserve(bc);
-		statement(l, bc, true);
+		statement(l, bc, true, loop);
 
 		if (l->tk == LEX_R_ELSE) {
 			lex_chkread(l, LEX_R_ELSE);
 			PC pc2 = bc_reserve(bc);
 			bc_set_instr(bc, pc, INSTR_NJMP, ILLEGAL_PC);
-			statement(l, bc, true);
+			statement(l, bc, true, loop);
 			bc_set_instr(bc, pc2, INSTR_JMP, ILLEGAL_PC);
 		}
 		else {
@@ -1862,16 +1868,41 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop) {
 	else if (l->tk == LEX_R_WHILE) {
 		lex_chkread(l, LEX_R_WHILE);
 		lex_chkread(l, '(');
-		PC cpc = bc->cindex;
+		PC cpc = bc->cindex; //continue anchor
 		base(l, bc); //condition
 		lex_chkread(l, ')');
-		PC pc = bc_reserve(bc);
-		statement(l, bc, true);
+
+		PC pc = bc_reserve(bc); //njmp on condition
+		bc_add_instr(bc, pc, INSTR_JMP, pc+2); //jmp to loop(skip the next jump instruction).
+		PC pcb = bc_reserve(bc); //jump out of loop (for break anchor);
+		
+		loop_t lp;
+		lp.continueAnchor = cpc;
+		lp.breakAnchor = pcb;
+		
+		statement(l, bc, true, &lp);
+
 		bc_add_instr(bc, cpc, INSTR_JMPB, ILLEGAL_PC); //coninue anchor;
 		bc_set_instr(bc, pc, INSTR_NJMP, ILLEGAL_PC); // end anchor;
+		bc_set_instr(bc, pcb, INSTR_JMP, ILLEGAL_PC); // end anchor;
 		pop = false;
 	}
-
+	else if(l->tk == LEX_R_BREAK) {
+		lex_chkread(l, LEX_R_BREAK);
+		lex_chkread(l, ';');
+		if(loop == NULL)
+			return false;
+		bc_add_instr(bc, loop->breakAnchor, INSTR_JMPB, ILLEGAL_PC); //to break anchor;
+		pop = false;
+	}
+	else if(l->tk == LEX_R_CONTINUE) {
+		lex_chkread(l, LEX_R_CONTINUE);
+		lex_chkread(l, ';');
+		if(loop == NULL)
+			return false;
+		bc_add_instr(bc, loop->continueAnchor, INSTR_JMPB, ILLEGAL_PC); //to continue anchor;
+		pop = false;
+	}
 
 	if(pop)
 		bc_gen(bc, INSTR_POP);
@@ -1883,7 +1914,7 @@ bool compile(bytecode_t *bc, const char* input, dump_func_t dump) {
 	lex_init(&lex, input);
 
 	while(lex.tk) {
-		if(!statement(&lex, bc, true)) {
+		if(!statement(&lex, bc, true, NULL)) {
 			lex_release(&lex);
 			return false;
 		}
