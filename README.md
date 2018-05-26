@@ -6,13 +6,4 @@ very tiny simple js engine in one single c head file.
 	export CROSS_COMPILE=avr-
 	make
 
-.Grammar Supported
-	
-	if
-	else
-	while
-		break
-		continue
-	
-	var
-	function
+

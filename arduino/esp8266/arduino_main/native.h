@@ -42,6 +42,11 @@ var_t* native_delay(vm_t* vm, var_t* env, void* data) {
 }
 
 void reg_native(vm_t* vm) {
+  vm_reg_var(vm, "LED_BUILTIN", var_new_int(LED_BUILTIN));
+  vm_reg_var(vm, "OUTPUT", var_new_int(OUTPUT));
+  vm_reg_var(vm, "LOW", var_new_int(LOW));
+  vm_reg_var(vm, "HIGH", var_new_int(HIGH));
+  
 	vm_reg_native(vm, "print(str)", native_print);
   vm_reg_native(vm, "delay(msec)", native_delay);
   vm_reg_native(vm, "pinMode(pin, type)", native_pinMode);
