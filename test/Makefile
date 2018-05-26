@@ -7,13 +7,13 @@ CXX := $(CROSS_COMPILE)g++
 AR := $(CROSS_COMPILE)ar
 LD := $(CROSS_COMPILE)g++
 
-demo_SRCS = demo.c
+test_SRCS = test.c
 
-CFLAGS =  -I./ -g -Wall
+CFLAGS =  -I../ -g -Wall
 
 all: 
-	$(CC) -o demo $(CFLAGS) $(demo_SRCS)
+	$(CC) -o jstest $(CFLAGS) $(test_SRCS)
 
 
 clean:
-	rm -fr demo *.o *.dSYM
+	rm -fr jstest *.o *.dSYM
