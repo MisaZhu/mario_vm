@@ -15,9 +15,7 @@ var_t* native_print(vm_t* vm, var_t* env, void* data) {
 }
 
 int main(int argc, char** argv) {
-	//const char* s = "function f(s) { print(s); } f('aaaa\n'); ";
-	const char* s = "function f(s) { s=1; } f('aaaa\n'); ";
-	//const char* s = "print('aaaa\n'); ";
+	const char* s = "function f(s) { print(s); } f('aaaa\n'); ";
 
 	while(true) {
 		vm_t vm;

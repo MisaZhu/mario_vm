@@ -1446,8 +1446,7 @@ bool factor(lex_t* l, bytecode_t* bc) {
 	}
 	else if(l->tk==LEX_ID) {
 		str_t name;
-		str_init(&name);
-		str_cpy(&name, l->tkStr.cstr);
+		str_inits(&name, l->tkStr.cstr);
 		lex_chkread(l, LEX_ID);
 
 		m_array_t names;
@@ -1503,6 +1502,7 @@ bool factor(lex_t* l, bytecode_t* bc) {
 					bc_gen_str(bc, load ? INSTR_LOAD:INSTR_GET, (const char*)names.items[i]);	
 					load = false;
 				}
+				array_clean(&names, NULL);
 
 				lex_chkread(l, '[');
 				base(l, bc);
@@ -1510,6 +1510,7 @@ bool factor(lex_t* l, bytecode_t* bc) {
 				bc_gen(bc, INSTR_ARRAY_AT);
 			} 
 		}
+
 		if(name.len > 0) {
 			int i, sz;
 			str_split(name.cstr, '.', &names);
@@ -1519,6 +1520,7 @@ bool factor(lex_t* l, bytecode_t* bc) {
 				bc_gen_str(bc, load ? INSTR_LOAD:INSTR_GET, (const char*)names.items[i]);	
 				load = false;
 			}
+			array_clean(&names, NULL);
 		}
 		str_release(&name);
 	}
@@ -2924,19 +2926,22 @@ node_t* vm_reg_native(vm_t* vm, const char* decl, native_func_t native) {
 	func->native = native;
 
 	const char *off = decl;
-	while(*off == ' ') { off++; decl++;} //skip space
 	//read name
-	while(*off != '(') { off++; }
-	str_ncpy(&name, decl, off-decl);
-	off++;
-	decl = off;
+	while(*off != '(') { 
+		if(*off != ' ')
+			str_add(&name, *off);
+		off++; 
+	}
+	off++; 
 
 	while(*off != 0) {
 		if(*off == ',' || *off == ')') {
-			str_ncpy(&arg, decl, off-decl);
 			array_add_buf(&func->args, arg.cstr, arg.len+1);
-			decl = off+1;
+			str_reset(&arg);
 		}
+		else if(*off != ' ')
+			str_add(&arg, *off);
+
 		off++; 
 	} 
 	str_release(&arg);
