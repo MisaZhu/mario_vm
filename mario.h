@@ -2127,6 +2127,27 @@ var_t* var_new_str(const char* s) {
 	return var;
 }
 
+const char* var_get_str(var_t* var) {
+	if(var == NULL || var->value == NULL)
+		return "";
+	
+	return (const char*)var->value;
+}
+
+int var_get_int(var_t* var) {
+	if(var == NULL || var->value == NULL)
+		return 0;
+	
+	return *(int*)var->value;
+}
+
+float var_get_float(var_t* var) {
+	if(var == NULL || var->value == NULL)
+		return 0.0;
+	
+	return *(float*)var->value;
+}
+
 /** Interpreter-----------------------------*/
 
 typedef struct st_vm {
