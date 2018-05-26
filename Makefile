@@ -7,7 +7,8 @@ CXX := $(CROSS_COMPILE)g++
 AR := $(CROSS_COMPILE)ar
 LD := $(CROSS_COMPILE)g++
 
-SRCS = demo.c
+demo_SRCS = demo.c
+mario_SRCS = mario.c
 
 CFLAGS =  -I./ -g -Wall
 
@@ -15,8 +16,10 @@ ifeq ($(CROSS_COMPILE), avr-)
 CFLAGS =  -I./ -Os -DF_CPU=16000000UL -mmcu=atmega328p
 endif
 
-all:
-	$(CC) -o mario $(CFLAGS) $(SRCS)
+all: 
+	$(CC) -o mario $(CFLAGS) $(mario_SRCS)
+	$(CC) -o demo $(CFLAGS) $(demo_SRCS)
+
 
 clean:
-	rm -fr *.o mario *.dSYM
+	rm -fr demo mario *.o *.dSYM

@@ -6,6 +6,8 @@ void dump(const char*s) {
 }
 
 bool load_js(vm_t* vm) {
+  char* buf = NULL;
+  
   if (!SPIFFS.begin()) {
     Serial.println("Failed to mount file system");
     return false;
@@ -24,14 +26,16 @@ bool load_js(vm_t* vm) {
   }
 
   // Allocate a buffer to store contents of the file.
-  std::unique_ptr<char[]> buf(new char[size]);
-  jsFile.readBytes(buf.get(), size);
+  buf = (char*)_malloc(size+1);
+  jsFile.readBytes(buf, size);
+  buf[size] = 0;
   jsFile.close();
   
-  const char* s = buf.get();
-  dump(s);
+  dump(buf);
   
-  vm_load(vm, s, dump);
+  vm_load(vm, buf, dump);
+
+  _free(buf);
   return true;
 }
 
@@ -45,10 +49,11 @@ void setup() {
 
   load_js(&vm);
   
-//  vm_run(&vm);
+  vm_run(&vm);
   vm_close(&vm);
 }
 
 void loop() {
   delay(1000);
 }
+

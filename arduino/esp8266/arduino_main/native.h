@@ -34,19 +34,20 @@ var_t*  native_digitalWrite(vm_t* vm, var_t* env, void* data) {
 }
 
 var_t* native_delay(vm_t* vm, var_t* env, void* data) {
- // node_t* n = var_find(env, "msec");
-//  int msec = *(int*)n->var->value;
+  node_t* n = var_find(env, "msec");
+  int msec = *(int*)n->var->value;
 
- // delay(msec);
+  delay(msec);
   return NULL;
 }
 
 void reg_native(vm_t* vm) {
 	vm_reg_native(vm, "print(str)", native_print);
   vm_reg_native(vm, "delay(msec)", native_delay);
- // vm_reg_native(vm, "pinMode(pin, type)", native_pinMode);
- // vm_reg_native(vm, "digitalWrite(pin, type)", native_digitalWrite);
+  vm_reg_native(vm, "pinMode(pin, type)", native_pinMode);
+  vm_reg_native(vm, "digitalWrite(pin, type)", native_digitalWrite);
   
 }
 
 #endif
+

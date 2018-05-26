@@ -394,7 +394,8 @@ bool is_hexadecimal(unsigned char ch) {
 
 bool is_alpha(unsigned char ch) {
 	if(((ch>='a') && (ch<='z')) ||
-		((ch>='A') && (ch<='Z')))
+		((ch>='A') && (ch<='Z')) ||
+		ch == '_')
 		return true;
 	return false;
 }
@@ -2255,15 +2256,6 @@ PC vm_pop_scope(vm_t* vm) {
 	return pc;
 }
 
-void vm_init(vm_t* vm) {
-	vm->pc = 0;
-	bc_init(&vm->bc);
-	array_init(&vm->stack);	
-	array_init(&vm->scopes);	
-
-	vm->root = var_ref(var_new_object());
-}
-
 void vm_stack_free(void* p) {
 	int32_t magic = *(int32_t*)p;
 	if(magic == 1) {//node
@@ -2274,18 +2266,6 @@ void vm_stack_free(void* p) {
 		var_t* var = (var_t*)p;
 		var_free(var);
 	}
-}
-
-void vm_close(vm_t* vm) {
-	var_unref(vm->root, true);
-
-	array_clean(&vm->scopes, NULL);	
-	array_clean(&vm->stack, vm_stack_free);	
-	bc_release(&vm->bc);
-}	
-
-bool vm_load(vm_t* vm, const char* s, dump_func_t dump) {
-	return compile(&vm->bc, s, dump);
 }
 
 node_t* vm_find(vm_t* vm, const char* name) {
@@ -2441,6 +2421,11 @@ var_t* func_def(vm_t* vm, bool regular) {
 }
 
 void math_op(vm_t* vm, OprCode op, var_t* v1, var_t* v2) {
+	if(v1->value == NULL || v2->value == NULL) {
+		vm_push(vm, var_new());
+		return;
+	}	
+
 	if((v1->type == V_INT || v1->type == V_FLOAT) && 
 			(v2->type == V_INT || v2->type == V_FLOAT)) {
 		//do number 
@@ -2554,12 +2539,16 @@ void math_op(vm_t* vm, OprCode op, var_t* v1, var_t* v2) {
 
 void compare(vm_t* vm, OprCode op, var_t* v1, var_t* v2) {
 	float f1, f2;
-	if(v1->type == V_FLOAT)
+	if(v1->value == NULL)
+		f1 = 0.0;
+	else if(v1->type == V_FLOAT)
 		f1 = *(float*)v1->value;
 	else //INT
 		f1 = (float) *(int*)v1->value;
 
-	if(v2->type == V_FLOAT)
+	if(v2->value == NULL)
+		f2 = 0.0;
+	else if(v2->type == V_FLOAT)
 		f2 = *(float*)v2->value;
 	else //INT
 		f2 = (float) *(int*)v2->value;
@@ -3084,9 +3073,9 @@ void vm_run_code(vm_t* vm) {
 		vm_pop_scope(vm);
 }
 
-bool vm_run(vm_t* vm) {
-	vm_run_code(vm);
-	return true;
+node_t* vm_reg_var(vm_t* vm, const char* name, var_t* var) {
+	node_t* node = var_add(vm->root, name, var);
+	return node;
 }
 
 node_t* vm_reg_native(vm_t* vm, const char* decl, native_func_t native) {
@@ -3128,5 +3117,31 @@ node_t* vm_reg_native(vm_t* vm, const char* decl, native_func_t native) {
 	str_release(&fname);
 	return node;
 }
+
+void vm_init(vm_t* vm) {
+	vm->pc = 0;
+	bc_init(&vm->bc);
+	array_init(&vm->stack);	
+	array_init(&vm->scopes);	
+
+	vm->root = var_ref(var_new_object());
+}
+
+bool vm_load(vm_t* vm, const char* s, dump_func_t dump) {
+	return compile(&vm->bc, s, dump);
+}
+
+bool vm_run(vm_t* vm) {
+	vm_run_code(vm);
+	return true;
+}
+
+void vm_close(vm_t* vm) {
+	var_unref(vm->root, true);
+
+	array_clean(&vm->scopes, NULL);	
+	array_clean(&vm->stack, vm_stack_free);	
+	bc_release(&vm->bc);
+}	
 
 #endif
