@@ -243,8 +243,14 @@ void str_release(str_t* str) {
 }
 
 const char* str_from_int(int i) {
-	static char s[16];
-	snprintf(s, 16, "%d", i);
+	static char s[32];
+	snprintf(s, 31, "%d", i);
+	return s;
+}
+
+const char* str_from_float(float i) {
+	static char s[32];
+	snprintf(s, 31, "%f", i);
 	return s;
 }
 
@@ -1178,7 +1184,7 @@ PC bc_get_instr_str(bytecode_t* bc, PC i, str_t* ret) {
 	OprCode instr = (ins >> 16) & 0xFFFF;
 	OprCode strIndex = ins & 0xFFFF;
 
-	char s[32];
+	char s[64];
 	str_reset(ret);
 
 	if(strIndex == 0xFFFF) {
@@ -2131,7 +2137,7 @@ typedef struct st_vm {
 	var_t* root;
 } vm_t;
 
-var_t* vm_push_var(vm_t* vm, var_t* var) {
+var_t* vm_push(vm_t* vm, var_t* var) {
 	var_ref(var);
 	array_add(&vm->stack, var);
 	return var;
@@ -2386,7 +2392,7 @@ bool func_call(vm_t* vm, var_t* obj, func_t* func) {
 	env->type = V_ARRAY;
 
 	for(i=func->args.size-1; i>=0; i--) {
-		const char* argName = array_get(&func->args, i);
+		const char* argName = (const char*)array_get(&func->args, i);
 		var_t* v = vm_pop2(vm);	
 		if(v != NULL) {
 			var_add(env, argName, v);
@@ -2402,7 +2408,7 @@ bool func_call(vm_t* vm, var_t* obj, func_t* func) {
 		var_t* ret = func->native(vm, env, func->data);
 		if(ret == NULL)
 			ret = var_new();
-		vm_push_var(vm, ret);
+		vm_push(vm, ret);
 		vm_pop_scope(vm);
 		return true;
 	}
@@ -2432,6 +2438,178 @@ var_t* func_def(vm_t* vm, bool regular) {
 
 	var_t* ret = var_new_func(func);
 	return ret;
+}
+
+void math_op(vm_t* vm, OprCode op, var_t* v1, var_t* v2) {
+	if((v1->type == V_INT || v1->type == V_FLOAT) && 
+			(v2->type == V_INT || v2->type == V_FLOAT)) {
+		//do number 
+		float f1, f2, ret = 0.0;
+		bool floatMode = false;
+		if(v1->type == V_FLOAT || v2->type == V_FLOAT)
+			floatMode = true;
+
+		if(v1->type == V_FLOAT)
+			f1 = *(float*)v1->value;
+		else //INT
+			f1 = (float) *(int*)v1->value;
+
+		if(v2->type == V_FLOAT)
+			f2 = *(float*)v2->value;
+		else //INT
+			f2 = (float) *(int*)v2->value;
+
+		switch(op) {
+			case INSTR_PLUS: 
+			case INSTR_PLUSEQ: 
+				ret = (f1 + f2);
+				break; 
+			case INSTR_MINUS: 
+			case INSTR_MINUSEQ: 
+				ret = (f1 - f2);
+				break; 
+			case INSTR_DIV: 
+			case INSTR_DIVEQ: 
+				ret = (f1 / f2);
+				break; 
+			case INSTR_MULTI: 
+			case INSTR_MULTIEQ: 
+				ret = (f1 * f2);
+				break; 
+			case INSTR_MOD: 
+			case INSTR_MODEQ: 
+				ret = (((int)f1) % (int)f2);
+				break; 
+			case INSTR_RSHIFT: 
+				ret = (((int)f1) >> (int)f2);
+				break; 
+			case INSTR_LSHIFT: 
+				ret = (((int)f1) << (int)f2);
+				break; 
+			case INSTR_AND: 
+				ret = (((int)f1) & (int)f2);
+				break; 
+			case INSTR_OR: 
+				ret = (((int)f1) | (int)f2);
+				break; 
+		}
+
+		var_t* v;
+		if(op == INSTR_PLUSEQ || 
+				op == INSTR_MINUSEQ ||
+				op == INSTR_DIVEQ ||
+				op == INSTR_MULTIEQ ||
+				op == INSTR_MODEQ)  {
+			v = v1;
+			if(floatMode) 
+				*(float*)v->value = ret;
+			else 
+				*(int*)v->value = (int)ret;
+		}
+		else {
+			if(floatMode) 
+				v = var_new_float(ret);
+			else 
+				v = var_new_int((int)ret);
+		}
+		vm_push(vm, v);
+		return;
+	}
+
+	//do string + 
+	if(op == INSTR_PLUS || op == INSTR_PLUSEQ) {
+		str_t s;
+		str_inits(&s, (const char*)v1->value);
+		switch(v2->type) {
+			case V_STRING: 
+				str_append(&s, (const char*)v2->value);
+				break;
+			case V_INT: 
+				str_append(&s, str_from_int(*(int*)v2->value));
+				break;
+			case V_FLOAT: 
+				str_append(&s, str_from_float(*(float*)v2->value));
+				break;
+			/*
+			case BCVar::ARRAY: 
+			case BCVar::OBJECT: 
+				ostr << s << v2->getJSON();
+				break;
+			*/
+		}
+
+		var_t* v;
+		if(op == INSTR_PLUSEQ || op == INSTR_MINUSEQ) {
+			v = v1;
+			v->value = _realloc(v->value, s.len+1);
+			memcpy(v->value, s.cstr, s.len+1);
+		}
+		else {
+			v = var_new_str(s.cstr);
+		}
+		str_release(&s);
+		vm_push(vm, v);
+	}
+}
+
+void compare(vm_t* vm, OprCode op, var_t* v1, var_t* v2) {
+	float f1, f2;
+	if(v1->type == V_FLOAT)
+		f1 = *(float*)v1->value;
+	else //INT
+		f1 = (float) *(int*)v1->value;
+
+	if(v2->type == V_FLOAT)
+		f2 = *(float*)v2->value;
+	else //INT
+		f2 = (float) *(int*)v2->value;
+
+	bool i = false;
+	if(v1->type == v2->type || 
+			((v1->type == V_INT || v1->type == V_FLOAT) &&
+			(v2->type == V_INT || v2->type == V_FLOAT))) {
+		if(v1->type == V_STRING) {
+			switch(op) {
+				case INSTR_EQ: 
+				case INSTR_TEQ:
+					i = (strcmp((const char*)v1->value, (const char*)v2->value) == 0);
+					break; 
+				case INSTR_NEQ: 
+				case INSTR_NTEQ:
+					i = (strcmp((const char*)v1->value, (const char*)v2->value) != 0);
+					break;
+			}
+		}
+		else if(v1->type == V_INT || v1->type == V_FLOAT) {
+			switch(op) {
+				case INSTR_EQ: 
+				case INSTR_TEQ:
+					i = (f1 == f2);
+					break; 
+				case INSTR_NEQ: 
+				case INSTR_NTEQ:
+					i = (f1 != f2);
+					break; 
+				case INSTR_LES: 
+					i = (f1 < f2);
+					break; 
+				case INSTR_GRT: 
+					i = (f1 > f2);
+					break; 
+				case INSTR_LEQ: 
+					i = (f1 <= f2);
+					break; 
+				case INSTR_GEQ: 
+					i = (f1 >= f2);
+					break; 
+			}
+		}
+	}
+	else if(op == INSTR_NEQ || op == INSTR_NTEQ) {
+		i = true;
+	}
+
+	vm_push(vm, var_new_int(i));
 }
 
 void vm_run_code(vm_t* vm) {
@@ -2469,19 +2647,19 @@ void vm_run_code(vm_t* vm) {
 			case INSTR_TRUE: 
 			{
 				var_t* v = var_new_int(1);	
-				vm_push_var(vm, v);
+				vm_push(vm, v);
 				break;
 			}
 			case INSTR_FALSE: 
 			{
 				var_t* v = var_new_int(0);	
-				vm_push_var(vm, v);
+				vm_push(vm, v);
 				break;
 			}
 			case INSTR_UNDEF: 
 			{
 				var_t* v = var_new();	
-				vm_push_var(vm, v);
+				vm_push(vm, v);
 				break;
 			}
 			case INSTR_POP: 
@@ -2511,36 +2689,36 @@ void vm_run_code(vm_t* vm) {
 				}
 				break;
 			}
-			/*
-			case INSTR_NEG: {
-												StackItem* i = pop2();
-												if(i != NULL) {
-													BCVar* v = VAR(i);
-													if(v->isInt()) {
-														int n = v->getInt();
-														v->setInt(-n);
-													}
-													else if(v->isFloat()) {
-														float n = v->getFloat();
-														v->setFloat(-n);
-													}
-													push(v);
-												}
-												break;
-											}
-			case INSTR_NOT: {
-												StackItem* i = pop2();
-												if(i != NULL) {
-													BCVar* v = VAR(i);
-													int c = 0;
-													if(v->type == BCVar::UNDEF || v->getInt() == 0)
-														c = 1;
-													v->unref();
-													v = new BCVar(c);
-													push(v->ref());	
-												}
-												break;
-											}
+			case INSTR_NEG: 
+			{
+				var_t* v = vm_pop2(vm);
+				if(v != NULL) {
+					if(v->type == V_INT) {
+						int n = *(int*)v->value;
+						n = -n;
+						vm_push(vm, var_new_int(n));
+					}
+					else if(v->type == V_FLOAT) {
+						float n = *(float*)v->value;
+						n = -n;
+						vm_push(vm, var_new_float(n));
+					}
+					var_unref(v, true);
+				}
+				break;
+			}
+			case INSTR_NOT: 
+			{
+				var_t* v = vm_pop2(vm);
+				if(v != NULL) {
+					int i = 0;
+					if(v->type == V_UNDEF || *(int*)v->value == 0)
+						i = 1;
+					var_unref(v, true);
+					vm_push(vm, var_new_int(i));
+				}
+				break;
+			}
 			case INSTR_EQ: 
 			case INSTR_NEQ: 
 			case INSTR_TEQ:
@@ -2548,40 +2726,38 @@ void vm_run_code(vm_t* vm) {
 			case INSTR_LES: 
 			case INSTR_GRT: 
 			case INSTR_LEQ: 
-			case INSTR_GEQ: {
-												StackItem* i2 = pop2();
-												StackItem* i1 = pop2();
-												if(i1 != NULL && i2 != NULL) {
-													BCVar* v1 = VAR(i1);
-													BCVar* v2 = VAR(i2);
-													compare(instr, v1, v2);
-
-													v1->unref();
-													v2->unref();
-												}
-												break;
-											}
+			case INSTR_GEQ: 
+			{
+				var_t* v2 = vm_pop2(vm);
+				var_t* v1 = vm_pop2(vm);
+				if(v1 != NULL && v2 != NULL) {
+					compare(vm, instr, v1, v2);
+					var_unref(v1, true);
+					var_unref(v2, true);
+				}
+				break;
+			}
 			case INSTR_AAND: 
-			case INSTR_OOR: {
-												StackItem* i2 = pop2();
-												StackItem* i1 = pop2();
-												if(i1 != NULL && i2 != NULL) {
-													BCVar* v1 = VAR(i1);
-													BCVar* v2 = VAR(i2);
+			case INSTR_OOR: 
+			{
+				var_t* v2 = vm_pop2(vm);
+				var_t* v1 = vm_pop2(vm);
+				if(v1 != NULL && v2 != NULL) {
+					int r = 0;
+					int i1 = *(int*)v1->value;
+					int i2 = *(int*)v2->value;
 
-													int r = 0;
-													if(instr == INSTR_AAND)
-														r = (v1->getInt() != 0) && (v2->getInt() != 0);
-													else
-														r = (v1->getInt() != 0) || (v2->getInt() != 0);
-													BCVar* v = new BCVar(r);
-													push(v->ref());
+					if(instr == INSTR_AAND)
+						r = (i1 != 0) && (i2 != 0);
+					else
+						r = (i1 != 0) || (i2 != 0);
+					vm_push(vm, var_new_int(r));
 
-													v1->unref();
-													v2->unref();
-												}
-												break;
-											}
+					var_unref(v1, true);
+					var_unref(v2, true);
+				}
+				break;
+			}
 			case INSTR_PLUS: 
 			case INSTR_RSHIFT: 
 			case INSTR_LSHIFT: 
@@ -2595,64 +2771,64 @@ void vm_run_code(vm_t* vm) {
 			case INSTR_MINUSEQ: 
 			case INSTR_DIV: 
 			case INSTR_MULTI: 
-			case INSTR_MOD: {
-												StackItem* i2 = pop2();
-												StackItem* i1 = pop2();
-												if(i1 != NULL && i2 != NULL) {
-													BCVar* v1 = VAR(i1);
-													BCVar* v2 = VAR(i2);
-													mathOp(instr, v1, v2);
+			case INSTR_MOD:
+			{
+				var_t* v2 = vm_pop2(vm);
+				var_t* v1 = vm_pop2(vm);
+				if(v1 != NULL && v2 != NULL) {
+					math_op(vm, instr, v1, v2);
+					var_unref(v1, true);
+					var_unref(v2, true);
+				}
+				break;
+			}
+			case INSTR_MMINUS_PRE: 
+			{
+				var_t* v = vm_pop2(vm);
+				if(v != NULL) {
+					int *i = (int*)v->value;
+					(*i)--;
+					vm_push(vm, v);
+					var_unref(v, true);
+				}
+				break;
+			}
+			case INSTR_MMINUS: 
+			{
+				var_t* v = vm_pop2(vm);
+				if(v != NULL) {
+					int *i = (int*)v->value;
+					var_t* v2 = var_new_int(*i);
+					(*i)--;
+					vm_push(vm, v2);
+					var_unref(v, true);
+				}
+				break;
+			}
+			case INSTR_PPLUS_PRE: 
+			{
+				var_t* v = vm_pop2(vm);
+				if(v != NULL) {
+					int *i = (int*)v->value;
+					(*i)++;
+					vm_push(vm, v);
+					var_unref(v, true);
+				}
+				break;
 
-													v1->unref();
-													v2->unref();
-												}
-												break;
-											}
-			case INSTR_MMINUS_PRE: {
-															 StackItem* it = pop2();
-															 if(it != NULL) {
-																 BCVar* v = VAR(it);
-																 int i = v->getInt() - 1;
-																 v->setInt(i);
-																 push(v);
-															 }
-															 break;
-														 }
-			case INSTR_MMINUS: {
-													 StackItem* it = pop2();
-													 if(it != NULL) {
-														 BCVar* v = VAR(it);
-														 int i = v->getInt();
-														 v->setInt(i-1);
-														 v->unref();
-														 v = new BCVar(i);
-														 push(v->ref());
-													 }
-													 break;
-												 }
-			case INSTR_PPLUS_PRE: {
-															StackItem* it = pop2();
-															if(it != NULL) {
-																BCVar* v = VAR(it);
-																int i = v->getInt() + 1;
-																v->setInt(i);
-																push(v);
-															}
-															break;
-														}
-			case INSTR_PPLUS: {
-													StackItem* it = pop2();
-													if(it != NULL) {
-														BCVar* v = VAR(it);
-														int i = v->getInt();
-														v->setInt(i+1);
-														v->unref();
-														v = new BCVar(i);
-														push(v->ref());
-													}
-													break;
-												}
-			*/
+			}
+			case INSTR_PPLUS: 
+			{
+				var_t* v = vm_pop2(vm);
+				if(v != NULL) {
+					int *i = (int*)v->value;
+					var_t* v2 = var_new_int(*i);
+					(*i)++;
+					vm_push(vm, v2);
+					var_unref(v, true);
+				}
+				break;
+			}
 			case INSTR_RETURN:  //return without value
 			case INSTR_RETURNV: 
 			{ //return with value
@@ -2662,12 +2838,12 @@ void vm_run_code(vm_t* vm) {
 						//TODO
 						//BCVar* thisVar = sc->var->getThisVar();
 						//push(thisVar->ref());
-						vm_push_var(vm, var_new());
+						vm_push(vm, var_new());
 					}
 					else {
 						var_t* v = vm_pop2(vm);
 						if(v != NULL) {
-							vm_push_var(vm, v);
+							vm_push(vm, v);
 							var_unref(v, true);	
 						}
 					}
@@ -2698,20 +2874,20 @@ void vm_run_code(vm_t* vm) {
 			case INSTR_INT:
 			{
 				var_t* v = var_new_int((int)code[vm->pc++]);
-				vm_push_var(vm, v);
+				vm_push(vm, v);
 				break;
 			}
 			case INSTR_FLOAT: 
 			{
-				var_t* v = var_new_float((float)code[vm->pc++]);
-				vm_push_var(vm, v);
+				var_t* v = var_new_float(*(float*)(&code[vm->pc++]));
+				vm_push(vm, v);
 				break;
 			}
 			case INSTR_STR: 
 			{
 				const char* s = bc_getstr(&vm->bc, offset);
 				var_t* v = var_new_str(s);
-				vm_push_var(vm, v);
+				vm_push(vm, v);
 				break;
 			}
 			case INSTR_ASIGN: 
@@ -2728,7 +2904,7 @@ void vm_run_code(vm_t* vm) {
 					//	ERR("Can not change a const variable: %s! %s\n", node->name.c_str(), DEBUG_LINE);
 					}
 					var_unref(v, true);
-					vm_push_var(vm, n->var);
+					vm_push(vm, n->var);
 				}
 				break;
 			}
@@ -2763,7 +2939,40 @@ void vm_run_code(vm_t* vm) {
 				}
 				break;
 			}
+			case INSTR_MEMBER: 
+			case INSTR_MEMBERN: 
+			{
+				const char* s = (instr == INSTR_MEMBER ? "" :  bc_getstr(&vm->bc, offset));
 
+				var_t* v = vm_pop2(vm);
+				if(v != NULL) {
+					str_t fname;
+					str_init(&fname);
+
+					if(v->type == V_FUNC) {
+						func_t* func = (func_t*)v->value;
+						gen_func_name(s, func->args.size, &fname);
+					}
+
+					var_t *var = vm_get_scope_var(vm);
+					if(var != NULL)
+						var_add(var, fname.cstr, v);
+
+					str_release(&fname);
+					var_unref(v, true);
+				}
+				break;
+			}
+
+			case INSTR_FUNC: 
+			case INSTR_FUNC_GET: 
+			case INSTR_FUNC_SET: 
+			{
+				var_t* v = func_def(vm, (instr == INSTR_FUNC ? true:false));
+				if(v != NULL)
+					vm_push(vm, v);
+				break;
+			}
 			/*
 			case INSTR_ARRAY_AT: {
 														 StackItem* i2 = pop2();
@@ -2803,42 +3012,6 @@ void vm_run_code(vm_t* vm) {
 														popScope();
 														break;
 													}
-			*/
-			case INSTR_MEMBER: 
-			case INSTR_MEMBERN: 
-			{
-				const char* s = (instr == INSTR_MEMBER ? "" :  bc_getstr(&vm->bc, offset));
-
-				var_t* v = vm_pop2(vm);
-				if(v != NULL) {
-					str_t fname;
-					str_init(&fname);
-
-					if(v->type == V_FUNC) {
-						func_t* func = (func_t*)v->value;
-						gen_func_name(s, func->args.size, &fname);
-					}
-
-					var_t *var = vm_get_scope_var(vm);
-					if(var != NULL)
-						var_add(var, fname.cstr, v);
-
-					str_release(&fname);
-					var_unref(v, true);
-				}
-				break;
-			}
-
-			case INSTR_FUNC: 
-			case INSTR_FUNC_GET: 
-			case INSTR_FUNC_SET: 
-			{
-				var_t* v = func_def(vm, (instr == INSTR_FUNC ? true:false));
-				if(v != NULL)
-					vm_push_var(vm, v);
-				break;
-			}
-			/*
 			case INSTR_CLASS: {
 													str = bcode->getStr(offset);
 													BCVar* v = getOrAddClass(str);
@@ -2928,7 +3101,7 @@ node_t* vm_reg_native(vm_t* vm, const char* decl, native_func_t native) {
 	const char *off = decl;
 	//read name
 	while(*off != '(') { 
-		if(*off != ' ')
+		if(*off != ' ') //skip spaces
 			str_add(&name, *off);
 		off++; 
 	}
@@ -2939,7 +3112,7 @@ node_t* vm_reg_native(vm_t* vm, const char* decl, native_func_t native) {
 			array_add_buf(&func->args, arg.cstr, arg.len+1);
 			str_reset(&arg);
 		}
-		else if(*off != ' ')
+		else if(*off != ' ') //skip spaces
 			str_add(&arg, *off);
 
 		off++; 
