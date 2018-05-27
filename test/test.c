@@ -30,10 +30,10 @@ bool load_js(vm_t* vm, const char* fname) {
 	close(fd);
 	s[st.st_size] = 0;
 
-	vm_load(vm, s);
+	bool ret = vm_load(vm, s);
 	_free(s);
 
-	return true;
+	return ret;
 }
 
 int main(int argc, char** argv) {
@@ -49,9 +49,10 @@ int main(int argc, char** argv) {
 
 	vm_reg_native(&vm, "print(str)", native_print, NULL);
 
-	load_js(&vm, argv[1]);
-
-	vm_run(&vm);
+	if(load_js(&vm, argv[1])) {
+		vm_run(&vm);
+	}
+	
 	vm_close(&vm);
 //	}
 	return 0;

@@ -7,7 +7,7 @@ while(i<100) {
 */
 
 a = {
-	"name": "misa"
+	"name" : "misa"
 };
 
 a.name = "xx";
@@ -15,7 +15,8 @@ a.age = 24;
 
 dump(a);
 
-b = [1,2,3, "xx", 1.0];
+b = [0, 1, 2];
+b[10] = "hhh";
+
 dump(b);
 
-dump(this);

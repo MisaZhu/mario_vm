@@ -33,10 +33,9 @@ bool load_js(vm_t* vm) {
   
   dump(buf);
   
-  vm_load(vm, buf);
-
+  bool ret = vm_load(vm, buf);
   _free(buf);
-  return true;
+  return ret;
 }
 
 void setup() {  
@@ -49,9 +48,9 @@ void setup() {
   vm_init(&vm);
   reg_native(&vm);
 
-  load_js(&vm);
-  
-  vm_run(&vm);
+  if(!load_js(&vm)) {
+    vm_run(&vm);
+  }
   vm_close(&vm);
 }
 

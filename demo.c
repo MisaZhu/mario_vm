@@ -24,8 +24,9 @@ int main(int argc, char** argv) {
 		//demo: register a global variable.
 		vm_reg_var(&vm, "_HELLO", var_new_str("Hello, world\n"));
 
-		vm_load(&vm, "print(this._HELLO); dump(this);");
-		vm_run(&vm);
+		if(vm_load(&vm, "print(this._HELLO); dump(this);")) {
+			vm_run(&vm);
+		}
 
 		vm_close(&vm);
 	}

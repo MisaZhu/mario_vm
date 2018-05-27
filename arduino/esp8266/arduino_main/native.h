@@ -5,6 +5,9 @@
 #include "FS.h"
 
 var_t* native_print(vm_t* vm, var_t* env, void* data) {
+	(void)vm;
+	(void)data;
+
 	node_t* n = var_find(env, "str");
 	const char* s = n == NULL ? "" : var_get_str(n->var);
 	Serial.print(s);
@@ -12,6 +15,9 @@ var_t* native_print(vm_t* vm, var_t* env, void* data) {
 }
 
 var_t*  native_pinMode(vm_t* vm, var_t* env, void* data) {
+	(void)vm;
+	(void)data;
+
 	node_t* n = var_find(env, "pin");
 	int pin = n == NULL ? 0 : var_get_int(n->var);
 
@@ -23,6 +29,9 @@ var_t*  native_pinMode(vm_t* vm, var_t* env, void* data) {
 }
 
 var_t*  native_digitalWrite(vm_t* vm, var_t* env, void* data) {
+	(void)vm;
+	(void)data;
+
 	node_t* n = var_find(env, "pin");
 	int pin = n == NULL ? 0 : var_get_int(n->var);
 
@@ -34,6 +43,9 @@ var_t*  native_digitalWrite(vm_t* vm, var_t* env, void* data) {
 }
 
 var_t* native_delay(vm_t* vm, var_t* env, void* data) {
+	(void)vm;
+	(void)data;
+
 	node_t* n = var_find(env, "msec");
 	int msec = n == NULL ? 0 : var_get_int(n->var);
 
