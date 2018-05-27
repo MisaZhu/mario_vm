@@ -249,16 +249,15 @@ void str_release(str_t* str) {
 	str->max = str->len = 0;
 }
 
+static char _s[32];
 const char* str_from_int(int i) {
-	static char s[32];
-	snprintf(s, 31, "%d", i);
-	return s;
+	snprintf(_s, 31, "%d", i);
+	return _s;
 }
 
 const char* str_from_float(float i) {
-	static char s[32];
-	snprintf(s, 31, "%f", i);
-	return s;
+	snprintf(_s, 31, "%f", i);
+	return _s;
 }
 
 int str_to_int(const char* str) {
@@ -428,40 +427,6 @@ char* oneLine(const char *s, int ptr,int end) {
 	}
 	return work.cstr;
 }
-
-/*
-std::string getJSString(const std::string &str) {
-	std::string nStr = str;
-	for (size_t i=0;i<nStr.size();i++) {
-		const char *replaceWith = "";
-		bool replace = true;
-
-		switch (nStr[i]) {
-			case '\\': replaceWith = "\\\\"; break;
-			case '\n': replaceWith = "\\n"; break;
-			case '\r': replaceWith = "\\r"; break;
-			case '\a': replaceWith = "\\a"; break;
-			case '"':  replaceWith = "\\\""; break;
-			default: {
-								 int nCh = ((int)nStr[i]) &0xFF;
-								 if (nCh<32 || nCh>127) {
-									 char bytes[5];
-									 snprintf(bytes, 5, "\\x%02X", nCh);
-									 replaceWith = bytes;
-								 } else {
-									 replace=false;
-								 }
-							 }
-		}
-
-		if (replace) {
-			nStr = nStr.substr(0, i) + replaceWith + nStr.substr(i+1);
-			i += strlen(replaceWith)-1;
-		}
-	}
-	return "\"" + nStr + "\"";
-}
-*/
 
 /** Is the std::string alphanumeric */
 bool is_alpha_num(const char* cstr) {
@@ -827,18 +792,21 @@ const char* lex_get_token_str(int token) {
 	return "?[UNKNOW]";
 }
 
-/*
-void CScriptLex::getPosition(int* line, int *col, int pos) {
-	if (pos<0) pos=tkLastEnd;
+void lex_get_pos(lex_t* lex, int* line, int *col, int pos) {
+	if (pos<0) 
+		pos= lex->tkLastEnd;
+
 	int l = 1;
 	int c  = 1;
-	for (int i=0;i<pos;i++) {
+	int i;
+	for (i=0; i<pos; i++) {
 		char ch;
-		if (i < dataEnd){
-			ch = data[i];
+		if (i < lex->dataEnd){
+			ch = lex->data[i];
 		}else{
 			ch = 0;
 		}
+
 		c++;
 		if (ch=='\n') {
 			l++;
@@ -849,16 +817,18 @@ void CScriptLex::getPosition(int* line, int *col, int pos) {
 	*col = c;
 }
 
-std::string CScriptLex::getPosition(int pos) {
+void lex_get_pos_str(lex_t* l, int pos, str_t* ret) {
 	int line = 1;
 	int col;
 
-	getPosition(&line, &col, pos);
-	std::stringstream ss;
-	ss << "(line: " << line << ", col: " << col << ")";
-	return ss.str();
+	lex_get_pos(l, &line, &col, pos);
+	str_reset(ret);
+	str_append(ret, "(line: ");
+	str_append(ret, str_from_int(line));
+	str_append(ret, ", col: ");
+	str_append(ret, str_from_int(col));
+	str_append(ret, ")");
 }
-*/
 
 
 /** JS bytecode.-----------------------------*/
@@ -2212,7 +2182,7 @@ void var_to_str(var_t* var, str_t* ret) {
 		str_cpy(ret, str_from_int(var_get_int(var)));
 		break;
 	case V_FLOAT:
-		str_cpy(ret, str_from_float(var_get_int(var)));
+		str_cpy(ret, str_from_float(var_get_float(var)));
 		break;
 	case V_STRING:
 		str_cpy(ret, var_get_str(var));
