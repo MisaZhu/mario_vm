@@ -1362,6 +1362,41 @@ bool defFunc(lex_t* l, bytecode_t* bc, str_t* name) {
 	return true;
 }
 
+bool def_class(lex_t* l, bytecode_t* bc) {
+	// actually parse a class...
+	if(!lex_chkread(l, LEX_R_CLASS)) return false;
+	str_t name;
+	str_init(&name);
+
+	/* we can have classes without names */
+	if (l->tk==LEX_ID) {
+		str_cpy(&name, l->tkStr.cstr);
+		if(!lex_chkread(l, LEX_ID)) return false;
+	}
+	bc_gen_str(bc, INSTR_CLASS, name.cstr);
+	
+	/*read extends*/
+	if (l->tk==LEX_R_EXTENDS) {
+		if(!lex_chkread(l, LEX_R_EXTENDS)) return false;
+		str_cpy(&name, l->tkStr.cstr);
+		if(!lex_chkread(l, LEX_ID)) return false;
+		bc_gen_str(bc, INSTR_EXTENDS, name.cstr);
+	}
+
+	if(!lex_chkread(l, '{')) return false;
+	while (l->tk!='}') {
+		if(!defFunc(l, bc, &name))
+			return false;
+		bc_gen_str(bc, INSTR_MEMBERN, name.cstr);
+	}
+	if(!lex_chkread(l, '}')) return false;
+	bc_gen(bc, INSTR_CLASS_END);
+
+	str_release(&name);
+	return true;
+}
+
+
 bool factor(lex_t* l, bytecode_t* bc) {
 	if (l->tk=='(') {
 		if(!lex_chkread(l, '(')) return false;
@@ -1404,7 +1439,7 @@ bool factor(lex_t* l, bytecode_t* bc) {
 		str_release(&fname);
 	}
 	else if(l->tk==LEX_R_CLASS) {
-		//defClass();
+		def_class(l, bc);
 	}
 	else if (l->tk==LEX_R_NEW) {
 		// new -> create a new object
@@ -1844,6 +1879,9 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 		}
 		if(!lex_chkread(l, ';')) return false;
 	}
+	else if(l->tk == LEX_R_CLASS) {
+		def_class(l, bc);
+	}
 	else if(l->tk == LEX_R_FUNCTION) {
 		if(!lex_chkread(l, LEX_R_FUNCTION)) return false;
 		str_t fname;
@@ -2033,6 +2071,18 @@ void var_remove_all(var_t* var) {
 	array_clean(&var->children, node_free);
 }
 
+node_t* var_add(var_t* var, const char* name, var_t* add) {
+	node_t* node = node_new(name);
+	if(node != NULL) {
+		if(add != NULL)
+			node_replace(node, add);
+		else 
+			var_ref(node->var);
+		array_add(&var->children, node);
+	}
+	return node;
+}
+
 node_t* var_find(var_t* var, const char*name) {
 	int i;
 	for(i=0; i<var->children.size; i++) {
@@ -2045,16 +2095,12 @@ node_t* var_find(var_t* var, const char*name) {
 	return NULL;
 }
 
-node_t* var_add(var_t* var, const char* name, var_t* add) {
-	node_t* node = node_new(name);
-	if(node != NULL) {
-		if(add != NULL)
-			node_replace(node, add);
-		else 
-			var_ref(node->var);
-		array_add(&var->children, node);
-	}
-	return node;
+node_t* var_find_create(var_t* var, const char*name) {
+	node_t* n = var_find(var, name);
+	if(n != NULL)
+		return n;
+	n = var_add(var, name, NULL);
+	return n;
 }
 
 node_t* var_get(var_t* var, int32_t index) {
@@ -3268,31 +3314,33 @@ void vm_run_code(vm_t* vm) {
 				}
 				break;
 			}
-			/*
-			case INSTR_CLASS: {
-													str = bcode->getStr(offset);
-													BCVar* v = getOrAddClass(str);
-													//read extends
-													ins = code[pc];
-													instr = ins >> 16;
-													if(instr == INSTR_EXTENDS) {
-														pc++;
-														offset = ins & 0x0000FFFF;
-														str = bcode->getStr(offset);
-														doExtends(v, str);
-													}
+			case INSTR_CLASS: 
+			{
+				const char* s =  bc_getstr(&vm->bc, offset);
+				node_t* n = var_find_create(vm->root, s);
+				n->var->type = V_OBJECT;
+				//read extends
+				ins = code[vm->pc];
+				instr = ins >> 16;
+				if(instr == INSTR_EXTENDS) {
+					vm->pc++;
+					offset = ins & 0x0000FFFF;
+					//TODO: str = bcode->getStr(offset);
+					//doExtends(n, str);
+				}
 
-													VMScope sc;
-													sc.var = v->ref();
-													pushScope(sc);
-													break;
-												}
-			case INSTR_CLASS_END: {
-															BCVar* v = scope()->var;
-															push(v->ref());
-															popScope();
-															break;
-														}
+				scope_t* sc = scope_new(n->var, 0);
+				vm_push_scope(vm, sc);
+				break;
+			}
+			case INSTR_CLASS_END: 
+			{
+				var_t* var = vm_get_scope_var(vm);
+				vm_push(vm, var);
+				vm_pop_scope(vm);
+				break;
+			}
+			/*
 			case INSTR_NEW: {
 												doNew(bcode->getStr(offset));
 												break;
