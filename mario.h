@@ -131,7 +131,15 @@ void array_del(m_array_t* array, uint32_t index, free_func_t fr) { // remove out
 	}
 }
 
-void array_clean(m_array_t* array, free_func_t fr) {
+void array_remove_all(m_array_t* array) { //remove all items bot not free them.
+	if(array->items != NULL) {
+		_free(array->items);
+		array->items = NULL;
+	}
+	array->max = array->size = 0;
+}
+
+void array_clean(m_array_t* array, free_func_t fr) { //remove all items and free them.
 	if(array->items != NULL) {
 		int i;
 		for(i=0; i<array->size; i++) {
@@ -1939,6 +1947,7 @@ bool compile(bytecode_t *bc, const char* input) {
 #define V_BYTES  9
 #define V_ARRAY  10
 
+#define THIS "this"
 
 //script var
 typedef struct st_var {
@@ -2004,7 +2013,7 @@ var_t* node_replace(node_t* node, var_t* v) {
 	return node->var;
 }
 
-void var_removeAll(var_t* var) {
+void var_remove_all(var_t* var) {
 	/*free children*/
 	array_clean(&var->children, node_free);
 }
@@ -2046,7 +2055,7 @@ void var_free(void* p) {
 		return;
 
 	/*free children*/
-	var_removeAll(var);	
+	var_remove_all(var);	
 
 	/*free value*/
 	if(var->value != NULL) {
@@ -2161,13 +2170,13 @@ void get_js_str(const char* str, str_t* ret) {
 	str_add(ret, '"');
 }
 
-void var_to_json(var_t*, str_t*);
+void var_to_json(var_t*, str_t*, int);
 
 void var_dump(var_t* var) {
 	str_t s;
 	str_init(&s);
 
-	var_to_json(var, &s);
+	var_to_json(var, &s, 0);
 	_debug(s.cstr);
 	_debug("\n");
 
@@ -2189,7 +2198,7 @@ void var_to_str(var_t* var, str_t* ret) {
 		break;
 	case V_ARRAY:
 	case V_OBJECT:
-		var_to_json(var, ret);
+		var_to_json(var, ret, 0);
 		break;
 	case V_BYTES:
 		str_cpy(ret, var_get_str(var));
@@ -2235,21 +2244,27 @@ void get_parsable_str(var_t* var, str_t* ret) {
 	str_release(&s);
 }
 
-void var_to_json(var_t* var, str_t* ret) {
+void var_to_json(var_t* var, str_t* ret, int level) {
 	str_reset(ret);
-	/*
-	static vector<BCVar*> done;
+
+	uint32_t i;
+
 	//check if done to avoid dead recursion
+	static m_array_t done;
 	if(level == 0) {
-		done.clear();
+		array_init(&done);
+		array_remove_all(&done);
 	}
-	size_t sz = done.size();
-	for(size_t i=0; i<sz; ++i) {
-		if(done[i] == this)
-			return "{......}";
+	uint32_t sz = done.size;
+	for(i=0; i<sz; ++i) {
+		if(done.items[i] == var) { //already done before.
+			str_cpy(ret, "{......}");
+			if(level == 0)
+				array_remove_all(&done);
+			return;
+		}
 	}
-	done.push_back(this);
-	*/
+	array_add(&done, var);
 
 	if (var->type == V_OBJECT) {
 		// children - handle with bracketed list
@@ -2269,7 +2284,7 @@ void var_to_json(var_t* var, str_t* ret) {
 
 			str_t s;
 			str_init(&s);
-			var_to_json(n->var, &s);
+			var_to_json(n->var, &s, level+1);
 			str_append(ret, s.cstr);
 			str_release(&s);
 
@@ -2293,9 +2308,10 @@ void var_to_json(var_t* var, str_t* ret) {
 
 			str_t s;
 			str_init(&s);
-			var_to_json(n->var, &s);
+			var_to_json(n->var, &s, level);
 			str_append(ret, s.cstr);
 			str_release(&s);
+
 			if (i<len-1) 
 				str_append(ret, ", ");
 		}
@@ -2308,6 +2324,10 @@ void var_to_json(var_t* var, str_t* ret) {
 		get_parsable_str(var, &s);
 		str_append(ret, s.cstr);
 		str_release(&s);
+	}
+
+	if(level == 0) {
+		array_remove_all(&done);
 	}
 }
 
@@ -3117,8 +3137,14 @@ void vm_run_code(vm_t* vm) {
 			case INSTR_LOAD: 
 			{
 				const char* s = bc_getstr(&vm->bc, offset);
-				node_t* n = vm_load_node(vm, s, true); //load variable, create if not exist.
-				vm_push_node(vm, n);
+				if(strcmp(s, THIS) == 0) {
+					var_t* v = vm_get_scope_var(vm);
+					vm_push(vm, v);
+				}
+				else {
+					node_t* n = vm_load_node(vm, s, true); //load variable, create if not exist.
+					vm_push_node(vm, n);
+				}
 				break;
 			}
 			case INSTR_GET: 

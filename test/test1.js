@@ -17,3 +17,5 @@ dump(a);
 
 b = [1,2,3, "xx", 1.0];
 dump(b);
+
+dump(this);
