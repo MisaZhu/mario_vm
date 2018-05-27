@@ -20,7 +20,7 @@ int main(int argc, char** argv) {
 		vm_init(&vm);
 
 		//demo: register a native function(mapped to js).
-		vm_reg_native(&vm, "print(v)", native_print);
+		vm_reg_native(&vm, "print(v)", native_print, NULL);
 		//demo: register a global variable.
 		vm_reg_var(&vm, "_HELLO", var_new_str("Hello, world\n"));
 

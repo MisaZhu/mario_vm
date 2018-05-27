@@ -47,7 +47,7 @@ int main(int argc, char** argv) {
 	vm_t vm;
 	vm_init(&vm);
 
-	vm_reg_native(&vm, "print(str)", native_print);
+	vm_reg_native(&vm, "print(str)", native_print, NULL);
 
 	load_js(&vm, argv[1]);
 

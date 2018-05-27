@@ -33,7 +33,7 @@ bool load_js(vm_t* vm) {
   
   dump(buf);
   
-  vm_load(vm, buf, dump);
+  vm_load(vm, buf);
 
   _free(buf);
   return true;
@@ -42,6 +42,8 @@ bool load_js(vm_t* vm) {
 void setup() {  
   Serial.begin(19200);
   delay(200);
+
+  _debug_func = dump;
   
   vm_t vm;
   vm_init(&vm);

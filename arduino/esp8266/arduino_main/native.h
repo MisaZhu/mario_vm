@@ -47,11 +47,10 @@ void reg_native(vm_t* vm) {
 	vm_reg_var(vm, "LOW", var_new_int(LOW));
 	vm_reg_var(vm, "HIGH", var_new_int(HIGH));
 
-	vm_reg_native(vm, "print(str)", native_print);
-	vm_reg_native(vm, "delay(msec)", native_delay);
-	vm_reg_native(vm, "pinMode(pin, type)", native_pinMode);
-	vm_reg_native(vm, "digitalWrite(pin, type)", native_digitalWrite);
-
+	vm_reg_native(vm, "print(str)", native_print, NULL);
+	vm_reg_native(vm, "delay(msec)", native_delay, NULL);
+	vm_reg_native(vm, "pinMode(pin, type)", native_pinMode, NULL);
+	vm_reg_native(vm, "digitalWrite(pin, type)", native_digitalWrite, NULL);
 }
 
 #endif

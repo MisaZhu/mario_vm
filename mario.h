@@ -3329,7 +3329,7 @@ node_t* vm_reg_var(vm_t* vm, const char* name, var_t* var) {
 	return node;
 }
 
-node_t* vm_reg_native(vm_t* vm, const char* decl, native_func_t native) {
+node_t* vm_reg_native(vm_t* vm, const char* decl, native_func_t native, void* data) {
 	str_t fname, name, arg;
 	str_init(&fname);
 	str_init(&name);
@@ -3337,6 +3337,7 @@ node_t* vm_reg_native(vm_t* vm, const char* decl, native_func_t native) {
 
 	func_t* func = func_new();
 	func->native = native;
+	func->data = data;
 
 	const char *off = decl;
 	//read name
@@ -3369,6 +3370,7 @@ node_t* vm_reg_native(vm_t* vm, const char* decl, native_func_t native) {
 	return node;
 }
 
+/**dump variable*/
 var_t* native_dump(vm_t* vm, var_t* env, void* data) {
 	node_t* n = var_find(env, "var");
 	if(n != NULL)
@@ -3384,7 +3386,7 @@ void vm_init(vm_t* vm) {
 
 	vm->root = var_ref(var_new_object());
 
-	vm_reg_native(vm, "dump(var)", native_dump);
+	vm_reg_native(vm, "dump(var)", native_dump, NULL);
 }
 
 bool vm_load(vm_t* vm, const char* s) {
