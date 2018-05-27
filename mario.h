@@ -41,6 +41,13 @@ typedef int bool;
 /*TODO*/
 #endif
 
+void (*_debug_func)(const char*) = NULL; //print or debug func
+
+void _debug(const char* s) {
+	if(_debug_func != NULL)
+		_debug_func(s);
+}
+
 typedef void (*free_func_t)(void* p);
 
 /** array functions.-----------------------------*/
@@ -275,6 +282,7 @@ void str_split(const char* str, char c, m_array_t* array) {
 		if(offc == c || offc == 0) {
 			char* p = (char*)_malloc(i+1);
 			memcpy(p, str, i+1);
+			p[i] = 0;
 			array_add(array, p);
 			if(offc == 0)
 				break;
@@ -1176,8 +1184,6 @@ PC bc_add_instr(bytecode_t* bc, PC anchor, OprCode op, PC target) {
 	return bc->cindex;
 } 
 
-typedef void (*dump_func_t)(const char*);
-
 #ifdef MARIO_DUMP
 
 PC bc_get_instr_str(bytecode_t* bc, PC i, str_t* ret) {
@@ -1204,6 +1210,7 @@ PC bc_get_instr_str(bytecode_t* bc, PC i, str_t* ret) {
 			sprintf(s, "  |%04d 0x%08X ; %s \"", i, ins, instr_str(instr));	
 			str_append(ret, s);
 			str_append(ret, bc_getstr(bc, strIndex));
+			str_add(ret, '"');
 		}
 		else {
 			sprintf(s, "  |%04d 0x%08X ; %s ", i, ins, instr_str(instr));	
@@ -1229,19 +1236,19 @@ PC bc_get_instr_str(bytecode_t* bc, PC i, str_t* ret) {
 	return i;
 }
 
-void bc_dump(bytecode_t* bc, dump_func_t dump) {
+void bc_dump(bytecode_t* bc) {
 	PC i;
 	char index[8];
 	PC sz = bc->strTable.size;
 
-	dump("-------string table--------------------\n");
+	_debug("-------string table--------------------\n");
 	for(i=0; i<sz; ++i) {
 		sprintf(index, "%04X: ", i);
-		dump(index);
-		dump((const char*)bc->strTable.items[i]);
-		dump("\n");
+		_debug(index);
+		_debug((const char*)bc->strTable.items[i]);
+		_debug("\n");
 	}
-	dump("---------------------------------------\n");
+	_debug("---------------------------------------\n");
 
 	str_t s;
 	str_init(&s);
@@ -1249,8 +1256,8 @@ void bc_dump(bytecode_t* bc, dump_func_t dump) {
 	i = 0;
 	while(i < bc->cindex) {
 		i = bc_get_instr_str(bc, i, &s);
-		dump(s.cstr);
-		dump("\n");
+		_debug(s.cstr);
+		_debug("\n");
 		i++;
 	}
 	str_release(&s);
@@ -1930,7 +1937,7 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 	return true;
 }
 
-bool compile(bytecode_t *bc, const char* input, dump_func_t dump) {
+bool compile(bytecode_t *bc, const char* input) {
 	lex_t lex;
 	lex_init(&lex, input);
 
@@ -1944,8 +1951,7 @@ bool compile(bytecode_t *bc, const char* input, dump_func_t dump) {
 
 	lex_release(&lex);
 #ifdef MARIO_DUMP
-	if(dump != NULL)
-		bc_dump(bc, dump);
+	bc_dump(bc);
 #endif
 	return true;
 }
@@ -1963,6 +1969,7 @@ bool compile(bytecode_t *bc, const char* input, dump_func_t dump) {
 #define V_BYTES  9
 #define V_ARRAY  10
 
+
 //script var
 typedef struct st_var {
 	int32_t magic; //0 for var
@@ -1974,6 +1981,16 @@ typedef struct st_var {
 	m_array_t children;
 } var_t;
 
+struct st_vm;
+typedef var_t* (*native_func_t)(struct st_vm *, var_t*, void*);
+
+typedef struct st_func {
+	native_func_t native;
+	PC pc;
+	void *data;
+	m_array_t args; //argument names
+} func_t;
+
 //script node for var member children
 typedef struct st_node {
 	int32_t magic; //1 for node
@@ -1981,6 +1998,7 @@ typedef struct st_node {
 	bool beConst;
 	var_t* var;
 } node_t;
+
 
 var_t* var_new();
 var_t* var_ref(var_t*);
@@ -2146,6 +2164,181 @@ float var_get_float(var_t* var) {
 		return 0.0;
 	
 	return *(float*)var->value;
+}
+
+func_t* var_get_func(var_t* var) {
+	if(var == NULL || var->value == NULL)
+		return NULL;
+	
+	return (func_t*)var->value;
+}
+
+void get_js_str(const char* str, str_t* ret) {
+	str_reset(ret);
+	str_add(ret, '"');
+
+	while(*str != 0) {
+		switch (*str) {
+			case '\\': str_append(ret, "\\\\"); break;
+			case '\n': str_append(ret, "\\n"); break;
+			case '\r': str_append(ret, "\\r"); break;
+			case '\a': str_append(ret, "\\a"); break;
+			case '"':  str_append(ret, "\\\""); break;
+			default: str_add(ret, *str);
+		}
+		str++;
+	}
+	str_add(ret, '"');
+}
+
+void var_to_json(var_t*, str_t*);
+
+void var_dump(var_t* var) {
+	str_t s;
+	str_init(&s);
+
+	var_to_json(var, &s);
+	_debug(s.cstr);
+	_debug("\n");
+
+	str_release(&s);
+}
+
+void var_to_str(var_t* var, str_t* ret) {
+	str_reset(ret);
+
+	switch(var->type) {
+	case V_INT:
+		str_cpy(ret, str_from_int(var_get_int(var)));
+		break;
+	case V_FLOAT:
+		str_cpy(ret, str_from_float(var_get_int(var)));
+		break;
+	case V_STRING:
+		str_cpy(ret, var_get_str(var));
+		break;
+	case V_ARRAY:
+	case V_OBJECT:
+		var_to_json(var, ret);
+		break;
+	case V_BYTES:
+		str_cpy(ret, var_get_str(var));
+		break;
+	default:
+		str_cpy(ret, "undefined");
+		break;
+	}
+}
+
+void get_parsable_str(var_t* var, str_t* ret) {
+	str_reset(ret);
+
+	if (var->type == V_FUNC) {
+		str_append(ret, "function (");
+		// get list of parameters
+		int sz = 0;
+		if(var->value != NULL) {
+			func_t* func = var_get_func(var);
+			sz = func->args.size;
+			int i=0;
+			for(i=0; i<sz; ++i) {
+				str_append(ret, (const char*)func->args.items[i]);
+				if ((i+1) < sz) {
+					str_add(ret, ',');
+				}
+			}
+		}
+		// add function body
+		str_append(ret, ") {}");
+		return;
+	}
+
+	str_t s;
+	str_init(&s);
+
+	var_to_str(var, &s);
+	if(var->type == V_STRING)
+		get_js_str(s.cstr, ret);
+	else
+		str_cpy(ret, s.cstr);
+
+	str_release(&s);
+}
+
+void var_to_json(var_t* var, str_t* ret) {
+	str_reset(ret);
+	/*
+	static vector<BCVar*> done;
+	//check if done to avoid dead recursion
+	if(level == 0) {
+		done.clear();
+	}
+	size_t sz = done.size();
+	for(size_t i=0; i<sz; ++i) {
+		if(done[i] == this)
+			return "{......}";
+	}
+	done.push_back(this);
+	*/
+
+	if (var->type == V_OBJECT) {
+		// children - handle with bracketed list
+		int sz = (int)var->children.size;
+		if(sz > 0)
+			str_append(ret, "{\n");
+		else
+			str_append(ret, "{");
+
+		int i;
+		for(i=0; i<sz; ++i) {
+			node_t* n = var_get(var, i);
+			str_add(ret, '"');
+			str_append(ret, n->name);
+			str_add(ret, '"');
+			str_append(ret, " : ");
+
+			str_t s;
+			str_init(&s);
+			var_to_json(n->var, &s);
+			str_append(ret, s.cstr);
+			str_release(&s);
+
+			if ((i+1) < sz) {
+				str_append(ret, ",\n");
+			}
+		}
+		if(sz > 0) {
+			str_add(ret, '\n');
+		}
+		str_add(ret, '}');
+	} 
+	else if (var->type == V_ARRAY) {
+		str_add(ret, '[');
+		int len = (int)var->children.size;
+		if (len>100) len=100; // we don't want to get stuck here!
+
+		int i;
+		for (i=0;i<len;i++) {
+			node_t* n = var_get(var, i);
+
+			str_t s;
+			str_init(&s);
+			var_to_json(n->var, &s);
+			str_append(ret, s.cstr);
+			str_release(&s);
+			if (i<len-1) 
+				str_append(ret, ", ");
+		}
+		str_add(ret, ']');
+	}
+	else {
+		// no children or a function... just write value directly
+		str_t s;
+		str_init(&s);
+		get_parsable_str(var, &s);
+		str_append(ret, s.cstr);
+		str_release(&s);
+	}
 }
 
 /** Interpreter-----------------------------*/
@@ -2327,15 +2520,6 @@ node_t* vm_load_node(vm_t* vm, const char* name, bool create) {
 }
 
 //for function.
-typedef var_t* (*native_func_t)(vm_t*, var_t*, void*);
-
-typedef struct st_func {
-	native_func_t native;
-	PC pc;
-	void *data;
-	m_array_t args; //argument names
-} func_t;
-
 var_t* var_new_func(func_t* func) {
 	var_t* var = var_new();
 	var->type = V_FUNC;
@@ -2621,6 +2805,48 @@ void compare(vm_t* vm, OprCode op, var_t* v1, var_t* v2) {
 
 	vm_push(vm, var_new_int(i));
 }
+
+void do_get(vm_t* vm, var_t* v, const char* name) {
+	if(v->type == V_STRING && strcmp(name, "length") == 0) {
+		int len = strlen(var_get_str(v));
+		vm_push(vm, var_new_int(len));
+		return;
+	}
+	else if(v->type == V_ARRAY && strcmp(name, "length") == 0) {
+		int len = v->children.size;
+		vm_push(vm, var_new_int(len));
+		return;
+	}	
+
+	node_t* n = var_find(v, name);
+	//if(n == NULL) //TODO
+	//	n = findInClass(v, str);
+
+	if(n != NULL) {
+		/*if(n->var->type == V_FUNC) {
+			func_t* func = var_get_func(n->var);
+			if(!func->regular) { //class get/set function.
+				func_call(vm, v, funC);
+				return;
+			}
+		}
+		*/
+	}
+	else {
+		if(v->type == V_UNDEF)
+			v->type = V_OBJECT;
+
+		if(v->type == V_OBJECT)
+			n = var_add(v, name, NULL);
+		else {
+			//TODO: ERR("Can not get member %s! %s\n", str.c_str(), DEBUG_LINE);
+			n = node_new(name);
+		}
+	}
+
+	vm_push_node(vm, n);
+}
+
 
 void vm_run_code(vm_t* vm) {
 	//int32_t scDeep = vm->scopes.size;
@@ -2927,10 +3153,10 @@ void vm_run_code(vm_t* vm) {
 			}
 			case INSTR_GET: 
 			{
-				//const char* s = bc_getstr(&vm->bc, offset);
+				const char* s = bc_getstr(&vm->bc, offset);
 				var_t* v = vm_pop2(vm);
 				if(v != NULL) {
-					//doGet(v, s); //TODO
+					do_get(vm, v, s);
 					var_unref(v, true);
 				}
 				break;
@@ -2963,6 +3189,9 @@ void vm_run_code(vm_t* vm) {
 						func_t* func = (func_t*)v->value;
 						gen_func_name(s, func->args.size, &fname);
 					}
+					else {
+						str_cpy(&fname, s);
+					}
 
 					var_t *var = vm_get_scope_var(vm);
 					if(var != NULL)
@@ -2981,6 +3210,26 @@ void vm_run_code(vm_t* vm) {
 				var_t* v = func_def(vm, (instr == INSTR_FUNC ? true:false));
 				if(v != NULL)
 					vm_push(vm, v);
+				break;
+			}
+			case INSTR_OBJ:
+			case INSTR_ARRAY: 
+			{
+				var_t* obj = var_new();
+				if(instr == INSTR_OBJ)
+					obj->type =V_OBJECT;
+				else
+					obj->type = V_ARRAY;
+				scope_t* sc = scope_new(obj, 0);
+				vm_push_scope(vm, sc);
+				break;
+			}
+			case INSTR_ARRAY_END: 
+			case INSTR_OBJ_END: 
+			{
+				var_t* obj = vm_get_scope_var(vm);
+				vm_push(vm, obj); //that actually means currentObj->ref() for push and unref for unasign.
+				vm_pop_scope(vm);
 				break;
 			}
 			/*
@@ -3003,25 +3252,6 @@ void vm_run_code(vm_t* vm) {
 														 }
 														 break;
 													 }
-			case INSTR_OBJ:
-			case INSTR_ARRAY: {
-													BCVar* obj = new BCVar();
-													if(instr == INSTR_OBJ)
-														obj->type = BCVar::OBJECT;
-													else
-														obj->type = BCVar::ARRAY;
-													VMScope sc;
-													sc.var = obj->ref();
-													pushScope(sc);
-												break;
-												}
-			case INSTR_ARRAY_END: 
-			case INSTR_OBJ_END: {
-														BCVar* obj = scope()->var;
-														push(obj->ref()); //that actually means currentObj->ref() for push and unref for unasign.
-														popScope();
-														break;
-													}
 			case INSTR_CLASS: {
 													str = bcode->getStr(offset);
 													BCVar* v = getOrAddClass(str);
@@ -3139,6 +3369,13 @@ node_t* vm_reg_native(vm_t* vm, const char* decl, native_func_t native) {
 	return node;
 }
 
+var_t* native_dump(vm_t* vm, var_t* env, void* data) {
+	node_t* n = var_find(env, "var");
+	if(n != NULL)
+		var_dump(n->var);
+	return NULL;
+}
+
 void vm_init(vm_t* vm) {
 	vm->pc = 0;
 	bc_init(&vm->bc);
@@ -3146,10 +3383,12 @@ void vm_init(vm_t* vm) {
 	array_init(&vm->scopes);	
 
 	vm->root = var_ref(var_new_object());
+
+	vm_reg_native(vm, "dump(var)", native_dump);
 }
 
-bool vm_load(vm_t* vm, const char* s, dump_func_t dump) {
-	return compile(&vm->bc, s, dump);
+bool vm_load(vm_t* vm, const char* s) {
+	return compile(&vm->bc, s);
 }
 
 bool vm_run(vm_t* vm) {

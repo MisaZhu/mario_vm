@@ -6,8 +6,8 @@
 
 var_t* native_print(vm_t* vm, var_t* env, void* data) {
   node_t* n = var_find(env, "str");
-  if(n != NULL)
-    Serial.print(var_get_str(n->var));
+	const char* s = n == NULL ? "" : var_get_str(n->var);
+  Serial.print(s);
   return NULL;
 }
 
