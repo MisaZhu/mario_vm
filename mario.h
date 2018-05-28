@@ -1966,13 +1966,9 @@ bool compile(bytecode_t *bc, const char* input) {
 #define V_INT    1
 #define V_FLOAT  2
 #define V_STRING 3
-#define V_POINT  4
-#define V_FUNC   5
-#define V_NFUNC  6
-#define V_OBJECT 7
-#define V_CLASS  8
-#define V_BYTES  9
-#define V_ARRAY  10
+#define V_FUNC   4
+#define V_OBJECT 5
+#define V_ARRAY  6
 
 #define THIS "this"
 #define PROTOTYPE "class"
@@ -1983,6 +1979,7 @@ typedef struct st_var {
 	int32_t magic; //0 for var
 	int32_t refs:24;
 	int32_t type:8;
+	uint32_t size;  // size for bytes type of value;
 
 	void* value;
 	free_func_t freeFunc; //how to free value
@@ -2132,7 +2129,8 @@ var_t* var_new() {
 	var->magic = 0;
 	var->refs = 0;
 	var->type = V_UNDEF;
-	
+	var->size = 0;
+
 	var->value = NULL;
 	var->freeFunc = NULL;
 	array_init(&var->children);
@@ -2166,8 +2164,9 @@ var_t* var_new_float(float i) {
 var_t* var_new_str(const char* s) {
 	var_t* var = var_new();
 	var->type = V_STRING;
-	var->value = _malloc(strlen(s) + 1);
-	memcpy(var->value, s, strlen(s) + 1);
+	var->size = strlen(s);
+	var->value = _malloc(var->size + 1);
+	memcpy(var->value, s, var->size + 1);
 	return var;
 }
 
@@ -2245,9 +2244,6 @@ void var_to_str(var_t* var, str_t* ret) {
 	case V_ARRAY:
 	case V_OBJECT:
 		var_to_json(var, ret, 0);
-		break;
-	case V_BYTES:
-		str_cpy(ret, var_get_str(var));
 		break;
 	default:
 		str_cpy(ret, "undefined");
@@ -2922,6 +2918,8 @@ void do_new(vm_t* vm, const char* full) {
 	int argNum = parse_func_name(full, name);
 	(void)argNum;
 
+	var_t* obj = NULL;
+
 	node_t* n = vm_load_node(vm, name->cstr, false); //load class;
 	if(n == NULL || n->var->type != V_OBJECT) {
 		vm_push(vm, var_new());
@@ -2938,7 +2936,7 @@ void do_new(vm_t* vm, const char* full) {
 	node_t* constructor = var_find(n->var, name->cstr);
 	str_free(name);
 
-	var_t* obj = var_new_object(NULL, NULL);
+	obj = var_new_object(NULL, NULL);
 	var_add(obj, PROTOTYPE, n->var);
 
 	if(constructor == NULL) { //no constructor
@@ -3172,7 +3170,7 @@ void vm_run_code(vm_t* vm) {
 				scope_t* sc = vm_get_scope(vm);
 				if(sc != NULL) {
 					if(instr == INSTR_RETURN) {//return without value, push "this" to stack
-						node_t* n = vm_load_node(vm, THIS, false); //load variable, create if not exist.
+						node_t* n = vm_load_node(vm, THIS, false); //load variable.
 						if(n != NULL)
 							vm_push(vm, n->var);
 						else
@@ -3457,6 +3455,25 @@ void vm_run_code(vm_t* vm) {
 		vm_pop_scope(vm);
 }
 
+bool vm_load(vm_t* vm, const char* s) {
+	return compile(&vm->bc, s);
+}
+
+bool vm_run(vm_t* vm) {
+	vm_run_code(vm);
+	return true;
+}
+
+void vm_close(vm_t* vm) {
+	var_unref(vm->root, true);
+
+	array_clean(&vm->scopes, NULL);	
+	array_clean(&vm->stack, vm_stack_free);	
+	bc_release(&vm->bc);
+}	
+
+/** native extended functions.-----------------------------*/
+
 node_t* vm_new_class(vm_t* vm, const char* cls) {
 	node_t* clsNode = vm_load_node(vm, cls, true);
 	clsNode->var->type = V_OBJECT;
@@ -3521,15 +3538,137 @@ node_t* vm_reg_native(vm_t* vm, const char* cls, const char* decl, native_func_t
 	return node;
 }
 
+var_t* get_env_this(var_t* env) {
+	node_t* n = var_find(env, THIS);
+	if(n == NULL)
+		return NULL;
+	return n->var;
+}
+
 /**dump variable*/
 var_t* native_dump(vm_t* vm, var_t* env, void* data) {
-	(void)vm;
-	(void)data;
+	(void)vm; (void)data;
 
 	node_t* n = var_find(env, "var");
 	if(n != NULL)
 		var_dump(n->var);
 	return NULL;
+}
+
+/** Bytes */
+
+var_t* native_BytesConstructor(vm_t* vm, var_t* env, void* data) {
+	(void)vm; (void)data;
+	node_t* n = var_find(env, "size");
+	int sz = n == NULL ? 0 : var_get_int(n->var);
+	if(sz <= 0)
+		return NULL;
+
+	var_t* thisV = get_env_this(env);
+	if(thisV != NULL) {
+		thisV->value = _malloc(sz);
+		thisV->size = sz;
+		memset(thisV->value, 0, sz);
+	}
+	return thisV;
+}
+
+var_t* native_BytesSize(vm_t* vm, var_t* env, void* data) {
+	(void)vm; (void)data;
+
+	var_t* thisV = get_env_this(env);
+	int sz = thisV == NULL ? 0 : thisV->size;
+	return var_new_int(sz);
+}
+
+var_t* native_BytesToString(vm_t* vm, var_t* env, void* data) {
+	(void)vm; (void)data;
+
+	var_t* thisV = get_env_this(env);
+	const char* s = thisV == NULL ? "" : (const char*)thisV->value;
+	return var_new_str(s);
+}
+
+var_t* native_BytesAt(vm_t* vm, var_t* env, void* data) {
+	(void)vm; (void)data;
+
+	node_t* n = var_find(env, "index");
+	int index = n == NULL ? 0 : var_get_int(n->var);
+
+	var_t* thisV = get_env_this(env);
+	int sz = thisV == NULL ? 0 : thisV->size;
+
+	int i = 0;
+	if(sz > index)
+		i = ((char*)thisV->value)[index];
+		
+	return var_new_int(i);
+}
+
+var_t* native_BytesSet(vm_t* vm, var_t* env, void* data) {
+	(void)vm; (void)data;
+
+	node_t* n = var_find(env, "index");
+	int index = n == NULL ? 0 : var_get_int(n->var);
+	n = var_find(env, "i");
+	int i = n == NULL ? 0 : var_get_int(n->var);
+
+	var_t* thisV = get_env_this(env);
+	int sz = thisV == NULL ? 0 : thisV->size;
+
+	if(sz > index)
+		((char*)thisV->value)[index] = i;
+		
+	return NULL;
+}
+
+var_t* native_BytesFromString(vm_t* vm, var_t* env, void* data) {
+	(void)vm; (void)data;
+
+	node_t* n = var_find(env, "str");
+	const char* s = n == NULL ? "" : var_get_str(n->var);
+
+	var_t* thisV = get_env_this(env);
+	if(thisV != NULL) {
+		thisV->size = strlen(s) + 1;
+		thisV->value = _realloc(thisV->value, thisV->size);
+		memcpy(thisV->value, s, thisV->size);
+	}
+		
+	return NULL;
+}
+
+/** String */
+
+var_t* native_StringConstructor(vm_t* vm, var_t* env, void* data) {
+	(void)vm; (void)data;
+
+	node_t* n = var_find(env, "str");
+	const char* s = n == NULL ? "" : var_get_str(n->var);
+
+	var_t* thisV = get_env_this(env);
+	thisV->size = strlen(s) + 1;
+	thisV->value = _malloc(thisV->size);
+	memcpy(thisV->value, s, thisV->size);
+	return thisV;
+}
+
+var_t* native_StringLength(vm_t* vm, var_t* env, void* data) {
+	(void)vm; (void)data;
+
+	var_t* thisV = get_env_this(env);
+	int len = 0;
+	if(thisV != NULL && thisV->value != NULL)
+		len = strlen((const char*)thisV->value);
+	return var_new_int(len);
+}
+
+var_t* native_StringToString(vm_t* vm, var_t* env, void* data) {
+	(void)vm; (void)data;
+
+	var_t* thisV = get_env_this(env);
+	const char* s = thisV == NULL ? "" : (const char*)thisV->value;
+	return var_new_str(s);
 }
 
 void vm_init(vm_t* vm) {
@@ -3541,25 +3680,18 @@ void vm_init(vm_t* vm) {
 	vm->root = var_ref(var_new_object(NULL, NULL));
 
 	vm_reg_native(vm, "Debug", "dump(var)", native_dump, NULL);
+
+	vm_reg_native(vm, "Bytes", "constructor(size)", native_BytesConstructor, NULL); 
+	vm_reg_native(vm, "Bytes", "size()", native_BytesSize, NULL); 
+	vm_reg_native(vm, "Bytes", "toString()", native_BytesToString, NULL); 
+	vm_reg_native(vm, "Bytes", "fromString(str)", native_BytesFromString, NULL); 
+	vm_reg_native(vm, "Bytes", "set(index, i)", native_BytesSet, NULL); 
+	vm_reg_native(vm, "Bytes", "at(index)", native_BytesAt, NULL); 
+
+	vm_reg_native(vm, "String", "constructor(str)", native_StringConstructor, NULL); 
+	vm_reg_native(vm, "String", "length()", native_StringLength, NULL); 
+	vm_reg_native(vm, "String", "toString()", native_StringToString, NULL); 
 }
-
-bool vm_load(vm_t* vm, const char* s) {
-	return compile(&vm->bc, s);
-}
-
-bool vm_run(vm_t* vm) {
-	vm_run_code(vm);
-	return true;
-}
-
-void vm_close(vm_t* vm) {
-	var_unref(vm->root, true);
-
-	array_clean(&vm->scopes, NULL);	
-	array_clean(&vm->stack, vm_stack_free);	
-	bc_release(&vm->bc);
-}	
-
 
 #ifdef __cplusplus
 }
