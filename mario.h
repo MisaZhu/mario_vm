@@ -167,12 +167,6 @@ typedef struct st_str {
 	uint32_t len: 16;
 } str_t;
 
-void str_init(str_t* str) {
-	str->cstr = NULL;
-	str->max = 0;
-	str->len = 0;
-}
-
 void str_reset(str_t* str) {
 	if(str->cstr == NULL) {
 		str->cstr = (char*)_malloc(STR_BUF);
@@ -211,9 +205,13 @@ char* str_cpy(str_t* str, const char* src) {
 	return str->cstr;
 }
 
-void str_inits(str_t* str, const char* s) {
-	str_init(str);
-	str_cpy(str, s);
+str_t* str_new(const char* s) {
+	str_t* ret = (str_t*)_malloc(sizeof(str_t));
+	ret->cstr = NULL;
+	ret->max = 0;
+	ret->len = 0;
+	str_cpy(ret, s);
+	return ret;
 }
 
 char* str_append(str_t* str, const char* src) {
@@ -249,12 +247,14 @@ char* str_add(str_t* str, char c) {
 	return str->cstr;
 }
 
-void str_release(str_t* str) {
+void str_free(str_t* str) {
+	if(str == NULL)
+		return;
+
 	if(str->cstr != NULL) {
 		_free(str->cstr);
-		str->cstr = NULL;
 	}
-	str->max = str->len = 0;
+	_free(str);
 }
 
 static char _s[32];
@@ -373,7 +373,7 @@ typedef struct st_lex {
 	char currCh, nextCh;
 
 	LEX_TYPES tk;
-	str_t tkStr;
+	str_t* tkStr;
 	int32_t tkStart, tkEnd, tkLastEnd;
 } lex_t;
 
@@ -415,27 +415,6 @@ bool is_alpha(unsigned char ch) {
 	return false;
 }
 
-char* oneLine(const char *s, int ptr,int end) {
-	uint32_t cnt = 0;
-	static str_t work;
-	str_init(&work);
-
-	if( end < ptr ){
-		ptr = end;
-	}
-	if( ptr>0) ptr--;
-	if( ptr>0) ptr--;
-	while( ptr > 0  && s[ptr] != '\n'){
-		ptr--;
-	}
-	//ptr++;
-	while( s[ptr] && s[ptr] != '\n' && cnt < sizeof( work )-2 ){
-		str_add(&work, s[ptr]);
-		ptr++;
-	}
-	return work.cstr;
-}
-
 /** Is the std::string alphanumeric */
 bool is_alpha_num(const char* cstr) {
 	if (cstr[0] == 0){
@@ -467,7 +446,7 @@ void lex_get_nextch(lex_t* lex) {
 
 void lex_get_next_token(lex_t* lex) {
 	lex->tk = LEX_EOF;
-	str_reset(&lex->tkStr);
+	str_reset(lex->tkStr);
 
 	while (lex->currCh && is_whitespace(lex->currCh)){
 		lex_get_nextch(lex);
@@ -496,69 +475,69 @@ void lex_get_next_token(lex_t* lex) {
 	// tokens
 	if (is_alpha(lex->currCh)) { //  IDs
 		while (is_alpha(lex->currCh) || is_numeric(lex->currCh)) {
-			str_add(&lex->tkStr, lex->currCh);
+			str_add(lex->tkStr, lex->currCh);
 			lex_get_nextch(lex);
 		}
 		lex->tk = LEX_ID;
-		if (strcmp(lex->tkStr.cstr, "if") == 0)        lex->tk = LEX_R_IF;
-		else if (strcmp(lex->tkStr.cstr, "else") == 0)      lex->tk = LEX_R_ELSE;
-		else if (strcmp(lex->tkStr.cstr, "do") == 0)        lex->tk = LEX_R_DO;
-		else if (strcmp(lex->tkStr.cstr, "while") == 0)    lex->tk = LEX_R_WHILE;
-		else if (strcmp(lex->tkStr.cstr, "import") == 0)  lex->tk = LEX_R_INCLUDE;
-		else if (strcmp(lex->tkStr.cstr, "for") == 0)     lex->tk = LEX_R_FOR;
-		else if (strcmp(lex->tkStr.cstr, "break") == 0)    lex->tk = LEX_R_BREAK;
-		else if (strcmp(lex->tkStr.cstr, "continue") == 0)  lex->tk = LEX_R_CONTINUE;
-		else if (strcmp(lex->tkStr.cstr, "function") == 0)  lex->tk = LEX_R_FUNCTION;
-		else if (strcmp(lex->tkStr.cstr, "class") ==0) 		 lex->tk = LEX_R_CLASS;
-		else if (strcmp(lex->tkStr.cstr, "extends") == 0) 	 lex->tk = LEX_R_EXTENDS;
-		else if (strcmp(lex->tkStr.cstr, "return") == 0)   lex->tk = LEX_R_RETURN;
-		else if (strcmp(lex->tkStr.cstr, "var")  == 0)      lex->tk = LEX_R_VAR;
-		else if (strcmp(lex->tkStr.cstr, "const") == 0)     lex->tk = LEX_R_CONST;
-		else if (strcmp(lex->tkStr.cstr, "true") == 0)      lex->tk = LEX_R_TRUE;
-		else if (strcmp(lex->tkStr.cstr, "false") == 0)     lex->tk = LEX_R_FALSE;
-		else if (strcmp(lex->tkStr.cstr, "null") == 0)      lex->tk = LEX_R_NULL;
-		else if (strcmp(lex->tkStr.cstr, "undefined") == 0) lex->tk = LEX_R_UNDEFINED;
-		else if (strcmp(lex->tkStr.cstr, "new") == 0)       lex->tk = LEX_R_NEW;
-		else if (strcmp(lex->tkStr.cstr, "typeof") == 0)       lex->tk = LEX_R_TYPEOF;
-		else if (strcmp(lex->tkStr.cstr, "throw") == 0)     lex->tk = LEX_R_THROW;
-		else if (strcmp(lex->tkStr.cstr, "try") == 0)    	 lex->tk = LEX_R_TRY;
-		else if (strcmp(lex->tkStr.cstr, "catch") == 0)     lex->tk = LEX_R_CATCH;
+		if (strcmp(lex->tkStr->cstr, "if") == 0)        lex->tk = LEX_R_IF;
+		else if (strcmp(lex->tkStr->cstr, "else") == 0)      lex->tk = LEX_R_ELSE;
+		else if (strcmp(lex->tkStr->cstr, "do") == 0)        lex->tk = LEX_R_DO;
+		else if (strcmp(lex->tkStr->cstr, "while") == 0)    lex->tk = LEX_R_WHILE;
+		else if (strcmp(lex->tkStr->cstr, "import") == 0)  lex->tk = LEX_R_INCLUDE;
+		else if (strcmp(lex->tkStr->cstr, "for") == 0)     lex->tk = LEX_R_FOR;
+		else if (strcmp(lex->tkStr->cstr, "break") == 0)    lex->tk = LEX_R_BREAK;
+		else if (strcmp(lex->tkStr->cstr, "continue") == 0)  lex->tk = LEX_R_CONTINUE;
+		else if (strcmp(lex->tkStr->cstr, "function") == 0)  lex->tk = LEX_R_FUNCTION;
+		else if (strcmp(lex->tkStr->cstr, "class") ==0) 		 lex->tk = LEX_R_CLASS;
+		else if (strcmp(lex->tkStr->cstr, "extends") == 0) 	 lex->tk = LEX_R_EXTENDS;
+		else if (strcmp(lex->tkStr->cstr, "return") == 0)   lex->tk = LEX_R_RETURN;
+		else if (strcmp(lex->tkStr->cstr, "var")  == 0)      lex->tk = LEX_R_VAR;
+		else if (strcmp(lex->tkStr->cstr, "const") == 0)     lex->tk = LEX_R_CONST;
+		else if (strcmp(lex->tkStr->cstr, "true") == 0)      lex->tk = LEX_R_TRUE;
+		else if (strcmp(lex->tkStr->cstr, "false") == 0)     lex->tk = LEX_R_FALSE;
+		else if (strcmp(lex->tkStr->cstr, "null") == 0)      lex->tk = LEX_R_NULL;
+		else if (strcmp(lex->tkStr->cstr, "undefined") == 0) lex->tk = LEX_R_UNDEFINED;
+		else if (strcmp(lex->tkStr->cstr, "new") == 0)       lex->tk = LEX_R_NEW;
+		else if (strcmp(lex->tkStr->cstr, "typeof") == 0)       lex->tk = LEX_R_TYPEOF;
+		else if (strcmp(lex->tkStr->cstr, "throw") == 0)     lex->tk = LEX_R_THROW;
+		else if (strcmp(lex->tkStr->cstr, "try") == 0)    	 lex->tk = LEX_R_TRY;
+		else if (strcmp(lex->tkStr->cstr, "catch") == 0)     lex->tk = LEX_R_CATCH;
 	} else if (is_numeric(lex->currCh)) { // Numbers
 		bool isHex = false;
 		if (lex->currCh=='0') {
-			str_add(&lex->tkStr, lex->currCh);
+			str_add(lex->tkStr, lex->currCh);
 			lex_get_nextch(lex);
 		}
 		if (lex->currCh=='x') {
 			isHex = true;
-			str_add(&lex->tkStr, lex->currCh);
+			str_add(lex->tkStr, lex->currCh);
 			lex_get_nextch(lex);
 		}
 		lex->tk = LEX_INT;
 		while (is_numeric(lex->currCh) || (isHex && is_hexadecimal(lex->currCh))) {
-			str_add(&lex->tkStr, lex->currCh);
+			str_add(lex->tkStr, lex->currCh);
 			lex_get_nextch(lex);
 		}
 		if (!isHex && lex->currCh=='.') {
 			lex->tk = LEX_FLOAT;
-			str_add(&lex->tkStr, '.');
+			str_add(lex->tkStr, '.');
 			lex_get_nextch(lex);
 			while (is_numeric(lex->currCh)) {
-				str_add(&lex->tkStr, lex->currCh);
+				str_add(lex->tkStr, lex->currCh);
 				lex_get_nextch(lex);
 			}
 		}
 		// do fancy e-style floating point
 		if (!isHex && (lex->currCh=='e'||lex->currCh=='E')) {
 			lex->tk = LEX_FLOAT;
-			str_add(&lex->tkStr, lex->currCh);
+			str_add(lex->tkStr, lex->currCh);
 			lex_get_nextch(lex);
 			if (lex->currCh=='-') {
-				str_add(&lex->tkStr, lex->currCh);
+				str_add(lex->tkStr, lex->currCh);
 				lex_get_nextch(lex);
 			}
 			while (is_numeric(lex->currCh)) {
-				str_add(&lex->tkStr, lex->currCh);
+				str_add(lex->tkStr, lex->currCh);
 				lex_get_nextch(lex);
 			}
 		}
@@ -569,15 +548,15 @@ void lex_get_next_token(lex_t* lex) {
 			if (lex->currCh == '\\') {
 				lex_get_nextch(lex);
 				switch (lex->currCh) {
-					case 'n' : str_add(&lex->tkStr, '\n'); break;
-					case 'r' : str_add(&lex->tkStr, '\r'); break;
-					case 't' : str_add(&lex->tkStr, '\t'); break;
-					case '"' : str_add(&lex->tkStr, '\"'); break;
-					case '\\' : str_add(&lex->tkStr, '\\'); break;
-					default: str_add(&lex->tkStr, lex->currCh);
+					case 'n' : str_add(lex->tkStr, '\n'); break;
+					case 'r' : str_add(lex->tkStr, '\r'); break;
+					case 't' : str_add(lex->tkStr, '\t'); break;
+					case '"' : str_add(lex->tkStr, '\"'); break;
+					case '\\' : str_add(lex->tkStr, '\\'); break;
+					default: str_add(lex->tkStr, lex->currCh);
 				}
 			} else {
-				str_add(&lex->tkStr, lex->currCh);
+				str_add(lex->tkStr, lex->currCh);
 			}
 			lex_get_nextch(lex);
 		}
@@ -590,19 +569,19 @@ void lex_get_next_token(lex_t* lex) {
 			if (lex->currCh == '\\') {
 				lex_get_nextch(lex);
 				switch (lex->currCh) {
-					case 'n' : str_add(&lex->tkStr, '\n'); break;
-					case 'a' : str_add(&lex->tkStr, '\a'); break;
-					case 'r' : str_add(&lex->tkStr, '\r'); break;
-					case 't' : str_add(&lex->tkStr, '\t'); break;
-					case '\'' : str_add(&lex->tkStr, '\''); break;
-					case '\\' : str_add(&lex->tkStr, '\\'); break;
+					case 'n' : str_add(lex->tkStr, '\n'); break;
+					case 'a' : str_add(lex->tkStr, '\a'); break;
+					case 'r' : str_add(lex->tkStr, '\r'); break;
+					case 't' : str_add(lex->tkStr, '\t'); break;
+					case '\'' : str_add(lex->tkStr, '\''); break;
+					case '\\' : str_add(lex->tkStr, '\\'); break;
 					case 'x' : { // hex digits
 											 char buf[3] = "??";
 											 lex_get_nextch(lex);
 											 buf[0] = lex->currCh;
 											 lex_get_nextch(lex);
 											 buf[1] = lex->currCh;
-											 str_add(&lex->tkStr, (char)strtol(buf,0,16));
+											 str_add(lex->tkStr, (char)strtol(buf,0,16));
 										 } break;
 					default: if (lex->currCh>='0' && lex->currCh<='7') {
 										 // octal digits
@@ -612,12 +591,12 @@ void lex_get_next_token(lex_t* lex) {
 										 buf[1] = lex->currCh;
 										 lex_get_nextch(lex);
 										 buf[2] = lex->currCh;
-										 str_add(&lex->tkStr, (char)strtol(buf,0,8));
+										 str_add(lex->tkStr, (char)strtol(buf,0,8));
 									 } else
-										 str_add(&lex->tkStr, lex->currCh);
+										 str_add(lex->tkStr, lex->currCh);
 				}
 			} else {
-				str_add(&lex->tkStr, lex->currCh);
+				str_add(lex->tkStr, lex->currCh);
 			}
 			lex_get_nextch(lex);
 		}
@@ -714,7 +693,7 @@ void lex_reset(lex_t* lex) {
 	lex->tkEnd     = 0;
 	lex->tkLastEnd = 0;
 	lex->tk  = LEX_EOF;
-	str_reset(&lex->tkStr);
+	str_reset(lex->tkStr);
 	lex_get_nextch(lex);
 	lex_get_nextch(lex);
 	lex_get_next_token(lex);
@@ -724,12 +703,13 @@ void lex_init(lex_t * lex, const char* input) {
 	lex->data = input;
 	lex->dataStart = 0;
 	lex->dataEnd = strlen(lex->data);
-	str_init(&lex->tkStr);
+	lex->tkStr = str_new("");
 	lex_reset(lex);
 }
 
 void lex_release(lex_t* lex) {
-	str_release(&lex->tkStr);
+	str_free(lex->tkStr);
+	lex->tkStr = NULL;
 }
 
 const char* lex_get_token_str(int token) {
@@ -837,11 +817,10 @@ bool lex_chkread(lex_t* lex, int expected_tk) {
 		_debug(" expected ");
 		_debug(lex_get_token_str(expected_tk));
 
-		str_t s;
-		str_init(&s);
-		lex_get_pos_str(lex, -1, &s);
-		_debug(s.cstr);
-		str_release(&s);
+		str_t* s = str_new("");
+		lex_get_pos_str(lex, -1, s);
+		_debug(s->cstr);
+		str_free(s);
 		_debug("!\n");
 		return false;
 	}
@@ -1240,17 +1219,16 @@ void bc_dump(bytecode_t* bc) {
 	}
 	_debug("---------------------------------------\n");
 
-	str_t s;
-	str_init(&s);
+	str_t* s = str_new("");
 
 	i = 0;
 	while(i < bc->cindex) {
-		i = bc_get_instr_str(bc, i, &s);
-		_debug(s.cstr);
+		i = bc_get_instr_str(bc, i, s);
+		_debug(s->cstr);
 		_debug("\n");
 		i++;
 	}
-	str_release(&s);
+	str_free(s);
 }
 
 #endif
@@ -1326,18 +1304,18 @@ bool block(lex_t* l, bytecode_t* bc, loop_t* loop) {
 bool defFunc(lex_t* l, bytecode_t* bc, str_t* name) {
 	/* we can have functions without names */
 	if (l->tk == LEX_ID) {
-		str_cpy(name, l->tkStr.cstr);
+		str_cpy(name, l->tkStr->cstr);
 		if(!lex_chkread(l, LEX_ID)) return false;
 	}
 	
 	if(l->tk == LEX_ID) { //class get/set token
 		if(strcmp(name->cstr, "get") == 0) {
-			str_cpy(name, l->tkStr.cstr);
+			str_cpy(name, l->tkStr->cstr);
 			if(!lex_chkread(l, LEX_ID)) return false;
 			bc_gen(bc, INSTR_FUNC_GET);
 		}
 		if(strcmp(name->cstr, "set") == 0) {
-			str_cpy(name, l->tkStr.cstr);
+			str_cpy(name, l->tkStr->cstr);
 			if(!lex_chkread(l, LEX_ID)) return false;
 			bc_gen(bc, INSTR_FUNC_SET);
 		}
@@ -1348,7 +1326,7 @@ bool defFunc(lex_t* l, bytecode_t* bc, str_t* name) {
 	//do arguments
 	if(!lex_chkread(l, '(')) return false;
 	while (l->tk!=')') {
-		bc_gen_str(bc, INSTR_VAR, l->tkStr.cstr);
+		bc_gen_str(bc, INSTR_VAR, l->tkStr->cstr);
 		if(!lex_chkread(l, LEX_ID)) return false;
 		if (l->tk!=')') {
 			if(!lex_chkread(l, ',')) return false;
@@ -1369,34 +1347,33 @@ bool defFunc(lex_t* l, bytecode_t* bc, str_t* name) {
 bool def_class(lex_t* l, bytecode_t* bc) {
 	// actually parse a class...
 	if(!lex_chkread(l, LEX_R_CLASS)) return false;
-	str_t name;
-	str_init(&name);
+	str_t* name = str_new("");
 
 	/* we can have classes without names */
 	if (l->tk==LEX_ID) {
-		str_cpy(&name, l->tkStr.cstr);
+		str_cpy(name, l->tkStr->cstr);
 		if(!lex_chkread(l, LEX_ID)) return false;
 	}
-	bc_gen_str(bc, INSTR_CLASS, name.cstr);
+	bc_gen_str(bc, INSTR_CLASS, name->cstr);
 	
 	/*read extends*/
 	if (l->tk==LEX_R_EXTENDS) {
 		if(!lex_chkread(l, LEX_R_EXTENDS)) return false;
-		str_cpy(&name, l->tkStr.cstr);
+		str_cpy(name, l->tkStr->cstr);
 		if(!lex_chkread(l, LEX_ID)) return false;
-		bc_gen_str(bc, INSTR_EXTENDS, name.cstr);
+		bc_gen_str(bc, INSTR_EXTENDS, name->cstr);
 	}
 
 	if(!lex_chkread(l, '{')) return false;
 	while (l->tk!='}') {
-		if(!defFunc(l, bc, &name))
+		if(!defFunc(l, bc, name))
 			return false;
-		bc_gen_str(bc, INSTR_MEMBERN, name.cstr);
+		bc_gen_str(bc, INSTR_MEMBERN, name->cstr);
 	}
 	if(!lex_chkread(l, '}')) return false;
 	bc_gen(bc, INSTR_CLASS_END);
 
-	str_release(&name);
+	str_free(name);
 	return true;
 }
 
@@ -1424,23 +1401,22 @@ bool factor(lex_t* l, bytecode_t* bc) {
 		bc_gen(bc, INSTR_UNDEF);
 	}
 	else if (l->tk==LEX_INT) {
-		bc_gen_str(bc, INSTR_INT, l->tkStr.cstr);
+		bc_gen_str(bc, INSTR_INT, l->tkStr->cstr);
 		if(!lex_chkread(l, LEX_INT)) return false;
 	}
 	else if (l->tk==LEX_FLOAT) {
-		bc_gen_str(bc, INSTR_FLOAT, l->tkStr.cstr);
+		bc_gen_str(bc, INSTR_FLOAT, l->tkStr->cstr);
 		if(!lex_chkread(l, LEX_FLOAT)) return false;
 	}
 	else if (l->tk==LEX_STR) {
-		bc_gen_str(bc, INSTR_STR, l->tkStr.cstr);
+		bc_gen_str(bc, INSTR_STR, l->tkStr->cstr);
 		if(!lex_chkread(l, LEX_STR)) return false;
 	}
 	else if(l->tk==LEX_R_FUNCTION) {
 		if(!lex_chkread(l, LEX_R_FUNCTION)) return false;
-		str_t fname;
-		str_init(&fname);
-		defFunc(l, bc, &fname);
-		str_release(&fname);
+		str_t *fname = str_new("");
+		defFunc(l, bc, fname);
+		str_free(fname);
 	}
 	else if(l->tk==LEX_R_CLASS) {
 		def_class(l, bc);
@@ -1448,9 +1424,8 @@ bool factor(lex_t* l, bytecode_t* bc) {
 	else if (l->tk==LEX_R_NEW) {
 		// new -> create a new object
 		if(!lex_chkread(l, LEX_R_NEW)) return false;
-		str_t className;
-		str_init(&className);
-		str_cpy(&className, l->tkStr.cstr);
+		str_t* className = str_new("");
+		str_cpy(className, l->tkStr->cstr);
 
 		if(!lex_chkread(l, LEX_ID)) return false;
 		if (l->tk == '(') {
@@ -1458,12 +1433,12 @@ bool factor(lex_t* l, bytecode_t* bc) {
 			int argNum = callFunc(l, bc);
 			//lex_chkread(l, ')');
 			if(argNum > 0) {
-				str_append(&className, "$");
-				str_append(&className, str_from_int(argNum));
+				str_append(className, "$");
+				str_append(className, str_from_int(argNum));
 			}
-			bc_gen_str(bc, INSTR_NEW, className.cstr);
+			bc_gen_str(bc, INSTR_NEW, className->cstr);
 		}
-		str_release(&className);
+		str_free(className);
 	}
 
 	if (l->tk=='{') {
@@ -1471,8 +1446,7 @@ bool factor(lex_t* l, bytecode_t* bc) {
 		if(!lex_chkread(l, '{')) return false;
 		bc_gen(bc, INSTR_OBJ);
 		while (l->tk != '}') {
-			str_t id;
-			str_inits(&id, l->tkStr.cstr);
+			str_t* id = str_new(l->tkStr->cstr);
 			// we only allow strings or IDs on the left hand side of an initialisation
 			if (l->tk==LEX_STR) {
 				if(!lex_chkread(l, LEX_STR)) return false;
@@ -1484,19 +1458,18 @@ bool factor(lex_t* l, bytecode_t* bc) {
 			if(!lex_chkread(l, ':')) return false;
 			if(!base(l, bc)) return false;
 
-			bc_gen_str(bc, INSTR_MEMBERN, id.cstr);
+			bc_gen_str(bc, INSTR_MEMBERN, id->cstr);
 			// no need to clean here, as it will definitely be used
 			if (l->tk != '}') {
 				if(!lex_chkread(l, ',')) return false;
 			}
-			str_release(&id);
+			str_free(id);
 		}
 		bc_gen(bc, INSTR_OBJ_END);
 		if(!lex_chkread(l, '}')) return false;
 	}
 	else if(l->tk==LEX_ID) {
-		str_t name;
-		str_inits(&name, l->tkStr.cstr);
+		str_t* name = str_new(l->tkStr->cstr);
 		if(!lex_chkread(l, LEX_ID)) return false;
 
 		m_array_t names;
@@ -1505,17 +1478,16 @@ bool factor(lex_t* l, bytecode_t* bc) {
 		bool load = true;
 		while (l->tk=='(' || l->tk=='.' || l->tk=='[') {
 			if (l->tk=='(') { // ------------------------------------- Function Call
-				str_split(name.cstr, '.', &names);
-				str_reset(&name);
+				str_split(name->cstr, '.', &names);
+				str_reset(name);
 
 				int sz = (int)(names.size-1);
-				str_t s;
-				str_init(&s);
+				str_t* s = str_new("");
 					
 				if(sz == 0 && load) {
 					int argNum = callFunc(l, bc);
-					gen_func_name((const char*)names.items[sz], argNum, &s);
-					bc_gen_str(bc, INSTR_CALL, s.cstr);	
+					gen_func_name((const char*)names.items[sz], argNum, s);
+					bc_gen_str(bc, INSTR_CALL, s->cstr);	
 				}
 				else {
 					int i;
@@ -1524,20 +1496,20 @@ bool factor(lex_t* l, bytecode_t* bc) {
 						load = false;
 					}
 					int argNum = callFunc(l, bc);
-					gen_func_name((const char*)names.items[sz], argNum, &s);
-					bc_gen_str(bc, INSTR_CALLO, s.cstr);	
+					gen_func_name((const char*)names.items[sz], argNum, s);
+					bc_gen_str(bc, INSTR_CALLO, s->cstr);	
 				}
 				load = false;
 				array_clean(&names, NULL);
-				str_release(&s);
+				str_free(s);
 			} 
 			else if (l->tk == '.') { // ------------------------------------- Record Access
 				if(!lex_chkread(l, '.')) return false;
-				if(name.len == 0)
-					str_cpy(&name, l->tkStr.cstr);
+				if(name->len == 0)
+					str_cpy(name, l->tkStr->cstr);
 				else {
-					str_append(&name, ".");
-					str_append(&name, l->tkStr.cstr);
+					str_append(name, ".");
+					str_append(name, l->tkStr->cstr);
 				}
 				if(!lex_chkread(l, LEX_ID)) return false;
 			} 
@@ -1545,8 +1517,8 @@ bool factor(lex_t* l, bytecode_t* bc) {
 				int i;
 				int sz;
 
-				str_split(name.cstr, '.', &names);
-				str_reset(&name);
+				str_split(name->cstr, '.', &names);
+				str_reset(name);
 				sz = names.size;
 				for(i=0; i<sz; i++) {
 					bc_gen_str(bc, load ? INSTR_LOAD:INSTR_GET, (const char*)names.items[i]);	
@@ -1561,10 +1533,10 @@ bool factor(lex_t* l, bytecode_t* bc) {
 			} 
 		}
 
-		if(name.len > 0) {
+		if(name->len > 0) {
 			int i, sz;
-			str_split(name.cstr, '.', &names);
-			str_reset(&name);
+			str_split(name->cstr, '.', &names);
+			str_reset(name);
 			sz = names.size;
 			for(i=0; i<sz; i++) {
 				bc_gen_str(bc, load ? INSTR_LOAD:INSTR_GET, (const char*)names.items[i]);	
@@ -1572,7 +1544,7 @@ bool factor(lex_t* l, bytecode_t* bc) {
 			}
 			array_clean(&names, NULL);
 		}
-		str_release(&name);
+		str_free(name);
 	}
 	else if (l->tk=='[') {
 		// JSON-style array 
@@ -1865,21 +1837,20 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 		}
 
 		while (l->tk != ';') {
-			str_t vname;
-			str_inits(&vname, l->tkStr.cstr);
+			str_t* vname = str_new(l->tkStr->cstr);
 			if(!lex_chkread(l, LEX_ID)) return false;
-			bc_gen_str(bc, beConst ? INSTR_CONST : INSTR_VAR, vname.cstr);
+			bc_gen_str(bc, beConst ? INSTR_CONST : INSTR_VAR, vname->cstr);
 			// sort out initialiser
 			if (l->tk == '=') {
 				if(!lex_chkread(l, '=')) return false;
-				bc_gen_str(bc, INSTR_LOAD, vname.cstr);
+				bc_gen_str(bc, INSTR_LOAD, vname->cstr);
 				if(!base(l, bc)) return false;
 				bc_gen(bc, INSTR_ASIGN);
 				bc_gen(bc, INSTR_POP);
 			}
 			if (l->tk != ';')
 				if(!lex_chkread(l, ',')) return false;
-			str_release(&vname);
+			str_free(vname);
 		}
 		if(!lex_chkread(l, ';')) return false;
 	}
@@ -1888,11 +1859,10 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 	}
 	else if(l->tk == LEX_R_FUNCTION) {
 		if(!lex_chkread(l, LEX_R_FUNCTION)) return false;
-		str_t fname;
-		str_init(&fname);
-		defFunc(l, bc, &fname);
-		bc_gen_str(bc, INSTR_MEMBERN, fname.cstr);
-		str_release(&fname);
+		str_t* fname = str_new("");
+		defFunc(l, bc, fname);
+		bc_gen_str(bc, INSTR_MEMBERN, fname->cstr);
+		str_free(fname);
 		pop = false;
 	}
 	else if (l->tk == LEX_R_RETURN) {
@@ -2245,14 +2215,13 @@ void get_js_str(const char* str, str_t* ret) {
 void var_to_json(var_t*, str_t*, int);
 
 void var_dump(var_t* var) {
-	str_t s;
-	str_init(&s);
+	str_t* s = str_new("");
 
-	var_to_json(var, &s, 0);
-	_debug(s.cstr);
+	var_to_json(var, s, 0);
+	_debug(s->cstr);
 	_debug("\n");
 
-	str_release(&s);
+	str_free(s);
 }
 
 void var_to_str(var_t* var, str_t* ret) {
@@ -2304,16 +2273,15 @@ void get_parsable_str(var_t* var, str_t* ret) {
 		return;
 	}
 
-	str_t s;
-	str_init(&s);
+	str_t* s = str_new("");
 
-	var_to_str(var, &s);
+	var_to_str(var, s);
 	if(var->type == V_STRING)
-		get_js_str(s.cstr, ret);
+		get_js_str(s->cstr, ret);
 	else
-		str_cpy(ret, s.cstr);
+		str_cpy(ret, s->cstr);
 
-	str_release(&s);
+	str_free(s);
 }
 
 void var_to_json(var_t* var, str_t* ret, int level) {
@@ -2354,11 +2322,10 @@ void var_to_json(var_t* var, str_t* ret, int level) {
 			str_add(ret, '"');
 			str_append(ret, " : ");
 
-			str_t s;
-			str_init(&s);
-			var_to_json(n->var, &s, level+1);
-			str_append(ret, s.cstr);
-			str_release(&s);
+			str_t* s = str_new("");
+			var_to_json(n->var, s, level+1);
+			str_append(ret, s->cstr);
+			str_free(s);
 
 			if ((i+1) < sz) {
 				str_append(ret, ",\n");
@@ -2378,11 +2345,10 @@ void var_to_json(var_t* var, str_t* ret, int level) {
 		for (i=0;i<len;i++) {
 			node_t* n = var_get(var, i);
 
-			str_t s;
-			str_init(&s);
-			var_to_json(n->var, &s, level);
-			str_append(ret, s.cstr);
-			str_release(&s);
+			str_t* s = str_new("");
+			var_to_json(n->var, s, level);
+			str_append(ret, s->cstr);
+			str_free(s);
 
 			if (i<len-1) 
 				str_append(ret, ", ");
@@ -2391,11 +2357,10 @@ void var_to_json(var_t* var, str_t* ret, int level) {
 	}
 	else {
 		// no children or a function... just write value directly
-		str_t s;
-		str_init(&s);
-		get_parsable_str(var, &s);
-		str_append(ret, s.cstr);
-		str_release(&s);
+		str_t* s = str_new("");
+		get_parsable_str(var, s);
+		str_append(ret, s->cstr);
+		str_free(s);
 	}
 
 	if(level == 0) {
@@ -2810,17 +2775,16 @@ void math_op(vm_t* vm, OprCode op, var_t* v1, var_t* v2) {
 
 	//do string + 
 	if(op == INSTR_PLUS || op == INSTR_PLUSEQ) {
-		str_t s;
-		str_inits(&s, (const char*)v1->value);
+		str_t* s = str_new((const char*)v1->value);
 		switch(v2->type) {
 			case V_STRING: 
-				str_append(&s, (const char*)v2->value);
+				str_append(s, (const char*)v2->value);
 				break;
 			case V_INT: 
-				str_append(&s, str_from_int(*(int*)v2->value));
+				str_append(s, str_from_int(*(int*)v2->value));
 				break;
 			case V_FLOAT: 
-				str_append(&s, str_from_float(*(float*)v2->value));
+				str_append(s, str_from_float(*(float*)v2->value));
 				break;
 			/*
 			case BCVar::ARRAY: 
@@ -2833,13 +2797,13 @@ void math_op(vm_t* vm, OprCode op, var_t* v1, var_t* v2) {
 		var_t* v;
 		if(op == INSTR_PLUSEQ || op == INSTR_MINUSEQ) {
 			v = v1;
-			v->value = _realloc(v->value, s.len+1);
-			memcpy(v->value, s.cstr, s.len+1);
+			v->value = _realloc(v->value, s->len+1);
+			memcpy(v->value, s->cstr, s->len+1);
 		}
 		else {
-			v = var_new_str(s.cstr);
+			v = var_new_str(s->cstr);
 		}
-		str_release(&s);
+		str_free(s);
 		vm_push(vm, v);
 	}
 }
@@ -2947,26 +2911,25 @@ void do_get(vm_t* vm, var_t* v, const char* name) {
 }
 
 void do_new(vm_t* vm, const char* full) {
-	str_t name;
-	str_init(&name);
-	int argNum = parse_func_name(full, &name);
+	str_t* name = str_new("");
+	int argNum = parse_func_name(full, name);
 	(void)argNum;
 
-	node_t* n = vm_load_node(vm, name.cstr, false); //load class;
+	node_t* n = vm_load_node(vm, name->cstr, false); //load class;
 	if(n == NULL || n->var->type != V_OBJECT) {
 		vm_push(vm, var_new());
-		str_release(&name);
+		str_free(name);
 		return;
 	}
 
-	str_cpy(&name, CONSTRUCTOR);
+	str_cpy(name, CONSTRUCTOR);
 	if(argNum > 0) {
-		str_add(&name, '$');
-		str_append(&name, str_from_int(argNum));
+		str_add(name, '$');
+		str_append(name, str_from_int(argNum));
 	}
 
-	node_t* constructor = var_find(n->var, name.cstr);
-	str_release(&name);
+	node_t* constructor = var_find(n->var, name->cstr);
+	str_free(name);
 
 	var_t* obj = var_new_object();
 	var_add(obj, PROTOTYPE, n->var);
@@ -3339,22 +3302,21 @@ void vm_run_code(vm_t* vm) {
 
 				var_t* v = vm_pop2(vm);
 				if(v != NULL) {
-					str_t fname;
-					str_init(&fname);
+					str_t* fname = str_new("");
 
 					if(v->type == V_FUNC) {
 						func_t* func = (func_t*)v->value;
-						gen_func_name(s, func->args.size, &fname);
+						gen_func_name(s, func->args.size, fname);
 					}
 					else {
-						str_cpy(&fname, s);
+						str_cpy(fname, s);
 					}
 
 					var_t *var = vm_get_scope_var(vm);
 					if(var != NULL)
-						var_add(var, fname.cstr, v);
+						var_add(var, fname->cstr, v);
 
-					str_release(&fname);
+					str_free(fname);
 					var_unref(v, true);
 				}
 				break;
@@ -3506,10 +3468,9 @@ node_t* vm_reg_native(vm_t* vm, const char* cls, const char* decl, native_func_t
 		clsVar = clsNode->var;
 	}
 
-	str_t fname, name, arg;
-	str_init(&fname);
-	str_init(&name);
-	str_init(&arg);
+	str_t* fname = str_new("");
+	str_t* name = str_new("");
+	str_t* arg = str_new("");
 
 	func_t* func = func_new();
 	func->native = native;
@@ -3519,30 +3480,30 @@ node_t* vm_reg_native(vm_t* vm, const char* cls, const char* decl, native_func_t
 	//read name
 	while(*off != '(') { 
 		if(*off != ' ') //skip spaces
-			str_add(&name, *off);
+			str_add(name, *off);
 		off++; 
 	}
 	off++; 
 
 	while(*off != 0) {
 		if(*off == ',' || *off == ')') {
-			array_add_buf(&func->args, arg.cstr, arg.len+1);
-			str_reset(&arg);
+			array_add_buf(&func->args, arg->cstr, arg->len+1);
+			str_reset(arg);
 		}
 		else if(*off != ' ') //skip spaces
-			str_add(&arg, *off);
+			str_add(arg, *off);
 
 		off++; 
 	} 
-	str_release(&arg);
+	str_free(arg);
 
-	gen_func_name(name.cstr, func->args.size, &fname);
-	str_release(&name);
+	gen_func_name(name->cstr, func->args.size, fname);
+	str_free(name);
 
 	var_t* var = var_new_func(func);
-	node_t* node = var_add(clsVar, fname.cstr, var);
+	node_t* node = var_add(clsVar, fname->cstr, var);
 
-	str_release(&fname);
+	str_free(fname);
 	return node;
 }
 
