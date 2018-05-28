@@ -19,7 +19,7 @@ typedef enum {false, true} bool;
 #include <string.h>
 #include <stdio.h>
 
-#define MARIO_DUMP 
+//#define MARIO_DUMP 
 
 /*typedef int int32_t;
 typedef unsigned char uint8_t;
@@ -1985,6 +1985,7 @@ typedef struct st_var {
 	int32_t type:8;
 
 	void* value;
+	free_func_t freeFunc; //how to free value
 
 	m_array_t children;
 } var_t;
@@ -2102,8 +2103,8 @@ void var_free(void* p) {
 
 	/*free value*/
 	if(var->value != NULL) {
-		if(var->type == V_FUNC) 
-			func_free(var->value);
+		if(var->freeFunc != NULL) 
+			var->freeFunc(var->value);
 		else
 			_free(var->value);
 	}
@@ -2133,13 +2134,16 @@ var_t* var_new() {
 	var->type = V_UNDEF;
 	
 	var->value = NULL;
+	var->freeFunc = NULL;
 	array_init(&var->children);
 	return var;
 }
 
-var_t* var_new_object() {
+var_t* var_new_object(void*p, free_func_t fr) {
 	var_t* var = var_new();
 	var->type = V_OBJECT;
+	var->value = p;
+	var->freeFunc = fr;
 	return var;
 }
 
@@ -2597,12 +2601,6 @@ node_t* vm_load_node(vm_t* vm, const char* name, bool create) {
 }
 
 //for function.
-var_t* var_new_func(func_t* func) {
-	var_t* var = var_new();
-	var->type = V_FUNC;
-	var->value = func;
-	return var;
-}
 
 func_t* func_new() {
 	func_t* func = (func_t*)_malloc(sizeof(func_t));
@@ -2621,6 +2619,14 @@ void func_free(void* p) {
 	func_t* func = (func_t*)p;
 	array_clean(&func->args, NULL);
 	_free(p);
+}
+
+var_t* var_new_func(func_t* func) {
+	var_t* var = var_new();
+	var->type = V_FUNC;
+	var->freeFunc = func_free;
+	var->value = func;
+	return var;
 }
 
 var_t* find_func(vm_t* vm, var_t* obj, const char* full) {
@@ -2932,7 +2938,7 @@ void do_new(vm_t* vm, const char* full) {
 	node_t* constructor = var_find(n->var, name->cstr);
 	str_free(name);
 
-	var_t* obj = var_new_object();
+	var_t* obj = var_new_object(NULL, NULL);
 	var_add(obj, PROTOTYPE, n->var);
 
 	if(constructor == NULL) { //no constructor
@@ -3268,6 +3274,9 @@ void vm_run_code(vm_t* vm) {
 				}
 				else {
 					vm_push(vm, var_new());
+					_debug("Error: can not find member '");
+					_debug(s);
+					_debug("'!\n");
 				}
 				break;
 			}
@@ -3292,6 +3301,9 @@ void vm_run_code(vm_t* vm) {
 						argNum--;
 					}
 					vm_push(vm, var_new());
+					_debug("Error: can not find function '");
+					_debug(s);
+					_debug("'!\n");
 				}
 				var_unref(obj, true);
 				break;
@@ -3488,7 +3500,8 @@ node_t* vm_reg_native(vm_t* vm, const char* cls, const char* decl, native_func_t
 
 	while(*off != 0) {
 		if(*off == ',' || *off == ')') {
-			array_add_buf(&func->args, arg->cstr, arg->len+1);
+			if(arg->len > 0)
+				array_add_buf(&func->args, arg->cstr, arg->len+1);
 			str_reset(arg);
 		}
 		else if(*off != ' ') //skip spaces
@@ -3525,7 +3538,7 @@ void vm_init(vm_t* vm) {
 	array_init(&vm->stack);	
 	array_init(&vm->scopes);	
 
-	vm->root = var_ref(var_new_object());
+	vm->root = var_ref(var_new_object(NULL, NULL));
 
 	vm_reg_native(vm, "Debug", "dump(var)", native_dump, NULL);
 }

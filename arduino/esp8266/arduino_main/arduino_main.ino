@@ -1,5 +1,6 @@
 #include "mario.h"
 #include "native.h"
+#include "FS.h"
 
 void dump(const char*s) {
   Serial.print(s);  
