@@ -1,8 +1,23 @@
+if(x) {
+	Debug.dump("error!");
+}
+
 var i = 0;
-while(i<10) {
-	print("loop: " + i + "\n");
+
+while(true) {
+	if(i == 10)
+		break;
+	else
+		Debug.dump("loop: " + i);
 	i++;
 }
+
+function f() {
+	return "hello";
+}
+
+i = f();
+Debug.dump(i);
 
 a = {
 	"name" : "misa"
@@ -16,4 +31,3 @@ b = [0, 1, 2];
 b[10] = "hhh";
 
 Debug.dump(b);
-

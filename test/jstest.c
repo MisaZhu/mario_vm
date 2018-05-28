@@ -8,13 +8,6 @@ void debug(const char* s) {
 	printf("%s", s);
 }
 
-var_t* native_print(vm_t* vm, var_t* env, void* data) {
-	node_t* n = var_find(env, "str");
-	const char* s = n == NULL ? "" : var_get_str(n->var);
-	debug(s);
-	return NULL;
-}
-
 bool load_js(vm_t* vm, const char* fname) {
 	int fd = open(fname, O_RDONLY);
 	if(fd < 0) {
@@ -46,8 +39,6 @@ int main(int argc, char** argv) {
 //	while(true) {
 	vm_t vm;
 	vm_init(&vm);
-
-	vm_reg_native(&vm, "", "print(str)", native_print, NULL);
 
 	if(load_js(&vm, argv[1])) {
 		vm_run(&vm);
