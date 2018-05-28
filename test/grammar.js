@@ -1,10 +1,8 @@
-/*
 var i = 0;
-while(i<100) {
+while(i<10) {
 	print("loop: " + i + "\n");
 	i++;
 }
-*/
 
 a = {
 	"name" : "misa"
@@ -12,11 +10,10 @@ a = {
 
 a.name = "xx";
 a.age = 24;
-
-dump(a);
+Debug.dump(a);
 
 b = [0, 1, 2];
 b[10] = "hhh";
 
-dump(b);
+Debug.dump(b);
 

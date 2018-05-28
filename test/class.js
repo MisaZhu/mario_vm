@@ -1,8 +1,27 @@
 class A {
+	constructor(name) {
+		this.name = name;
+	}
+
 	f(a) {
-		print("00");
+		this.name = a;
 	}
 }
 
-A.f(1);
-dump(this);
+
+b = new A('xxx');
+Debug.dump(b);
+
+a = new A();
+c = a.f('aaa');
+
+Debug.dump(c);
+
+
+function f() {
+	this.age = 18;
+	this.name = "xx";
+}
+
+a = f();
+Debug.dump(a);
