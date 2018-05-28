@@ -2913,6 +2913,21 @@ void do_get(vm_t* vm, var_t* v, const char* name) {
 	vm_push_node(vm, n);
 }
 
+/** simple create object by classname(no constructor) */
+var_t* new_object(vm_t* vm, const char* clsName) {
+	var_t* obj = NULL;
+
+	node_t* n = vm_load_node(vm, clsName, false); //load class;
+	if(n == NULL || n->var->type != V_OBJECT) {
+		return NULL;
+	}
+
+	obj = var_new_object(NULL, NULL);
+	var_add(obj, PROTOTYPE, n->var);
+	return obj;
+}
+
+/** create object and try constructor */
 void do_new(vm_t* vm, const char* full) {
 	str_t* name = str_new("");
 	int argNum = parse_func_name(full, name);

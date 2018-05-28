@@ -21,7 +21,7 @@ bool load_js(vm_t* vm) {
   }
 
   size_t size = jsFile.size();
-  if (size > 1024) {
+  if (size > 10240) {
     Serial.println("js file size is too large");
     return false;
   }

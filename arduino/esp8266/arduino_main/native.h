@@ -155,12 +155,17 @@ var_t* native_SSLClientWrite(vm_t* vm, var_t* env, void* data) {
 	if(clt == NULL)
 		return NULL;
 
-	node_t* n = var_find(env, "buf");
-	const char* buf = n == NULL ? "" : var_get_str(n->var);
+	node_t* n = var_find(env, "bytes");
+	if(n == NULL || n->var == NULL || n->var->size == 0)
+		return NULL;
+	var_t* bytes = n->var;
+
 	n = var_find(env, "size");
 	int size = n == NULL ? 0 : var_get_int(n->var);
+	if(size > bytes->size)
+		size = bytes->size;
 
-	bool res = clt->write((const uint8_t*)buf, size);
+	int res = clt->write((const uint8_t*)bytes->value, size);
 	return var_new_int(res);
 }
 
@@ -169,17 +174,16 @@ var_t* native_SSLClientRead(vm_t* vm, var_t* env, void* data) {
 	WiFiClientSecure* clt = getSSLClient(env);
 	if(clt == NULL)
 		return NULL;
-	/*
-		 node_t* n = var_find(env, "buf");
-		 char* buf = n == NULL ? "" : var_get_str(n->var);
-		 n = var_find(env, "size");
-		 int size = n == NULL ? 0 : var_get_int(n->var);
 
-		 int res = clt->read(buf, size);
-		 return var_new_int(res);
-	 */
-	return NULL;
+	node_t* n = var_find(env, "bytes");
+	if(n == NULL || n->var == NULL || n->var->value == NULL )
+		return NULL;
+
+	var_t* bytes = n->var;
+	int res = clt->read((uint8_t*)bytes->value, bytes->size);
+	return var_new_int(res);
 }
+
 var_t* native_SSLClientStop(vm_t* vm, var_t* env, void* data) {
 	(void)vm; (void)data;
 	WiFiClientSecure* clt = getSSLClient(env);
@@ -215,8 +219,8 @@ void reg_native(vm_t* vm) {
 	vm_reg_native(vm, CLS_SSL_CLIENT, "stop()", native_SSLClientStop, NULL);
 	vm_reg_native(vm, CLS_SSL_CLIENT, "connect(host, port)", native_SSLClientConnect, NULL);
 	vm_reg_native(vm, CLS_SSL_CLIENT, "connected()", native_SSLClientConnected, NULL);
-	vm_reg_native(vm, CLS_SSL_CLIENT, "write(buf, size)", native_SSLClientWrite, NULL);
-	vm_reg_native(vm, CLS_SSL_CLIENT, "read(buf, size)", native_SSLClientRead, NULL);
+	vm_reg_native(vm, CLS_SSL_CLIENT, "write(bytes, size)", native_SSLClientWrite, NULL);
+	vm_reg_native(vm, CLS_SSL_CLIENT, "read(bytes)", native_SSLClientRead, NULL);
 }
 
 #endif
