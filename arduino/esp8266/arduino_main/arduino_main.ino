@@ -31,8 +31,6 @@ bool load_js(vm_t* vm) {
   buf[size] = 0;
   jsFile.close();
   
-  dump(buf);
-  
   bool ret = vm_load(vm, buf);
   _free(buf);
   return ret;
@@ -48,8 +46,10 @@ void setup() {
   vm_init(&vm);
   reg_native(&vm);
 
-  if(!load_js(&vm)) {
+  if(load_js(&vm)) {
+    Serial.print("\n****** run ***********\n");
     vm_run(&vm);
+    Serial.print("\n****** ended *********\n");
   }
   vm_close(&vm);
 }

@@ -1283,6 +1283,10 @@ int parse_func_name(const char* full, str_t* name) {
 		if(name != NULL)
 			str_ncpy(name, full, pos-full);	
 	}
+	else {
+		if(name != NULL)
+			str_cpy(name, full);
+	}
 	return argsNum;
 }
 
@@ -2000,6 +2004,8 @@ bool compile(bytecode_t *bc, const char* input) {
 #define V_ARRAY  10
 
 #define THIS "this"
+#define PROTOTYPE "class"
+#define CONSTRUCTOR "constructor"
 
 //script var
 typedef struct st_var {
@@ -2465,6 +2471,19 @@ var_t* vm_pop2(vm_t* vm) {
 	return (var_t*)array_remove(&vm->stack, index);
 }
 
+var_t* vm_stack_pick(vm_t* vm, int depth) {
+	int index = (int)vm->stack.size-depth;
+	if(index < 0)
+		return NULL;
+
+	int32_t magic = *(int32_t*)vm->stack.items[index];
+	if(magic == 1) {//node
+		node_t* node = (node_t*)array_remove(&vm->stack, index);
+		return node->var;
+	}
+	return (var_t*)array_remove(&vm->stack, index);
+}
+
 //scope of vm runing
 typedef struct st_scope {
 	struct st_scope* prev;
@@ -2545,9 +2564,45 @@ node_t* vm_find(vm_t* vm, const char* name) {
 	return var_find(var, name);	
 }
 
+node_t* vm_find_in_class(var_t* var, const char* name) {
+	node_t* n = var_find(var, PROTOTYPE);
+
+	while(n != NULL && n->var != NULL && n->var->type == V_OBJECT) {
+		node_t* ret = NULL;
+		ret = var_find(n->var, name);
+		if(ret != NULL)
+			return ret;
+		n = var_find(n->var, PROTOTYPE);
+	}
+	return NULL;
+}
+
+node_t* find_member(var_t* obj, const char* full) {
+	node_t* node = var_find(obj, full);
+	if(node == NULL) { 
+		node = vm_find_in_class(obj, full);
+	}
+	return node;
+}
+
 node_t* vm_find_in_scopes(vm_t* vm, const char* name) {
-	scope_t* sc = vm_get_scope(vm);
 	node_t* ret = NULL;
+	scope_t* sc = vm_get_scope(vm);
+	
+	if(sc != NULL) {
+		ret = var_find(sc->var, name);
+		if(ret != NULL)
+			return ret;
+
+		node_t* n = var_find(sc->var, THIS);
+		if(n != NULL)  {
+			ret = find_member(n->var, name);
+			if(ret != NULL)
+				return ret;
+		}
+		sc = sc->prev;
+	}
+
 	while(sc != NULL) {
 		if(sc->var != NULL) {
 			ret = var_find(sc->var, name);
@@ -2602,35 +2657,21 @@ void func_free(void* p) {
 	_free(p);
 }
 
-var_t* find_member_func(var_t* obj, const char* full) {
-	node_t* node = var_find(obj, full);
-	if(node == NULL) { 
-		//TODO find in class.
-		return NULL;
-	}
-
-	if(node->var == NULL || node->var->type != V_FUNC)
-		return NULL;
-	return node->var;
-}
-
 var_t* find_func(vm_t* vm, var_t* obj, const char* full) {
+	node_t* node;
 	if(obj != NULL) {
-		var_t* ret = NULL;
-		ret = find_member_func(obj, full);
-		if(ret != NULL)
-			return ret;
+		node = find_member(obj, full);
+	}
+	else {
+		node = vm_find_in_scopes(vm, full);
 	}
 
-	node_t* node = vm_find_in_scopes(vm, full);
 	if(node == NULL || node->var == NULL || node->var->type != V_FUNC)
 		return NULL;
 	return node->var;
 }
 
 bool func_call(vm_t* vm, var_t* obj, func_t* func) {
-	(void)obj;
-
 	int i;
 	var_t *env = var_new();
 	env->type = V_ARRAY;
@@ -2643,6 +2684,7 @@ bool func_call(vm_t* vm, var_t* obj, func_t* func) {
 			var_unref(v, true);
 		}
 	}
+	var_add(env, THIS, obj);
 
 	scope_t* sc = scope_new(env, vm->pc);
 	vm_push_scope(vm, sc);
@@ -2878,10 +2920,7 @@ void do_get(vm_t* vm, var_t* v, const char* name) {
 		return;
 	}	
 
-	node_t* n = var_find(v, name);
-	//if(n == NULL) //TODO
-	//	n = findInClass(v, str);
-
+	node_t* n = find_member(v, name);
 	if(n != NULL) {
 		/*if(n->var->type == V_FUNC) {
 			func_t* func = var_get_func(n->var);
@@ -2907,6 +2946,38 @@ void do_get(vm_t* vm, var_t* v, const char* name) {
 	vm_push_node(vm, n);
 }
 
+void do_new(vm_t* vm, const char* full) {
+	str_t name;
+	str_init(&name);
+	int argNum = parse_func_name(full, &name);
+	(void)argNum;
+
+	node_t* n = vm_load_node(vm, name.cstr, false); //load class;
+	if(n == NULL || n->var->type != V_OBJECT) {
+		vm_push(vm, var_new());
+		str_release(&name);
+		return;
+	}
+
+	str_cpy(&name, CONSTRUCTOR);
+	if(argNum > 0) {
+		str_add(&name, '$');
+		str_append(&name, str_from_int(argNum));
+	}
+
+	node_t* constructor = var_find(n->var, name.cstr);
+	str_release(&name);
+
+	var_t* obj = var_new_object();
+	var_add(obj, PROTOTYPE, n->var);
+
+	if(constructor == NULL) { //no constructor
+		vm_push(vm, obj);
+		return;
+	}
+
+	func_call(vm, obj, (func_t*)constructor->var->value);
+}
 
 void vm_run_code(vm_t* vm) {
 	//int32_t scDeep = vm->scopes.size;
@@ -3131,10 +3202,11 @@ void vm_run_code(vm_t* vm) {
 				scope_t* sc = vm_get_scope(vm);
 				if(sc != NULL) {
 					if(instr == INSTR_RETURN) {//return without value, push "this" to stack
-						//TODO
-						//BCVar* thisVar = sc->var->getThisVar();
-						//push(thisVar->ref());
-						vm_push(vm, var_new());
+						node_t* n = vm_load_node(vm, THIS, false); //load variable, create if not exist.
+						if(n != NULL)
+							vm_push(vm, n->var);
+						else
+							vm_push(vm, var_new());
 					}
 					else {
 						var_t* v = vm_pop2(vm);
@@ -3207,11 +3279,16 @@ void vm_run_code(vm_t* vm) {
 			case INSTR_LOAD: 
 			{
 				const char* s = bc_getstr(&vm->bc, offset);
-				if(strcmp(s, THIS) == 0) {
+				bool loaded = false;
+				if(strcmp(THIS, s) == 0) {
 					var_t* v = vm_get_scope_var(vm);
-					vm_push(vm, v);
+					if(v->type == V_OBJECT) {
+						vm_push(vm, v);
+						loaded = true;
+					}
 				}
-				else {
+				
+				if(!loaded) {
 					node_t* n = vm_load_node(vm, s, true); //load variable, create if not exist.
 					vm_push_node(vm, n);
 				}
@@ -3225,20 +3302,34 @@ void vm_run_code(vm_t* vm) {
 					do_get(vm, v, s);
 					var_unref(v, true);
 				}
+				else {
+					vm_push(vm, var_new());
+				}
 				break;
 			}
 			case INSTR_CALL: 
 			case INSTR_CALLO: 
 			{
 				const char* s = bc_getstr(&vm->bc, offset);
+				int argNum = parse_func_name(s, NULL);
+
 				var_t* obj = NULL;
-				if(instr == INSTR_CALLO)
-					obj = vm_pop2(vm);
+				if(instr == INSTR_CALLO) {
+					obj = vm_stack_pick(vm, argNum+1);
+				}
 
 				var_t* func = find_func(vm, obj, s);
-				if(func != NULL && func->value != NULL) {
+				if(func != NULL) {
 					func_call(vm, obj, (func_t*)func->value);
 				}
+				else {
+					while(argNum > 0) {
+						vm_pop(vm);
+						argNum--;
+					}
+					vm_push(vm, var_new());
+				}
+				var_unref(obj, true);
 				break;
 			}
 			case INSTR_MEMBER: 
@@ -3340,11 +3431,13 @@ void vm_run_code(vm_t* vm) {
 				vm_pop_scope(vm);
 				break;
 			}
+			case INSTR_NEW: 
+			{
+				const char* s =  bc_getstr(&vm->bc, offset);
+				do_new(vm, s);
+				break;
+			}
 			/*
-			case INSTR_NEW: {
-												doNew(bcode->getStr(offset));
-												break;
-											}
 			case INSTR_TYPEOF: {
 												StackItem* i = pop2();
 												BCVar* var = VAR(i);
@@ -3389,12 +3482,30 @@ void vm_run_code(vm_t* vm) {
 		vm_pop_scope(vm);
 }
 
-node_t* vm_reg_var(vm_t* vm, const char* name, var_t* var) {
-	node_t* node = var_add(vm->root, name, var);
+node_t* vm_new_class(vm_t* vm, const char* cls) {
+	node_t* clsNode = vm_load_node(vm, cls, true);
+	clsNode->var->type = V_OBJECT;
+	return clsNode;
+}
+
+node_t* vm_reg_var(vm_t* vm, const char* cls, const char* name, var_t* var) {
+	var_t* clsVar = vm->root;
+	if(cls[0] != 0) {
+		node_t* clsNode = vm_new_class(vm, cls);
+		clsVar = clsNode->var;
+	}
+
+	node_t* node = var_add(clsVar, name, var);
 	return node;
 }
 
-node_t* vm_reg_native(vm_t* vm, const char* decl, native_func_t native, void* data) {
+node_t* vm_reg_native(vm_t* vm, const char* cls, const char* decl, native_func_t native, void* data) {
+	var_t* clsVar = vm->root;
+	if(cls[0] != 0) {
+		node_t* clsNode = vm_new_class(vm, cls);
+		clsVar = clsNode->var;
+	}
+
 	str_t fname, name, arg;
 	str_init(&fname);
 	str_init(&name);
@@ -3429,7 +3540,7 @@ node_t* vm_reg_native(vm_t* vm, const char* decl, native_func_t native, void* da
 	str_release(&name);
 
 	var_t* var = var_new_func(func);
-	node_t* node = var_add(vm->root, fname.cstr, var);
+	node_t* node = var_add(clsVar, fname.cstr, var);
 
 	str_release(&fname);
 	return node;
@@ -3454,7 +3565,7 @@ void vm_init(vm_t* vm) {
 
 	vm->root = var_ref(var_new_object());
 
-	vm_reg_native(vm, "dump(var)", native_dump, NULL);
+	vm_reg_native(vm, "Debug", "dump(var)", native_dump, NULL);
 }
 
 bool vm_load(vm_t* vm, const char* s) {
