@@ -5,6 +5,16 @@ very tiny js engine in single file.
 #ifndef MARIO_JS
 #define MARIO_JS
 
+#ifdef __cplusplus
+extern "C" {
+#else
+
+#ifndef bool
+typedef enum {false, true} bool;
+#endif
+
+#endif /* __cplusplus */
+
 #include <inttypes.h>
 #include <string.h>
 #include <stdio.h>
@@ -16,15 +26,6 @@ typedef unsigned char uint8_t;
 typedef unsigned int uint32_t;
 typedef unsigned short uint16_t;
 */
-
-#ifndef bool
-typedef int bool;
-#endif
-
-#ifndef true
-#define true  1
-#define false  0
-#endif
 
 #ifndef null
 #define null NULL
@@ -3545,5 +3546,10 @@ void vm_close(vm_t* vm) {
 	array_clean(&vm->stack, vm_stack_free);	
 	bc_release(&vm->bc);
 }	
+
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 #endif
