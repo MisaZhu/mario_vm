@@ -41,7 +41,9 @@ int main(int argc, char** argv) {
 	vm_init(&vm);
 
 	if(load_js(&vm, argv[1])) {
+#ifndef VERIFY
 		vm_run(&vm);
+#endif
 	}
 	
 	vm_close(&vm);

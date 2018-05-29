@@ -13,7 +13,8 @@ CFLAGS =  -I../ -g -Wall
 
 all: 
 	$(CC) -o jstest $(CFLAGS) $(test_SRCS)
+	$(CC) -o jsverify $(CFLAGS) -D VERIFY $(test_SRCS)
 
 
 clean:
-	rm -fr jstest *.o *.dSYM
+	rm -fr jstest jsverify *.o *.dSYM

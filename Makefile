@@ -16,4 +16,4 @@ all:
 
 
 clean:
-	rm -fr demo *.o *.dSYM
+	rm -fr demo *.o *.dSYM arduino/esp8266/arduino_main/arduino_basic_native.h arduino/esp8266/arduino_main/mario.h

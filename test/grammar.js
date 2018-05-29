@@ -1,7 +1,4 @@
-var a = 1;
-a.x  = 2;
-
-/*
+i = 0;
 while(true) {
 	if(i != 10)
 		continue;
@@ -27,4 +24,3 @@ Debug.dump(arr);
 s = new Bytes();
 s.fromString("aaa"); 
 Debug.dump(s.toString());
-*/

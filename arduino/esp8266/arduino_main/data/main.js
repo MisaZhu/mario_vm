@@ -49,7 +49,7 @@ function testHTTP() {
 					break;
 				}
 				else {
-					print(bytes.toString());
+					Serial.write(bytes, i);
 					ready -= i; 
 					if(ready <= 0)
 						break;
