@@ -14,21 +14,19 @@ var_t* native_print(vm_t* vm, var_t* env, void* data) {
 
 int main(int argc, char** argv) {
 	_debug_func = debug; //for dump variable
-		
-	while(true) {
-		vm_t vm;
-		vm_init(&vm);
 
-		//demo: register a native function(mapped to js).
-		vm_reg_native(&vm, "", "print(v)", native_print, NULL);
-		//demo: register a global variable.
-		vm_reg_var(&vm, "", "_HELLO", var_new_str("Hello, world\n"));
+	vm_t vm;
+	vm_init(&vm);
 
-		if(vm_load(&vm, "print(this._HELLO); Debug.dump(this);")) {
-			vm_run(&vm);
-		}
+	//demo: register a native function(mapped to js).
+	vm_reg_native(&vm, "", "print(v)", native_print, NULL);
+	//demo: register a global variable.
+	vm_reg_var(&vm, "", "_HELLO", var_new_str("Hello, world\n"));
 
-		vm_close(&vm);
+	if(vm_load(&vm, "print(this._HELLO); Debug.dump(this);")) {
+		vm_run(&vm);
 	}
+
+	vm_close(&vm);
 	return 0;
 }
