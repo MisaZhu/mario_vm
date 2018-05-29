@@ -1,9 +1,14 @@
-var i = 0;
+var a = 1;
+a.x  = 2;
+
+/*
 while(true) {
-	if(i == 10)
-		break;
-	else
+	if(i != 10)
+		continue;
+	else {
 		Debug.dump("loop: " + i);
+		continue;
+	}
 	i++;
 }
 
@@ -22,3 +27,4 @@ Debug.dump(arr);
 s = new Bytes();
 s.fromString("aaa"); 
 Debug.dump(s.toString());
+*/

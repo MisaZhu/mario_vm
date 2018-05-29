@@ -19,7 +19,7 @@ typedef enum {false, true} bool;
 #include <string.h>
 #include <stdio.h>
 
-//#define MARIO_DUMP 
+#define MARIO_DUMP 
 
 /*typedef int int32_t;
 typedef unsigned char uint8_t;
@@ -1931,8 +1931,10 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 	else if(l->tk == LEX_R_CONTINUE) {
 		if(!lex_chkread(l, LEX_R_CONTINUE)) return false;
 		if(!lex_chkread(l, ';')) return false;
-		if(loop == NULL)
+		if(loop == NULL) {
+			_debug("Error: There is no loop for 'continue' here!\n");
 			return false;
+		}
 		bc_add_instr(bc, loop->continueAnchor, INSTR_JMPB, ILLEGAL_PC); //to continue anchor;
 		pop = false;
 	}
@@ -2905,8 +2907,12 @@ void do_get(vm_t* vm, var_t* v, const char* name) {
 		if(v->type == V_OBJECT)
 			n = var_add(v, name, NULL);
 		else {
-			//TODO: ERR("Can not get member %s! %s\n", str.c_str(), DEBUG_LINE);
+			_debug("Can not get member '");
+			_debug(name);
+			_debug("'!\n");
 			n = node_new(name);
+			vm_push(vm, var_new());
+			return;
 		}
 	}
 
@@ -2937,6 +2943,10 @@ void do_new(vm_t* vm, const char* full) {
 
 	node_t* n = vm_load_node(vm, name->cstr, false); //load class;
 	if(n == NULL || n->var->type != V_OBJECT) {
+		_debug("Error: There is no class: '");
+		_debug(name->cstr);
+		_debug("'!\n");
+
 		vm_push(vm, var_new());
 		str_free(name);
 		return;

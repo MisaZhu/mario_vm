@@ -34,6 +34,7 @@ bool load_js(vm_t* vm) {
   
   bool ret = vm_load(vm, buf);
   _free(buf);
+  Serial.printf("Free heap size: %u\n", ESP.getFreeHeap());
   return ret;
 }
 
@@ -47,6 +48,8 @@ void setup() {
   vm_init(&vm);
   reg_native(&vm);
 
+  Serial.printf("Free heap size: %u\n", ESP.getFreeHeap());
+  
   if(load_js(&vm)) {
     Serial.print("\n****** run ***********\n");
     vm_run(&vm);
