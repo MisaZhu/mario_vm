@@ -1,10 +1,9 @@
 i = 0;
 while(true) {
-	if(i != 10)
-		continue;
+	if(i == 10)
+		break;
 	else {
 		Debug.dump("loop: " + i);
-		continue;
 	}
 	i++;
 }

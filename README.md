@@ -1,5 +1,5 @@
 # Mario
-very tiny simple js engine in one single c head file, including bytecode-compiler, VM interpreter. None 3rd libs relied, so can be used on most of embedded systems.
+very tiny simple js engine in one single c head file "mario.h", including bytecode-compiler, VM interpreter. None 3rd libs relied, so can be used on most of embedded systems.
 
 .Demo source.
 
