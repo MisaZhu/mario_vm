@@ -13,6 +13,8 @@ var_t* native_serial_print(vm_t* vm, var_t* env, void* data) {
 }
 
 var_t* native_serial_write(vm_t* vm, var_t* env, void* data) {
+	(void)vm; (void)data;
+
 	node_t* n = var_find(env, "bytes");
 	if(n == NULL || n->var == NULL || n->var->size == 0)
 		return NULL;
@@ -32,6 +34,8 @@ var_t* native_serial_write(vm_t* vm, var_t* env, void* data) {
 }
 
 var_t* native_serial_begin(vm_t* vm, var_t* env, void* data) {
+	(void)vm; (void)data;
+
 	node_t* n = var_find(env, "bps");
 	int bps = n == NULL ? 9600 : var_get_int(n->var);
 

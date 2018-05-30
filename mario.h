@@ -3664,7 +3664,7 @@ var_t* native_BytesFromString(vm_t* vm, var_t* env, void* data) {
 }
 
 /** String */
-
+/*
 var_t* native_StringConstructor(vm_t* vm, var_t* env, void* data) {
 	(void)vm; (void)data;
 
@@ -3695,6 +3695,7 @@ var_t* native_StringToString(vm_t* vm, var_t* env, void* data) {
 	const char* s = thisV == NULL ? "" : (const char*)thisV->value;
 	return var_new_str(s);
 }
+*/
 
 void vm_init(vm_t* vm) {
 	vm->pc = 0;
@@ -3713,9 +3714,11 @@ void vm_init(vm_t* vm) {
 	vm_reg_native(vm, "Bytes", "set(index, i)", native_BytesSet, NULL); 
 	vm_reg_native(vm, "Bytes", "at(index)", native_BytesAt, NULL); 
 
+/*
 	vm_reg_native(vm, "String", "constructor(str)", native_StringConstructor, NULL); 
 	vm_reg_native(vm, "String", "length()", native_StringLength, NULL); 
 	vm_reg_native(vm, "String", "toString()", native_StringToString, NULL); 
+	*/
 }
 
 #ifdef __cplusplus
