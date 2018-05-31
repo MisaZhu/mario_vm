@@ -18,7 +18,7 @@ typedef enum {false, true} bool;
 #include <string.h>
 #include <stdio.h>
 
-#define MARIO_DUMP 
+#define MARIO_DEBUG
 
 /*typedef int int32_t;
 typedef unsigned char uint8_t;
@@ -712,6 +712,8 @@ void lex_release(lex_t* lex) {
 	lex->tkStr = NULL;
 }
 
+#ifdef MARIO_DEBUG
+
 const char* lex_get_token_str(int token) {
 	if (token>32 && token<128) {
 		static char buf[4] = "' '";
@@ -771,6 +773,8 @@ const char* lex_get_token_str(int token) {
 	return "?[UNKNOW]";
 }
 
+#endif
+
 void lex_get_pos(lex_t* lex, int* line, int *col, int pos) {
 	if (pos<0) 
 		pos= lex->tkLastEnd;
@@ -811,12 +815,12 @@ void lex_get_pos_str(lex_t* l, int pos, str_t* ret) {
 
 bool lex_chkread(lex_t* lex, int expected_tk) {
 	if (lex->tk != expected_tk) {
-		/*TODO error*/
+#ifdef MARIO_DEBUG
 		_debug("Got ");
 		_debug(lex_get_token_str(lex->tk));
 		_debug(" expected ");
 		_debug(lex_get_token_str(expected_tk));
-
+#endif
 		str_t* s = str_new("");
 		lex_get_pos_str(lex, -1, s);
 		_debug(s->cstr);
@@ -1158,7 +1162,7 @@ PC bc_add_instr(bytecode_t* bc, PC anchor, OprCode op, PC target) {
 	return bc->cindex;
 } 
 
-#ifdef MARIO_DUMP
+#ifdef MARIO_DEBUG
 
 PC bc_get_instr_str(bytecode_t* bc, PC i, str_t* ret) {
 	PC ins = bc->codeBuf[i];
@@ -1958,7 +1962,7 @@ bool compile(bytecode_t *bc, const char* input) {
 	bc_gen(bc, INSTR_END);
 
 	lex_release(&lex);
-#ifdef MARIO_DUMP
+#ifdef MARIO_DEBUG
 	bc_dump(bc);
 #endif
 	return true;
@@ -1979,9 +1983,9 @@ bool compile(bytecode_t *bc, const char* input) {
 
 //script var
 typedef struct st_var {
-	int32_t magic; //0 for var
-	int32_t refs:24;
-	int32_t type:8;
+	int32_t magic: 8; //0 for var; 1 for node
+	int32_t refs:20;
+	int32_t type:4;
 	uint32_t size;  // size for bytes type of value;
 
 	void* value;
@@ -2003,9 +2007,9 @@ typedef struct st_func {
 
 //script node for var member children
 typedef struct st_node {
-	int32_t magic; //1 for node
+	int16_t magic: 8; //1 for node
+  int16_t beConst : 8;
 	char* name;
-	bool beConst;
 	var_t* var;
 } node_t;
 
@@ -2402,7 +2406,7 @@ void vm_pop(vm_t* vm) {
 	if(vm->stack.size <= 0)
 		return;
 
-	int32_t magic = *(int32_t*)vm->stack.items[vm->stack.size-1];
+	int8_t magic = *(int8_t*)vm->stack.items[vm->stack.size-1];
 	if(magic == 0) {//var
 		var_t* var = (var_t*)array_remove(&vm->stack, vm->stack.size-1);
 		var_unref(var, true);
@@ -2419,7 +2423,7 @@ node_t* vm_pop2node(vm_t* vm) {
 	if(index < 0)
 		return NULL;
 
-	int32_t magic = *(int32_t*)vm->stack.items[index];
+	int8_t magic = *(int8_t*)vm->stack.items[index];
 	if(magic != 1) //not node!
 		return NULL;
 
@@ -2431,7 +2435,7 @@ var_t* vm_pop2(vm_t* vm) {
 	if(index < 0)
 		return NULL;
 
-	int32_t magic = *(int32_t*)vm->stack.items[index];
+	int8_t magic = *(int8_t*)vm->stack.items[index];
 	if(magic == 1) {//node
 		node_t* node = (node_t*)array_remove(&vm->stack, index);
 		return node->var;
@@ -2445,7 +2449,7 @@ var_t* vm_stack_pick(vm_t* vm, int depth) {
 	if(index < 0)
 		return NULL;
 
-	int32_t magic = *(int32_t*)vm->stack.items[index];
+	int8_t magic = *(int8_t*)vm->stack.items[index];
 	if(magic == 1) {//node
 		node_t* node = (node_t*)array_remove(&vm->stack, index);
 		return node->var;
@@ -2515,7 +2519,7 @@ PC vm_pop_scope(vm_t* vm) {
 }
 
 void vm_stack_free(void* p) {
-	int32_t magic = *(int32_t*)p;
+	int8_t magic = *(int8_t*)p;
 	if(magic == 1) {//node
 		node_t* node = (node_t*)p;
 		node_free(node);
