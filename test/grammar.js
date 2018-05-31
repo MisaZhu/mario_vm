@@ -20,6 +20,3 @@ arr = [0, 1, 2];
 arr[10] = "hhh";
 Debug.dump(arr);
 
-s = new Bytes();
-s.fromString("aaa"); 
-Debug.dump(s.toString());

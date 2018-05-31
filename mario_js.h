@@ -853,6 +853,7 @@ typedef uint32_t PC;
 #define INSTR_ARRAY_AT		 0x000A // ARRAT 								: get array element at
 #define INSTR_ARRAY				 0x000B // ARRAY 								: array start
 #define INSTR_ARRAY_END		 0x000C // ARRAY_END 						: array end
+#define INSTR_INT_S				 0x000D // SHORT_INT int 				: push short int
 
 #define INSTR_FUNC				 0x0010 // FUNC x								: function definetion x
 #define INSTR_FUNC_GET		 0x0011 // GET FUNC x						: class get function definetion x
@@ -946,6 +947,7 @@ const char* instr_str(OprCode ins) {
 		case  INSTR_VAR					: return "var";
 		case  INSTR_CONST				: return "const";
 		case  INSTR_INT					: return "int";
+		case  INSTR_INT_S				: return "ints";
 		case  INSTR_FLOAT				: return "float";
 		case  INSTR_STR					: return "str";
 		case  INSTR_ARRAY_AT		: return "arrat";
@@ -1114,7 +1116,10 @@ PC bc_gen_str(bytecode_t* bc, OprCode instr, const char* str) {
 	bc_add(bc, ins);
 
 	if(instr == INSTR_INT) {
-		bc_add(bc, i);
+		if(i < 0xFFFF) //short int
+			bc->codeBuf[bc->cindex-1] = INS(INSTR_INT_S, i);
+		else 	
+			bc_add(bc, i);
 	}
 	else if(instr == INSTR_FLOAT) {
 		memcpy(&i, &f, sizeof(PC));
@@ -1158,12 +1163,12 @@ PC bc_add_instr(bytecode_t* bc, PC anchor, OprCode op, PC target) {
 PC bc_get_instr_str(bytecode_t* bc, PC i, str_t* ret) {
 	PC ins = bc->codeBuf[i];
 	OprCode instr = (ins >> 16) & 0xFFFF;
-	OprCode strIndex = ins & 0xFFFF;
+	OprCode offset = ins & 0xFFFF;
 
 	char s[64];
 	str_reset(ret);
 
-	if(strIndex == 0xFFFF) {
+	if(offset == 0xFFFF) {
 		sprintf(s, "  |%04d 0x%08X ; %s", i, ins, instr_str(instr));	
 		str_append(ret, s);
 	}
@@ -1171,20 +1176,21 @@ PC bc_get_instr_str(bytecode_t* bc, PC i, str_t* ret) {
 		if(instr == INSTR_JMP || 
 				instr == INSTR_NJMP || 
 				instr == INSTR_NJMPB ||
-				instr == INSTR_JMPB) {
-			sprintf(s, "  |%04d 0x%08X ; %s %d", i, ins, instr_str(instr), strIndex);	
+				instr == INSTR_JMPB ||
+				instr == INSTR_INT_S) {
+			sprintf(s, "  |%04d 0x%08X ; %s %d", i, ins, instr_str(instr), offset);	
 			str_append(ret, s);
 		}
 		else if(instr == INSTR_STR) {
 			sprintf(s, "  |%04d 0x%08X ; %s \"", i, ins, instr_str(instr));	
 			str_append(ret, s);
-			str_append(ret, bc_getstr(bc, strIndex));
+			str_append(ret, bc_getstr(bc, offset));
 			str_add(ret, '"');
 		}
 		else {
 			sprintf(s, "  |%04d 0x%08X ; %s ", i, ins, instr_str(instr));	
 			str_append(ret, s);
-			str_append(ret, bc_getstr(bc, strIndex));
+			str_append(ret, bc_getstr(bc, offset));
 		}
 	}
 	
@@ -3234,6 +3240,12 @@ void vm_run_code(vm_t* vm) {
 			case INSTR_INT:
 			{
 				var_t* v = var_new_int((int)code[vm->pc++]);
+				vm_push(vm, v);
+				break;
+			}
+			case INSTR_INT_S:
+			{
+				var_t* v = var_new_int(offset);
 				vm_push(vm, v);
 				break;
 			}
