@@ -1235,6 +1235,7 @@ void bc_dump(bytecode_t* bc) {
 		i++;
 	}
 	str_free(s);
+	_debug("---------------------------------------\n");
 }
 
 #endif
