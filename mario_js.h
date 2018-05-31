@@ -18,8 +18,6 @@ typedef enum {false, true} bool;
 #include <string.h>
 #include <stdio.h>
 
-#define MARIO_DEBUG
-
 /*typedef int int32_t;
 typedef unsigned char uint8_t;
 typedef unsigned int uint32_t;

@@ -13,7 +13,7 @@ CFLAGS =  -I../ -g -Wall
 
 all: 
 	$(CC) -o jstest $(CFLAGS) $(test_SRCS)
-	$(CC) -o jsverify $(CFLAGS) -D VERIFY $(test_SRCS)
+	$(CC) -o jsverify $(CFLAGS) -D VERIFY -D MARIO_DEBUG $(test_SRCS)
 
 
 clean:
