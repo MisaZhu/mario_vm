@@ -2,6 +2,10 @@
 very tiny js engine in single file.
 */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "mario_js.h"
 
 void (*_debug_func)(const char*) = NULL;
@@ -763,7 +767,7 @@ void lex_get_pos_str(lex_t* l, int pos, str_t* ret) {
 	str_append(ret, ")");
 }
 
-bool lex_chkread(lex_t* lex, int expected_tk) {
+bool lex_chkread(lex_t* lex, uint32_t expected_tk) {
 	if (lex->tk != expected_tk) {
 #ifdef MARIO_DEBUG
 		_debug("Got ");
