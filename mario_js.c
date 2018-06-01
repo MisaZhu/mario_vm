@@ -4,6 +4,8 @@ very tiny js engine in single file.
 
 #include "mario_js.h"
 
+void (*_debug_func)(const char*) = NULL;
+
 void _debug(const char* s) {
 	if(_debug_func != NULL)
 		_debug_func(s);

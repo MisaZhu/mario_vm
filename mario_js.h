@@ -34,7 +34,7 @@ typedef enum {false, true} bool;
 
 typedef void (*free_func_t)(void* p);
 
-static void (*_debug_func)(const char*) = NULL; //print or debug func
+extern void (*_debug_func)(const char*);
 void _debug(const char* s);
 
 typedef struct st_array {
