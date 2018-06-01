@@ -7,7 +7,7 @@ CXX := $(CROSS_COMPILE)g++
 AR := $(CROSS_COMPILE)ar
 LD := $(CROSS_COMPILE)g++
 
-test_SRCS = jstest.c
+test_SRCS = jstest.c ../mario_js.c
 
 CFLAGS =  -I../ -g -Wall
 
