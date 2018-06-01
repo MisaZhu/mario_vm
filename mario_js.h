@@ -5,12 +5,14 @@ very tiny js engine in single file.
 #ifndef MARIO_JS
 #define MARIO_JS
 
-#ifdef __cplusplus
+#ifdef __cplusplus /* __cplusplus */
 extern "C" {
-#endif /* __cplusplus */
+#else
 
 #ifndef bool
 typedef enum {false, true} bool;
+#endif
+
 #endif
 
 
