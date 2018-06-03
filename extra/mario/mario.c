@@ -1,6 +1,6 @@
 #include "mario_js.h"
 #include "hai.h"
-#include "mario_native.h"
+#include "hai_native.h"
 
 
 bool load_js(vm_t* vm, const char* fname) {
