@@ -32,18 +32,17 @@ bool load_js(vm_t* vm, const char* fname) {
 int main(int argc, char** argv) {
 	_debug_func = debug;
 
-	if(argc != 2) {
+	if(argc < 2) {
 		printf("Usage: mario <js-filename>\n");
 		return 1;
 	}
+
 //	while(true) {
 	vm_t vm;
 	vm_init(&vm);
 
 	if(load_js(&vm, argv[1])) {
-#ifndef VERIFY
 		vm_run(&vm);
-#endif
 	}
 	
 	vm_close(&vm);

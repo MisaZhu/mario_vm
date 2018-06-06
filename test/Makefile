@@ -5,16 +5,15 @@ endif
 CC := $(CROSS_COMPILE)gcc
 CXX := $(CROSS_COMPILE)g++
 AR := $(CROSS_COMPILE)ar
-LD := $(CROSS_COMPILE)g++
+LD := $(CROSS_COMPILE)gcc
 
-test_SRCS = jstest.c ../mario_js.c
+test_OBJS = jstest.o ../mario_js.o
 
-CFLAGS =  -I../ -g -Wall
+CFLAGS =  -I../ -g -Wall -DMARIO_DEBUG
 
-all: 
-	$(CC) -o jstest $(CFLAGS) $(test_SRCS)
-	$(CC) -o jsverify $(CFLAGS) -D VERIFY -D MARIO_DEBUG $(test_SRCS)
+all: $(test_OBJS)
+	$(LD) -o jstest $(LDFLAGS) $(test_OBJS)
 
 
 clean:
-	rm -fr jstest jsverify *.o *.dSYM
+	rm -fr jstest $(test_OBJS) *.dSYM
