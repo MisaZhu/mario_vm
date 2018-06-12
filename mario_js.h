@@ -141,6 +141,7 @@ node_t* node_new(const char* name);
 void node_free(void* p);
 var_t* node_replace(node_t* node, var_t* v);
 
+void var_dump(var_t* var);
 void var_remove_all(var_t* var);
 node_t* var_add(var_t* var, const char* name, var_t* add);
 node_t* var_find(var_t* var, const char*name);
@@ -157,6 +158,8 @@ const char* var_get_str(var_t* var);
 int var_get_int(var_t* var);
 float var_get_float(var_t* var);
 func_t* var_get_func(var_t* var);
+
+var_t* json_parse(const char* str);
 
 void vm_init(vm_t* vm);
 bool vm_load(vm_t* vm, const char* s);

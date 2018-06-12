@@ -2352,6 +2352,95 @@ void var_to_json(var_t* var, str_t* ret, int level) {
 	}
 }
 
+
+/** JSON Parser-----------------------------*/
+
+var_t* json_parse_factor(lex_t *l) {
+	if (l->tk==LEX_R_TRUE) {
+		lex_chkread(l, LEX_R_TRUE);
+		return var_new_int(1);
+	}
+	else if (l->tk==LEX_R_FALSE) {
+		lex_chkread(l, LEX_R_FALSE);
+		return var_new_int(0);
+	}
+	else if (l->tk==LEX_R_NULL) {
+		lex_chkread(l, LEX_R_NULL);
+		return var_new();
+	}
+	else if (l->tk==LEX_R_UNDEFINED) {
+		lex_chkread(l, LEX_R_UNDEFINED);
+		return var_new();
+	}
+	else if (l->tk==LEX_INT) {
+		int i = atoi(l->tkStr->cstr);
+		lex_chkread(l, LEX_INT);
+		return var_new_int(i);
+	}
+	else if (l->tk==LEX_FLOAT) {
+		float f = atof(l->tkStr->cstr);
+		lex_chkread(l, LEX_FLOAT);
+		return var_new_float(f);
+	}
+	else if (l->tk==LEX_STR) {
+		str_t* s = str_new(l->tkStr->cstr);
+		lex_chkread(l, LEX_STR);
+		var_t* ret = var_new_str(s->cstr);
+		str_free(s);
+		return ret;
+	}
+	else if(l->tk==LEX_R_FUNCTION) {
+		lex_chkread(l, LEX_R_FUNCTION);
+		//TODO
+		_debug("Error: Can not parse json function item!\n");
+		return var_new();
+	}
+	else if (l->tk=='[') {
+		/* JSON-style array */
+		var_t* arr = var_new();
+		arr->type = V_ARRAY;
+		lex_chkread(l, '[');
+		while (l->tk != ']') {
+			var_t* v = json_parse_factor(l);
+			var_add(arr, "", v);
+			if (l->tk != ']') 
+				lex_chkread(l, ',');
+		}
+		lex_chkread(l, ']');
+		return arr;
+	}
+	else if (l->tk=='{') {
+		lex_chkread(l, '{');
+		var_t* obj = var_new();
+		obj->type = V_OBJECT;
+		while(l->tk != '}') {
+			str_t* id = str_new(l->tkStr->cstr);
+			if(l->tk == LEX_STR)
+				lex_chkread(l, LEX_STR);
+			else
+				lex_chkread(l, LEX_ID);
+
+			lex_chkread(l, ':');
+			var_t* v = json_parse_factor(l);
+			var_add(obj, id->cstr, v);
+			str_free(id);
+			if(l->tk != '}')
+				lex_chkread(l, ',');
+		}
+		lex_chkread(l, '}');
+		return obj;
+	}
+	return var_new();
+}
+
+var_t* json_parse(const char* str) {
+	lex_t lex;
+	lex_init(&lex, str);
+	var_t* ret = json_parse_factor(&lex);
+	lex_release(&lex);
+	return ret;
+}
+
 /** Interpreter-----------------------------*/
 
 
