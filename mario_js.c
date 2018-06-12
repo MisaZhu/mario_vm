@@ -2254,6 +2254,13 @@ void get_parsable_str(var_t* var, str_t* ret) {
 	str_free(s);
 }
 
+void append_json_spaces(str_t* ret, int level) {
+	int spaces;
+	for (spaces = 0; spaces<=level; ++spaces) {
+		str_add(ret, ' '), str_add(ret, ' ');
+	}
+}
+
 static bool _done_arr_inited = false;
 void var_to_json(var_t* var, str_t* ret, int level) {
 	str_reset(ret);
@@ -2291,10 +2298,11 @@ void var_to_json(var_t* var, str_t* ret, int level) {
 		int i;
 		for(i=0; i<sz; ++i) {
 			node_t* n = var_get(var, i);
+			append_json_spaces(ret, level);
 			str_add(ret, '"');
 			str_append(ret, n->name);
 			str_add(ret, '"');
-			str_append(ret, " : ");
+			str_append(ret, ": ");
 
 			str_t* s = str_new("");
 			var_to_json(n->var, s, level+1);
@@ -2308,6 +2316,8 @@ void var_to_json(var_t* var, str_t* ret, int level) {
 		if(sz > 0) {
 			str_add(ret, '\n');
 		}
+	
+		append_json_spaces(ret, level - 1);	
 		str_add(ret, '}');
 	} 
 	else if (var->type == V_ARRAY) {

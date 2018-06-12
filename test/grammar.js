@@ -13,8 +13,11 @@ for(i=0;i<10;i++) {
 	Debug.dump("for loop: " + i);
 }
 
-a = {
-	"name" : "misa"
+var a = {
+	"name": "misa",
+	'naxx': 'misa',
+	'age': 18,
+	'working': { on: 'mario' },
 };
 
 a.name = "xx";
@@ -23,4 +26,7 @@ Debug.dump(a);
 
 arr = [1];
 arr[10] = "hhh";
+arr[11] = {
+  foobar: 10
+};
 Debug.dump(arr);
