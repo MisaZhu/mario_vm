@@ -1894,19 +1894,19 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 		if(!statement(l, bc, true, NULL)) //init statement
 			return false;
 
-		PC cpc = bc->cindex;
+		PC cpc = bc->cindex; //condition anchor(also continue anchor as well)
 		if(!base(l, bc)) //condition
 			return false; 
 		if(!lex_chkread(l, ';')) return false;
-		PC pc = bc_reserve(bc); //njmp on condition
-		PC lpc = bc_reserve(bc); //jmp to loop
+		PC pc = bc_reserve(bc); //njmp on condition for jump out of loop.
+		PC lpc = bc_reserve(bc); //jmp to loop(skip iterator part).
 
 		PC ipc = bc->cindex;  //iterator anchor;
 		if(!base(l, bc)) //iterator statement
 			return false; 
 		if(!lex_chkread(l, ')')) return false;
-		bc_gen(bc, INSTR_POP);
-		bc_add_instr(bc, cpc, INSTR_JMPB, ILLEGAL_PC); //coninue anchor;
+		bc_gen(bc, INSTR_POP); //pop the stack.
+		bc_add_instr(bc, cpc, INSTR_JMPB, ILLEGAL_PC); //jump to coninue anchor;
 
 		PC pcb = bc_reserve(bc); //jump out of loop (for break anchor);
 
@@ -1916,14 +1916,13 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 		lp.blockDepth = 0;
 
 		bc_set_instr(bc, lpc, INSTR_JMP, ILLEGAL_PC); // loop anchor;
-		if(!statement(l, bc, true, &lp)) return false;
+		if(!statement(l, bc, true, &lp)) return false; //loop statement
 
 		bc_add_instr(bc, ipc, INSTR_JMPB, ILLEGAL_PC); //jump to iterator anchor;
 		bc_set_instr(bc, pc, INSTR_NJMP, ILLEGAL_PC); // end anchor;
 		bc_set_instr(bc, pcb, INSTR_JMP, ILLEGAL_PC); // end anchor;
 		pop = false;
 	}
-
 	else if(l->tk == LEX_R_BREAK) {
 		if(!lex_chkread(l, LEX_R_BREAK)) return false;
 		if(!lex_chkread(l, ';')) return false;
