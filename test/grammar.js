@@ -16,7 +16,6 @@ a.name = "xx";
 a.age = 24;
 Debug.dump(a);
 
-arr = [0, 1, 2];
+arr = [1];
 arr[10] = "hhh";
 Debug.dump(arr);
-

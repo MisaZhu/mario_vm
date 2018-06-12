@@ -961,7 +961,21 @@ PC bc_bytecode(bytecode_t* bc, OprCode instr, const char* str) {
 
 	return INS(r, i);
 }
-		
+	
+PC bc_gen_int(bytecode_t* bc, OprCode instr, int32_t i) {
+	PC ins = bc_bytecode(bc, instr, "");
+	bc_add(bc, ins);
+	bc_add(bc, i);
+	return bc->cindex;
+}
+
+PC bc_gen_short(bytecode_t* bc, OprCode instr, int32_t s) {
+	PC ins = bc_bytecode(bc, instr, "");
+	ins = (ins&0xFFFF0000) | (s&0x0FFFF);
+	bc_add(bc, ins);
+	return bc->cindex;
+}
+	
 PC bc_gen_str(bytecode_t* bc, OprCode instr, const char* str) {
 	int i = 0;
 	float f = 0.0;
@@ -998,13 +1012,6 @@ PC bc_gen_str(bytecode_t* bc, OprCode instr, const char* str) {
 
 PC bc_gen(bytecode_t* bc, OprCode instr) {
 	return bc_gen_str(bc, instr, "");
-}
-
-PC bc_gen_int(bytecode_t* bc, OprCode instr, int i) {
-	PC ins = bc_bytecode(bc, instr, "");
-	bc_add(bc, ins);
-	bc_add(bc, i);
-	return bc->cindex;
 }
 
 void bc_set_instr(bytecode_t* bc, PC anchor, OprCode op, PC target) {
@@ -1126,7 +1133,8 @@ PC bc_get_instr_str(bytecode_t* bc, PC i, str_t* ret) {
 				instr == INSTR_NJMP || 
 				instr == INSTR_NJMPB ||
 				instr == INSTR_JMPB ||
-				instr == INSTR_INT_S) {
+				instr == INSTR_INT_S ||
+				instr == INSTR_BLOCK_END) {
 			sprintf(s, "  |%04d 0x%08X ; %s\t%d", i, ins, instr_str(instr), offset);	
 			str_append(ret, s);
 		}
@@ -1189,6 +1197,7 @@ void bc_dump(bytecode_t* bc) {
 typedef struct st_loop {
 	PC continueAnchor;
 	PC breakAnchor;
+	uint32_t blockDepth;
 } loop_t;
 
 bool statement(lex_t*, bytecode_t*, bool, loop_t*);
@@ -1243,12 +1252,20 @@ int callFunc(lex_t* l, bytecode_t* bc) {
 bool block(lex_t* l, bytecode_t* bc, loop_t* loop) {
 	if(!lex_chkread(l, '{')) return false;
 
+	if(loop)
+		loop->blockDepth++;
+
+	bc_gen(bc, INSTR_BLOCK);
 	while (l->tk && l->tk!='}'){
 		if(!statement(l, bc, true, loop))
 			return false;
 	}
 
 	if(!lex_chkread(l, '}')) return false;
+	bc_gen_short(bc, INSTR_BLOCK_END, 0);
+
+	if(loop)
+		loop->blockDepth--;
 	return true;
 }
 
@@ -1862,6 +1879,7 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 		loop_t lp;
 		lp.continueAnchor = cpc;
 		lp.breakAnchor = pcb;
+		lp.blockDepth = 0;
 		
 		if(!statement(l, bc, true, &lp)) return false;
 
@@ -1873,8 +1891,12 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 	else if(l->tk == LEX_R_BREAK) {
 		if(!lex_chkread(l, LEX_R_BREAK)) return false;
 		if(!lex_chkread(l, ';')) return false;
-		if(loop == NULL)
+		if(loop == NULL) {
+			_debug("Error: There is no loop for 'break' here!\n");
 			return false;
+		}
+
+		bc_gen_short(bc, INSTR_BLOCK_END, loop->blockDepth);
 		bc_add_instr(bc, loop->breakAnchor, INSTR_JMPB, ILLEGAL_PC); //to break anchor;
 		pop = false;
 	}
@@ -1885,6 +1907,8 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 			_debug("Error: There is no loop for 'continue' here!\n");
 			return false;
 		}
+
+		bc_gen_short(bc, INSTR_BLOCK_END, loop->blockDepth);
 		bc_add_instr(bc, loop->continueAnchor, INSTR_JMPB, ILLEGAL_PC); //to continue anchor;
 		pop = false;
 	}
@@ -2189,6 +2213,7 @@ void get_parsable_str(var_t* var, str_t* ret) {
 	str_free(s);
 }
 
+static bool _done_arr_inited = false;
 void var_to_json(var_t* var, str_t* ret, int level) {
 	str_reset(ret);
 
@@ -2197,7 +2222,10 @@ void var_to_json(var_t* var, str_t* ret, int level) {
 	//check if done to avoid dead recursion
 	static m_array_t done;
 	if(level == 0) {
-		array_init(&done);
+		if(!_done_arr_inited) {		
+			array_init(&done);
+			_done_arr_inited = true;
+		}
 		array_remove_all(&done);
 	}
 	uint32_t sz = done.size;
@@ -2451,7 +2479,7 @@ node_t* vm_find_in_scopes(vm_t* vm, const char* name) {
 	node_t* ret = NULL;
 	scope_t* sc = vm_get_scope(vm);
 	
-	if(sc != NULL) {
+	if(sc != NULL && sc->var != NULL) {
 		ret = var_find(sc->var, name);
 		if(ret != NULL)
 			return ret;
@@ -2889,13 +2917,16 @@ void vm_run_code(vm_t* vm) {
 				if(bl != NULL) 
 					sc = scope_new(bl->var, bl->pc);
 				else
-					sc = scope_new(NULL, 0);
+					sc = scope_new(var_new_object(NULL, NULL), 0);
 				vm_push_scope(vm, sc);
 				break;
 			}
 			case INSTR_BLOCK_END: 
 			{
-				vm_pop_scope(vm);
+				int i;
+				for(i=0; i<=offset; i++) {
+					vm_pop_scope(vm);
+				}	
 				break;
 			}
 			case INSTR_TRUE: 
