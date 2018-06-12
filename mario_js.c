@@ -1888,6 +1888,42 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 		bc_set_instr(bc, pcb, INSTR_JMP, ILLEGAL_PC); // end anchor;
 		pop = false;
 	}
+	else if (l->tk==LEX_R_FOR) {
+		if(!lex_chkread(l, LEX_R_FOR)) return false;
+		if(!lex_chkread(l, '(')) return false;
+		if(!statement(l, bc, true, NULL)) //init statement
+			return false;
+
+		PC cpc = bc->cindex;
+		if(!base(l, bc)) //condition
+			return false; 
+		if(!lex_chkread(l, ';')) return false;
+		PC pc = bc_reserve(bc); //njmp on condition
+		PC lpc = bc_reserve(bc); //jmp to loop
+
+		PC ipc = bc->cindex;  //iterator anchor;
+		if(!base(l, bc)) //iterator statement
+			return false; 
+		if(!lex_chkread(l, ')')) return false;
+		bc_gen(bc, INSTR_POP);
+		bc_add_instr(bc, cpc, INSTR_JMPB, ILLEGAL_PC); //coninue anchor;
+
+		PC pcb = bc_reserve(bc); //jump out of loop (for break anchor);
+
+		loop_t lp;
+		lp.continueAnchor = cpc;
+		lp.breakAnchor = pcb;
+		lp.blockDepth = 0;
+
+		bc_set_instr(bc, lpc, INSTR_JMP, ILLEGAL_PC); // loop anchor;
+		if(!statement(l, bc, true, &lp)) return false;
+
+		bc_add_instr(bc, ipc, INSTR_JMPB, ILLEGAL_PC); //jump to iterator anchor;
+		bc_set_instr(bc, pc, INSTR_NJMP, ILLEGAL_PC); // end anchor;
+		bc_set_instr(bc, pcb, INSTR_JMP, ILLEGAL_PC); // end anchor;
+		pop = false;
+	}
+
 	else if(l->tk == LEX_R_BREAK) {
 		if(!lex_chkread(l, LEX_R_BREAK)) return false;
 		if(!lex_chkread(l, ';')) return false;
@@ -1911,6 +1947,12 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 		bc_gen_short(bc, INSTR_BLOCK_END, loop->blockDepth);
 		bc_add_instr(bc, loop->continueAnchor, INSTR_JMPB, ILLEGAL_PC); //to continue anchor;
 		pop = false;
+	}
+	else {
+			_debug("Error: don't understand '");
+			_debug(l->tkStr->cstr);
+			_debug("'!\n");
+			return false;
 	}
 
 	if(pop)

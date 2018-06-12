@@ -1,11 +1,16 @@
 i = 0;
+
 while(true) {
 	if(i == 10)
 		break;
 	else {
-		Debug.dump("loop: " + i);
+		Debug.dump("while loop: " + i);
 	}
 	i++;
+}
+
+for(i=0;i<10;i++) {
+	Debug.dump("for loop: " + i);
 }
 
 a = {
