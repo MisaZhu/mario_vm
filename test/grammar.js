@@ -24,6 +24,11 @@ a.name = "xx";
 a.age = 24;
 Debug.dump(a);
 
+b = JSON.stringify(a);
+Debug.dump(b);
+a = JSON.parse(b);
+Debug.dump(a);
+
 arr = [1];
 arr[10] = "hhh";
 arr[11] = {

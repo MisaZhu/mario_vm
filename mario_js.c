@@ -2170,7 +2170,7 @@ func_t* var_get_func(var_t* var) {
 void get_js_str(const char* str, str_t* ret) {
 	str_reset(ret);
 	str_add(ret, '"');
-
+	/*
 	while(*str != 0) {
 		switch (*str) {
 			case '\\': str_append(ret, "\\\\"); break;
@@ -2182,15 +2182,17 @@ void get_js_str(const char* str, str_t* ret) {
 		}
 		str++;
 	}
+	*/
+	str_append(ret, str);
 	str_add(ret, '"');
 }
 
-void var_to_json(var_t*, str_t*, int);
+void var_to_json_str(var_t*, str_t*, int);
 
 void var_dump(var_t* var) {
 	str_t* s = str_new("");
 
-	var_to_json(var, s, 0);
+	var_to_json_str(var, s, 0);
 	_debug(s->cstr);
 	_debug("\n");
 
@@ -2212,7 +2214,7 @@ void var_to_str(var_t* var, str_t* ret) {
 		break;
 	case V_ARRAY:
 	case V_OBJECT:
-		var_to_json(var, ret, 0);
+		var_to_json_str(var, ret, 0);
 		break;
 	default:
 		str_cpy(ret, "undefined");
@@ -2244,7 +2246,6 @@ void get_parsable_str(var_t* var, str_t* ret) {
 	}
 
 	str_t* s = str_new("");
-
 	var_to_str(var, s);
 	if(var->type == V_STRING)
 		get_js_str(s->cstr, ret);
@@ -2262,7 +2263,7 @@ void append_json_spaces(str_t* ret, int level) {
 }
 
 static bool _done_arr_inited = false;
-void var_to_json(var_t* var, str_t* ret, int level) {
+void var_to_json_str(var_t* var, str_t* ret, int level) {
 	str_reset(ret);
 
 	uint32_t i;
@@ -2305,7 +2306,7 @@ void var_to_json(var_t* var, str_t* ret, int level) {
 			str_append(ret, ": ");
 
 			str_t* s = str_new("");
-			var_to_json(n->var, s, level+1);
+			var_to_json_str(n->var, s, level+1);
 			str_append(ret, s->cstr);
 			str_free(s);
 
@@ -2330,7 +2331,7 @@ void var_to_json(var_t* var, str_t* ret, int level) {
 			node_t* n = var_get(var, i);
 
 			str_t* s = str_new("");
-			var_to_json(n->var, s, level);
+			var_to_json_str(n->var, s, level);
 			str_append(ret, s->cstr);
 			str_free(s);
 
@@ -3651,6 +3652,28 @@ var_t* native_dump(vm_t* vm, var_t* env, void* data) {
 	return NULL;
 }
 
+/**JSON functions */
+var_t* native_json_stringify(vm_t* vm, var_t* env, void* data) {
+	(void)vm; (void)data;
+
+	node_t* n = var_find(env, "var");
+	str_t* s = str_new("");
+	if(n != NULL)
+		var_to_json_str(n->var, s, 0);
+
+	var_t* var = var_new_str(s->cstr);
+	str_free(s);
+	return var;
+}
+
+var_t* native_json_parse(vm_t* vm, var_t* env, void* data) {
+	(void)vm; (void)data;
+
+	node_t* n = var_find(env, "str");
+	const char* s = n == NULL ? "" :  var_get_str(n->var);
+	return json_parse(s);
+}
+
 void vm_init(vm_t* vm) {
 	vm->pc = 0;
 	bc_init(&vm->bc);
@@ -3660,6 +3683,8 @@ void vm_init(vm_t* vm) {
 	vm->root = var_ref(var_new_object(NULL, NULL));
 
 	vm_reg_native(vm, "Debug", "dump(var)", native_dump, NULL);
+	vm_reg_native(vm, "JSON", "stringify(var)", native_json_stringify, NULL);
+	vm_reg_native(vm, "JSON", "parse(str)", native_json_parse, NULL);
 }
 
 #ifdef __cplusplus
