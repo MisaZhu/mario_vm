@@ -36,6 +36,8 @@ typedef enum {false, true} bool;
 
 typedef void (*free_func_t)(void* p);
 
+extern void _free_none(void*p);
+
 extern void (*_debug_func)(const char*);
 void _debug(const char* s);
 
@@ -169,7 +171,11 @@ void vm_close(vm_t* vm);
 var_t* new_object(vm_t* vm, const char* clsName);
 node_t* vm_reg_var(vm_t* vm, const char* cls, const char* name, var_t* var);
 node_t* vm_reg_native(vm_t* vm, const char* cls, const char* decl, native_func_t native, void* data);
-var_t* get_env_this(var_t* env);
+
+var_t* arg_obj(var_t* env, const char* name);
+const char* arg_str(var_t* env, const char* name);
+int arg_int(var_t* env, const char* name);
+float arg_float(var_t* env, const char* name);
 
 #ifdef __cplusplus
 }

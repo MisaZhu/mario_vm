@@ -38,10 +38,14 @@ arr[11] = {
 Debug.dump(arr);
 
 
-cc = "aa";
+cc1 = "cc1";
+cc2 = "cc2";
 {
-	let cc = 1;
-	Debug.dump(cc);
+	let cc1 = 1;
+	var cc2 = 2;
+	Debug.dump(cc1);
+	Debug.dump(cc2);
 }
-Debug.dump(cc);
+Debug.dump(cc1);
+Debug.dump(cc2);
 

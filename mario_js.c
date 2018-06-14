@@ -8,6 +8,8 @@ extern "C" {
 
 #include "mario_js.h"
 
+void _free_none(void* p) { (void)p; }
+
 void (*_debug_func)(const char*) = NULL;
 
 void _debug(const char* s) {
@@ -2667,7 +2669,12 @@ node_t* vm_load_node(vm_t* vm, const char* name, bool create) {
 	node_t* n =  vm_find_in_scopes(vm, name);	
 	if(n != NULL)
 		return n;
-	else if(!create)
+	/*
+	_debug("Warning: '");	
+	_debug(name);
+	_debug("' undefined!\n");	
+	*/
+	if(!create)
 		return NULL;
 
 	var_t* var = vm_get_scope_var(vm, true);
@@ -3667,8 +3674,23 @@ node_t* vm_reg_native(vm_t* vm, const char* cls, const char* decl, native_func_t
 	return node;
 }
 
-var_t* get_env_this(var_t* env) {
-	node_t* n = var_find(env, THIS);
+const char* arg_str(var_t* env, const char* name) {
+	node_t* n = var_find(env, name);
+	return n == NULL ? "" : var_get_str(n->var);
+}
+
+int arg_int(var_t* env, const char* name) {
+	node_t* n = var_find(env, name);
+	return n == NULL ? 0 : var_get_int(n->var);
+}
+
+float arg_float(var_t* env, const char* name) {
+	node_t* n = var_find(env, name);
+	return n == NULL ? 0.0 : var_get_float(n->var);
+}
+
+var_t* arg_obj(var_t* env, const char* name) {
+	node_t* n = var_find(env, name);
 	if(n == NULL)
 		return NULL;
 	return n->var;
