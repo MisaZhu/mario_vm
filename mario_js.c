@@ -1004,7 +1004,7 @@ PC bc_gen_str(bytecode_t* bc, OprCode instr, const char* str) {
 	bc_add(bc, ins);
 
 	if(instr == INSTR_INT) {
-		if(i < 0xFFFF) //short int
+		if(i >= 0 && i < 0xFFFF) //short int
 			bc->codeBuf[bc->cindex-1] = INS(INSTR_INT_S, i);
 		else 	
 			bc_add(bc, i);
