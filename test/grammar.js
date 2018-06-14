@@ -39,7 +39,9 @@ Debug.dump(arr);
 
 
 cc = "aa";
-Debug.dump(cc);
-var cc = 1;
+{
+	let cc = 1;
+	Debug.dump(cc);
+}
 Debug.dump(cc);
 
