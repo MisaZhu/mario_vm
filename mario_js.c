@@ -305,6 +305,7 @@ typedef enum {
   LEX_R_EXTENDS,
   LEX_R_RETURN,
   LEX_R_VAR,
+  LEX_R_LET,
   LEX_R_CONST,
   LEX_R_TRUE,
   LEX_R_FALSE,
@@ -446,6 +447,7 @@ void lex_get_next_token(lex_t* lex) {
 		else if (strcmp(lex->tkStr->cstr, "extends") == 0) 	 lex->tk = LEX_R_EXTENDS;
 		else if (strcmp(lex->tkStr->cstr, "return") == 0)   lex->tk = LEX_R_RETURN;
 		else if (strcmp(lex->tkStr->cstr, "var")  == 0)      lex->tk = LEX_R_VAR;
+		else if (strcmp(lex->tkStr->cstr, "let")  == 0)      lex->tk = LEX_R_LET;
 		else if (strcmp(lex->tkStr->cstr, "const") == 0)     lex->tk = LEX_R_CONST;
 		else if (strcmp(lex->tkStr->cstr, "true") == 0)      lex->tk = LEX_R_TRUE;
 		else if (strcmp(lex->tkStr->cstr, "false") == 0)     lex->tk = LEX_R_FALSE;
@@ -717,6 +719,7 @@ const char* lex_get_token_str(int token) {
 		case LEX_R_RETURN       : return "return";
 		case LEX_R_CONST        : return "CONST";
 		case LEX_R_VAR          : return "var";
+		case LEX_R_LET          : return "let";
 		case LEX_R_TRUE         : return "true";
 		case LEX_R_FALSE        : return "false";
 		case LEX_R_NULL         : return "null";
@@ -811,6 +814,7 @@ typedef uint16_t OprCode;
 #define INSTR_ARRAY				 0x000B // ARRAY 								: array start
 #define INSTR_ARRAY_END		 0x000C // ARRAY_END 						: array end
 #define INSTR_INT_S				 0x000D // SHORT_INT int 				: push short int
+#define INSTR_LET					 0x000E // LET x								: declare let x
 
 #define INSTR_FUNC				 0x0010 // FUNC x								: function definetion x
 #define INSTR_FUNC_GET		 0x0011 // GET FUNC x						: class get function definetion x
@@ -1045,6 +1049,7 @@ const char* instr_str(OprCode ins) {
 		case  INSTR_MEMBERN			: return "MEMBERN";
 		case  INSTR_POP					: return "POP";
 		case  INSTR_VAR					: return "VAR";
+		case  INSTR_LET					: return "LET";
 		case  INSTR_CONST				: return "CONST";
 		case  INSTR_INT					: return "INT";
 		case  INSTR_INT_S				: return "INTS";
@@ -1792,22 +1797,31 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 			return false;
 		if(!lex_chkread(l, ';')) return false;
 	}
-	else if (l->tk==LEX_R_VAR || l->tk == LEX_R_CONST) {
+	else if (l->tk==LEX_R_VAR || l->tk == LEX_R_CONST || l->tk == LEX_R_LET) {
 		pop = false;
+		OprCode op;
 		bool beConst;
+
 		if(l->tk == LEX_R_VAR) {
 			if(!lex_chkread(l, LEX_R_VAR)) return false;
 			beConst = false;
+			op = INSTR_VAR;
+		}
+		else if(l->tk == LEX_R_LET) {
+			if(!lex_chkread(l, LEX_R_LET)) return false;
+			beConst = false;
+			op = INSTR_LET;
 		}
 		else {
 			if(!lex_chkread(l, LEX_R_CONST)) return false;
 			beConst = true;
+			op = INSTR_CONST;
 		}
 
 		while (l->tk != ';') {
 			str_t* vname = str_new(l->tkStr->cstr);
 			if(!lex_chkread(l, LEX_ID)) return false;
-			bc_gen_str(bc, beConst ? INSTR_CONST : INSTR_VAR, vname->cstr);
+			bc_gen_str(bc, op, vname->cstr);
 			// sort out initialiser
 			if (l->tk == '=') {
 				if(!lex_chkread(l, '=')) return false;
@@ -2520,10 +2534,9 @@ typedef struct st_scope {
 	struct st_scope* prev;
 	var_t* var;
 	PC pc; //stack pc
+	bool isBlock;
 
 	//continue and break anchor for loop(while/for)
-	PC continue_anchor;
-	PC break_anchor;
 } scope_t;
 
 scope_t* scope_new(var_t* var, PC pc) {
@@ -2531,6 +2544,7 @@ scope_t* scope_new(var_t* var, PC pc) {
 	sc->prev = NULL;
 	sc->var = var_ref(var);
 	sc->pc = pc;
+	sc->isBlock = false;
 	return sc;
 }
 
@@ -2546,8 +2560,11 @@ scope_t* vm_get_scope(vm_t* vm) {
 	return (scope_t*)array_tail(&vm->scopes);
 }
 
-var_t* vm_get_scope_var(vm_t* vm) {
+var_t* vm_get_scope_var(vm_t* vm, bool skipBlock) {
 	scope_t* sc = (scope_t*)array_tail(&vm->scopes);
+	if(skipBlock && sc != NULL && sc->isBlock) //skip blocks
+		sc = sc->prev;
+
 	if(sc == NULL)
 		return vm->root;
 	return sc->var;	
@@ -2589,7 +2606,7 @@ void vm_stack_free(void* p) {
 }
 
 node_t* vm_find(vm_t* vm, const char* name) {
-	var_t* var = vm_get_scope_var(vm);
+	var_t* var = vm_get_scope_var(vm, true);
 	if(var == NULL)
 		return NULL;
 	return var_find(var, name);	
@@ -2653,7 +2670,7 @@ node_t* vm_load_node(vm_t* vm, const char* name, bool create) {
 	else if(!create)
 		return NULL;
 
-	var_t* var = vm_get_scope_var(vm);
+	var_t* var = vm_get_scope_var(vm, true);
 	if(var == NULL)
 		return NULL;
 
@@ -3037,7 +3054,6 @@ void do_new(vm_t* vm, const char* full) {
 
 void vm_run_code(vm_t* vm) {
 	//int32_t scDeep = vm->scopes.size;
-	bool needPopSC = false;
 	PC codeSize = vm->bc.cindex;
 	PC* code = vm->bc.codeBuf;
 
@@ -3058,7 +3074,9 @@ void vm_run_code(vm_t* vm) {
 				if(bl != NULL) 
 					sc = scope_new(bl->var, bl->pc);
 				else
-					sc = scope_new(var_new_object(NULL, NULL), 0);
+					sc = scope_new(var_new_object(NULL, NULL), 0xFFFFFFFF);
+
+				sc->isBlock = true;
 				vm_push_scope(vm, sc);
 				break;
 			}
@@ -3286,15 +3304,31 @@ void vm_run_code(vm_t* vm) {
 				const char* s = bc_getstr(&vm->bc, offset);
 				node_t *node = vm_find(vm, s);
 				if(node != NULL) { //find just in current scope
-					//TODO
-					//ERR("Warning: %s has already existed. %s\n", str.c_str(), DEBUG_LINE);
+					_debug("Warning: '");
+					_debug(s);
+					_debug("' has already existed!\n");
 				}
 				else {
-					var_t* v = vm_get_scope_var(vm);
+					var_t* v = vm_get_scope_var(vm, true);
 					if(v != NULL) 
 						node = var_add(v, s, NULL);
 					if(node != NULL && instr == INSTR_CONST)
 						node->beConst = true;
+				}
+				break;
+			}
+			case INSTR_LET:
+			{
+				const char* s = bc_getstr(&vm->bc, offset);
+				var_t* v = vm_get_scope_var(vm, false);
+				node_t *node = var_find(v, s);
+				if(node != NULL) { //find just in current scope
+					_debug("Warning: '");
+					_debug(s);
+					_debug("' has already existed!\n");
+				}
+				else {
+					node = var_add(v, s, NULL);
 				}
 				break;
 			}
@@ -3346,7 +3380,7 @@ void vm_run_code(vm_t* vm) {
 				const char* s = bc_getstr(&vm->bc, offset);
 				bool loaded = false;
 				if(strcmp(THIS, s) == 0) {
-					var_t* v = vm_get_scope_var(vm);
+					var_t* v = vm_get_scope_var(vm, true);
 					if(v->type == V_OBJECT) {
 						vm_push(vm, v);
 						loaded = true;
@@ -3420,7 +3454,7 @@ void vm_run_code(vm_t* vm) {
 						str_cpy(fname, s);
 					}
 
-					var_t *var = vm_get_scope_var(vm);
+					var_t *var = vm_get_scope_var(vm, true);
 					if(var != NULL)
 						var_add(var, fname->cstr, v);
 
@@ -3447,14 +3481,14 @@ void vm_run_code(vm_t* vm) {
 					obj->type =V_OBJECT;
 				else
 					obj->type = V_ARRAY;
-				scope_t* sc = scope_new(obj, 0);
+				scope_t* sc = scope_new(obj, 0xFFFFFFFF);
 				vm_push_scope(vm, sc);
 				break;
 			}
 			case INSTR_ARRAY_END: 
 			case INSTR_OBJ_END: 
 			{
-				var_t* obj = vm_get_scope_var(vm);
+				var_t* obj = vm_get_scope_var(vm, true);
 				vm_push(vm, obj); //that actually means currentObj->ref() for push and unref for unasign.
 				vm_pop_scope(vm);
 				break;
@@ -3490,13 +3524,13 @@ void vm_run_code(vm_t* vm) {
 					//doExtends(n, str);
 				}
 
-				scope_t* sc = scope_new(n->var, 0);
+				scope_t* sc = scope_new(n->var, 0xFFFFFFFF);
 				vm_push_scope(vm, sc);
 				break;
 			}
 			case INSTR_CLASS_END: 
 			{
-				var_t* var = vm_get_scope_var(vm);
+				var_t* var = vm_get_scope_var(vm, true);
 				vm_push(vm, var);
 				vm_pop_scope(vm);
 				break;
@@ -3548,8 +3582,6 @@ void vm_run_code(vm_t* vm) {
 			*/
 		}
 	}
-	if(needPopSC)
-		vm_pop_scope(vm);
 }
 
 bool vm_load(vm_t* vm, const char* s) {

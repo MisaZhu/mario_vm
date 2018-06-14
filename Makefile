@@ -7,9 +7,9 @@ CXX := $(CROSS_COMPILE)g++
 AR := $(CROSS_COMPILE)ar
 LD := $(CROSS_COMPILE)gcc
 
-test_OBJS = jstest.o ../mario_js.o
+test_OBJS = jstest.o mario_js.o
 
-CFLAGS =  -I../ -g -Wall -DMARIO_DEBUG
+CFLAGS =  -g -Wall -DMARIO_DEBUG
 
 all: $(test_OBJS)
 	$(LD) -o jstest $(LDFLAGS) $(test_OBJS)

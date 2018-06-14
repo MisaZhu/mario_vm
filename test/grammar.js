@@ -1,8 +1,9 @@
 i = 0;
 
 while(true) {
-	if(i == 10)
+	if(i == 10) {
 		break;
+	}
 	else {
 		Debug.dump("while loop: " + i);
 	}
@@ -35,3 +36,10 @@ arr[11] = {
   foobar: 10
 };
 Debug.dump(arr);
+
+
+cc = "aa";
+Debug.dump(cc);
+var cc = 1;
+Debug.dump(cc);
+
