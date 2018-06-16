@@ -169,7 +169,8 @@ bool vm_run(vm_t* vm);
 void vm_close(vm_t* vm);
 
 var_t* new_object(vm_t* vm, const char* clsName);
-node_t* vm_reg_var(vm_t* vm, const char* cls, const char* name, var_t* var);
+node_t* vm_reg_var(vm_t* vm, const char* cls, const char* name, var_t* var, bool beConst);
+node_t* vm_reg_const(vm_t* vm, const char* cls, const char* name, var_t* var);
 node_t* vm_reg_native(vm_t* vm, const char* cls, const char* decl, native_func_t native, void* data);
 
 var_t* arg_obj(var_t* env, const char* name);

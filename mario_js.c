@@ -3616,14 +3616,15 @@ node_t* vm_new_class(vm_t* vm, const char* cls) {
 	return clsNode;
 }
 
-node_t* vm_reg_var(vm_t* vm, const char* cls, const char* name, var_t* var) {
-	var_t* clsVar = vm->root;
+node_t* vm_reg_var(vm_t* vm, const char* cls, const char* name, var_t* var, bool beConst) {
+	var_t* clsvar = vm->root;
 	if(cls[0] != 0) {
-		node_t* clsNode = vm_new_class(vm, cls);
-		clsVar = clsNode->var;
+		node_t* clsnode = vm_new_class(vm, cls);
+		clsvar = clsnode->var;
 	}
 
-	node_t* node = var_add(clsVar, name, var);
+	node_t* node = var_add(clsvar, name, var);
+	node->beConst = beConst;
 	return node;
 }
 

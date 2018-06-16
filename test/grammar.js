@@ -1,5 +1,6 @@
-i = 0;
+Debug.dump({'age': 19, name: 'misa'});
 
+var i = 0;
 while(true) {
 	if(i == 10) {
 		break;
