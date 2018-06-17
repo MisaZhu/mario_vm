@@ -2122,7 +2122,7 @@ var_t* var_new() {
 	return var;
 }
 
-var_t* var_new_object(void*p, free_func_t fr) {
+var_t* var_new_obj(void*p, free_func_t fr) {
 	var_t* var = var_new();
 	var->type = V_OBJECT;
 	var->value = p;
@@ -2165,7 +2165,8 @@ const char* var_get_str(var_t* var) {
 int var_get_int(var_t* var) {
 	if(var == NULL || var->value == NULL)
 		return 0;
-	
+	if(var->type == V_FLOAT)	
+		return (int)(*(float*)var->value);
 	return *(int*)var->value;
 }
 
@@ -2173,6 +2174,8 @@ float var_get_float(var_t* var) {
 	if(var == NULL || var->value == NULL)
 		return 0.0;
 	
+	if(var->type == V_INT)	
+		return (float)(*(int*)var->value);
 	return *(float*)var->value;
 }
 
@@ -3007,7 +3010,7 @@ void do_get(vm_t* vm, var_t* v, const char* name) {
 }
 
 /** simple create object by classname(no constructor) */
-var_t* new_object(vm_t* vm, const char* clsName) {
+var_t* new_obj(vm_t* vm, const char* clsName) {
 	var_t* obj = NULL;
 
 	node_t* n = vm_load_node(vm, clsName, false); //load class;
@@ -3015,7 +3018,7 @@ var_t* new_object(vm_t* vm, const char* clsName) {
 		return NULL;
 	}
 
-	obj = var_new_object(NULL, NULL);
+	obj = var_new_obj(NULL, NULL);
 	var_add(obj, PROTOTYPE, n->var);
 	return obj;
 }
@@ -3048,7 +3051,7 @@ void do_new(vm_t* vm, const char* full) {
 	node_t* constructor = var_find(n->var, name->cstr);
 	str_free(name);
 
-	obj = var_new_object(NULL, NULL);
+	obj = var_new_obj(NULL, NULL);
 	var_add(obj, PROTOTYPE, n->var);
 
 	if(constructor == NULL) { //no constructor
@@ -3081,7 +3084,7 @@ void vm_run_code(vm_t* vm) {
 				if(bl != NULL) 
 					sc = scope_new(bl->var, bl->pc);
 				else
-					sc = scope_new(var_new_object(NULL, NULL), 0xFFFFFFFF);
+					sc = scope_new(var_new_obj(NULL, NULL), 0xFFFFFFFF);
 
 				sc->isBlock = true;
 				vm_push_scope(vm, sc);
@@ -3675,23 +3678,23 @@ node_t* vm_reg_native(vm_t* vm, const char* cls, const char* decl, native_func_t
 	return node;
 }
 
-const char* arg_str(var_t* env, const char* name) {
-	node_t* n = var_find(env, name);
+const char* get_str(var_t* var, const char* name) {
+	node_t* n = var_find(var, name);
 	return n == NULL ? "" : var_get_str(n->var);
 }
 
-int arg_int(var_t* env, const char* name) {
-	node_t* n = var_find(env, name);
+int get_int(var_t* var, const char* name) {
+	node_t* n = var_find(var, name);
 	return n == NULL ? 0 : var_get_int(n->var);
 }
 
-float arg_float(var_t* env, const char* name) {
-	node_t* n = var_find(env, name);
+float get_float(var_t* var, const char* name) {
+	node_t* n = var_find(var, name);
 	return n == NULL ? 0.0 : var_get_float(n->var);
 }
 
-var_t* arg_obj(var_t* env, const char* name) {
-	node_t* n = var_find(env, name);
+var_t* get_obj(var_t* var, const char* name) {
+	node_t* n = var_find(var, name);
 	if(n == NULL)
 		return NULL;
 	return n->var;
@@ -3735,7 +3738,7 @@ void vm_init(vm_t* vm) {
 	array_init(&vm->stack);	
 	array_init(&vm->scopes);	
 
-	vm->root = var_ref(var_new_object(NULL, NULL));
+	vm->root = var_ref(var_new_obj(NULL, NULL));
 
 	vm_reg_native(vm, "Debug", "dump(var)", native_dump, NULL);
 	vm_reg_native(vm, "JSON", "stringify(var)", native_json_stringify, NULL);

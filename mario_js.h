@@ -152,7 +152,7 @@ node_t* var_get(var_t* var, int32_t index);
 void var_unref(var_t* var, bool del);
 var_t* var_ref(var_t* var);
 var_t* var_new();
-var_t* var_new_object(void*p, free_func_t fr);
+var_t* var_new_obj(void*p, free_func_t fr);
 var_t* var_new_int(int i);
 var_t* var_new_float(float i);
 var_t* var_new_str(const char* s);
@@ -168,15 +168,15 @@ bool vm_load(vm_t* vm, const char* s);
 bool vm_run(vm_t* vm);
 void vm_close(vm_t* vm);
 
-var_t* new_object(vm_t* vm, const char* clsName);
+var_t* new_obj(vm_t* vm, const char* clsName);
 node_t* vm_reg_var(vm_t* vm, const char* cls, const char* name, var_t* var, bool beConst);
 node_t* vm_reg_const(vm_t* vm, const char* cls, const char* name, var_t* var);
 node_t* vm_reg_native(vm_t* vm, const char* cls, const char* decl, native_func_t native, void* data);
 
-var_t* arg_obj(var_t* env, const char* name);
-const char* arg_str(var_t* env, const char* name);
-int arg_int(var_t* env, const char* name);
-float arg_float(var_t* env, const char* name);
+var_t* get_obj(var_t* obj, const char* name);
+const char* get_str(var_t* obj, const char* name);
+int get_int(var_t* obj, const char* name);
+float get_float(var_t* obj, const char* name);
 
 #ifdef __cplusplus
 }
