@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 
-//	while(true) {
+	while(true) {
 	vm_t vm;
 	vm_init(&vm);
 
@@ -46,6 +46,6 @@ int main(int argc, char** argv) {
 	}
 	
 	vm_close(&vm);
-//	}
+	}
 	return 0;
 }

@@ -1256,20 +1256,23 @@ int callFunc(lex_t* l, bytecode_t* bc) {
 	return argNum;
 }
 
-bool block(lex_t* l, bytecode_t* bc, loop_t* loop) {
+bool block(lex_t* l, bytecode_t* bc, loop_t* loop, bool func) {
 	if(!lex_chkread(l, '{')) return false;
 
 	if(loop)
 		loop->blockDepth++;
 
-	bc_gen(bc, INSTR_BLOCK);
+	if(!func)
+		bc_gen(bc, INSTR_BLOCK);
+
 	while (l->tk && l->tk!='}'){
 		if(!statement(l, bc, true, loop))
 			return false;
 	}
-
 	if(!lex_chkread(l, '}')) return false;
-	bc_gen_short(bc, INSTR_BLOCK_END, 0);
+
+	if(!func)
+		bc_gen_short(bc, INSTR_BLOCK_END, 0);
 
 	if(loop)
 		loop->blockDepth--;
@@ -1309,7 +1312,7 @@ bool defFunc(lex_t* l, bytecode_t* bc, str_t* name) {
 	}
 	if(!lex_chkread(l, ')')) return false;
 	PC pc = bc_reserve(bc);
-	block(l, bc, NULL);
+	block(l, bc, NULL, true);
 	
 	OprCode op = bc->codeBuf[bc->cindex - 1] >> 16;
 
@@ -1783,7 +1786,7 @@ bool base(lex_t* l, bytecode_t* bc) {
 bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 	if (l->tk=='{') {
 		/* A block of code */
-		if(!block(l, bc, loop))
+		if(!block(l, bc, loop, false))
 			return false;
 		pop = false;
 	}
@@ -2731,6 +2734,7 @@ var_t* find_func(vm_t* vm, var_t* obj, const char* full) {
 	return node->var;
 }
 
+void vm_run_code(vm_t* vm);
 bool func_call(vm_t* vm, var_t* obj, func_t* func) {
 	int i;
 	var_t *env = var_new();
@@ -2761,6 +2765,7 @@ bool func_call(vm_t* vm, var_t* obj, func_t* func) {
 
 	//js function
 	vm->pc = func->pc;
+	vm_run_code(vm);
 	return true;
 }
 
@@ -3014,7 +3019,11 @@ var_t* new_obj(vm_t* vm, const char* clsName) {
 	var_t* obj = NULL;
 
 	node_t* n = vm_load_node(vm, clsName, false); //load class;
+
 	if(n == NULL || n->var->type != V_OBJECT) {
+		_debug("Error: There is no class: '");
+		_debug(clsName);
+		_debug("'!\n");
 		return NULL;
 	}
 
@@ -3295,18 +3304,10 @@ void vm_run_code(vm_t* vm) {
 						else
 							vm_push(vm, var_new());
 					}
-					else {
-						var_t* v = vm_pop2(vm);
-						if(v != NULL) {
-							vm_push(vm, v);
-							var_unref(v, true);	
-						}
-					}
-
 					vm->pc = sc->pc;
 					vm_pop_scope(vm);
 				}
-				break;
+				return;
 			}
 			case INSTR_VAR:
 			case INSTR_CONST: 
