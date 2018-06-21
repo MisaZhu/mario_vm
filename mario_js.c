@@ -3782,28 +3782,6 @@ var_t* native_dump(vm_t* vm, var_t* env, void* data) {
 	return NULL;
 }
 
-/**JSON functions */
-var_t* native_json_stringify(vm_t* vm, var_t* env, void* data) {
-	(void)vm; (void)data;
-
-	node_t* n = var_find(env, "var");
-	str_t* s = str_new("");
-	if(n != NULL)
-		var_to_json_str(n->var, s, 0);
-
-	var_t* var = var_new_str(s->cstr);
-	str_free(s);
-	return var;
-}
-
-var_t* native_json_parse(vm_t* vm, var_t* env, void* data) {
-	(void)vm; (void)data;
-
-	node_t* n = var_find(env, "str");
-	const char* s = n == NULL ? "" :  var_get_str(n->var);
-	return json_parse(s);
-}
-
 void vm_init(vm_t* vm) {
 	vm->pc = 0;
 	bc_init(&vm->bc);
@@ -3813,8 +3791,7 @@ void vm_init(vm_t* vm) {
 	vm->root = var_ref(var_new_obj(NULL, NULL));
 
 	vm_reg_native(vm, "Debug", "dump(var)", native_dump, NULL);
-//	vm_reg_native(vm, "JSON", "stringify(var)", native_json_stringify, NULL);
-//	vm_reg_native(vm, "JSON", "parse(str)", native_json_parse, NULL);
+	vm_reg_native(vm, "", "dump(var)", native_dump, NULL);
 }
 
 #ifdef __cplusplus
