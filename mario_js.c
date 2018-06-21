@@ -2628,7 +2628,7 @@ node_t* vm_find_in_class(var_t* var, const char* name) {
 		ret = var_find(n->var, name);
 		if(ret != NULL)
 			return ret;
-		n = var_find(n->var, PROTOTYPE);
+		n = var_find(n->var, SUPER);
 	}
 	return NULL;
 }
@@ -2702,6 +2702,7 @@ func_t* func_new() {
 	func->regular = true;
 	func->pc = 0;
 	func->data = NULL;
+	func->owner = NULL;
 	array_init(&func->args);
 	return func;
 }
@@ -2734,6 +2735,16 @@ var_t* find_func(vm_t* vm, var_t* obj, const char* full) {
 	return node->var;
 }
 
+var_t* get_super(var_t* var) {
+	if(var == NULL)
+		return NULL;
+
+	node_t* n = var_find(var, SUPER);
+	if(n != NULL)
+		return n->var;
+	return NULL;
+}
+
 void vm_run_code(vm_t* vm);
 bool func_call(vm_t* vm, var_t* obj, func_t* func) {
 	int i;
@@ -2749,6 +2760,10 @@ bool func_call(vm_t* vm, var_t* obj, func_t* func) {
 		}
 	}
 	var_add(env, THIS, obj);
+
+	var_t* super = get_super(func->owner);
+	if(super != NULL)
+		var_add(env, SUPER, super);
 
 	scope_t* sc = scope_new(env, vm->pc);
 	vm_push_scope(vm, sc);
@@ -3014,8 +3029,19 @@ void do_get(vm_t* vm, var_t* v, const char* name) {
 	vm_push_node(vm, n);
 }
 
+void doExtends(vm_t* vm, var_t* cls, const char* superName) {
+	node_t* n = vm_find_in_scopes(vm, superName);
+	if(n == NULL) {
+		_debug("Super Class '");
+		_debug(superName);
+		_debug("' not found!\n");
+		return;
+	}
+	var_add(cls, SUPER, n->var);
+}
+
 /** simple create object by classname(no constructor) */
-var_t* new_obj(vm_t* vm, const char* clsName) {
+var_t* new_obj(vm_t* vm, const char* clsName, int argNum) {
 	var_t* obj = NULL;
 
 	node_t* n = vm_load_node(vm, clsName, false); //load class;
@@ -3029,6 +3055,22 @@ var_t* new_obj(vm_t* vm, const char* clsName) {
 
 	obj = var_new_obj(NULL, NULL);
 	var_add(obj, PROTOTYPE, n->var);
+
+	str_t* name = str_new(CONSTRUCTOR);
+	if(argNum > 0) {
+		str_add(name, '$');
+		str_append(name, str_from_int(argNum));
+	}
+
+	n = var_find(n->var, name->cstr);
+	str_free(name);
+
+	if(n != NULL) {
+		func_call(vm, obj, (func_t*)n->var->value);
+		obj = vm_pop2(vm);
+		var_unref(obj, false);
+	}
+
 	return obj;
 }
 
@@ -3038,37 +3080,13 @@ void do_new(vm_t* vm, const char* full) {
 	int argNum = parse_func_name(full, name);
 	(void)argNum;
 
-	var_t* obj = NULL;
-
-	node_t* n = vm_load_node(vm, name->cstr, false); //load class;
-	if(n == NULL || n->var->type != V_OBJECT) {
-		_debug("Error: There is no class: '");
-		_debug(name->cstr);
-		_debug("'!\n");
-
-		vm_push(vm, var_new());
-		str_free(name);
-		return;
-	}
-
-	str_cpy(name, CONSTRUCTOR);
-	if(argNum > 0) {
-		str_add(name, '$');
-		str_append(name, str_from_int(argNum));
-	}
-
-	node_t* constructor = var_find(n->var, name->cstr);
+	var_t* obj = new_obj(vm, name->cstr, argNum);
 	str_free(name);
 
-	obj = var_new_obj(NULL, NULL);
-	var_add(obj, PROTOTYPE, n->var);
-
-	if(constructor == NULL) { //no constructor
+	if(obj == NULL)
+		vm_push(vm, var_new());
+	else
 		vm_push(vm, obj);
-		return;
-	}
-
-	func_call(vm, obj, (func_t*)constructor->var->value);
 }
 
 void vm_run_code(vm_t* vm) {
@@ -3424,14 +3442,39 @@ void vm_run_code(vm_t* vm) {
 			case INSTR_CALLO: 
 			{
 				const char* s = bc_getstr(&vm->bc, offset);
-				int argNum = parse_func_name(s, NULL);
+				str_t* name = str_new("");
+				int argNum = parse_func_name(s, name);
 
+				var_t* func = NULL;
 				var_t* obj = NULL;
+				
 				if(instr == INSTR_CALLO) {
 					obj = vm_stack_pick(vm, argNum+1);
 				}
 
-				var_t* func = find_func(vm, obj, s);
+				if(obj == NULL && strcmp(SUPER, name->cstr) == 0) { //super constructor
+					str_cpy(name, CONSTRUCTOR);
+					if(argNum > 0) {
+						str_add(name, '$');
+						str_append(name, str_from_int(argNum));
+					}
+					s = name->cstr;
+					var_t* v = vm_get_scope_var(vm, true);
+					if(v != NULL) {
+						node_t* n = var_find(v, THIS);
+						if(n != NULL)
+							obj = var_ref(n->var);
+
+						n = var_find(v, SUPER);
+						if(n != NULL)
+							func = find_func(vm, n->var, s);
+					}
+				}
+				else {
+					func = find_func(vm, obj, s);
+				}
+				str_free(name);
+
 				if(func != NULL) {
 					func_call(vm, obj, (func_t*)func->value);
 				}
@@ -3456,16 +3499,17 @@ void vm_run_code(vm_t* vm) {
 				var_t* v = vm_pop2(vm);
 				if(v != NULL) {
 					str_t* fname = str_new("");
+					var_t *var = vm_get_scope_var(vm, true);
 
 					if(v->type == V_FUNC) {
 						func_t* func = (func_t*)v->value;
+						func->owner = var;
 						gen_func_name(s, func->args.size, fname);
 					}
 					else {
 						str_cpy(fname, s);
 					}
 
-					var_t *var = vm_get_scope_var(vm, true);
 					if(var != NULL)
 						var_add(var, fname->cstr, v);
 
@@ -3531,8 +3575,8 @@ void vm_run_code(vm_t* vm) {
 				if(instr == INSTR_EXTENDS) {
 					vm->pc++;
 					offset = ins & 0x0000FFFF;
-					//TODO: str = bcode->getStr(offset);
-					//doExtends(n, str);
+					s =  bc_getstr(&vm->bc, offset);
+					doExtends(vm, n->var, s);
 				}
 
 				scope_t* sc = scope_new(n->var, 0xFFFFFFFF);
@@ -3742,8 +3786,8 @@ void vm_init(vm_t* vm) {
 	vm->root = var_ref(var_new_obj(NULL, NULL));
 
 	vm_reg_native(vm, "Debug", "dump(var)", native_dump, NULL);
-	vm_reg_native(vm, "JSON", "stringify(var)", native_json_stringify, NULL);
-	vm_reg_native(vm, "JSON", "parse(str)", native_json_parse, NULL);
+//	vm_reg_native(vm, "JSON", "stringify(var)", native_json_stringify, NULL);
+//	vm_reg_native(vm, "JSON", "parse(str)", native_json_parse, NULL);
 }
 
 #ifdef __cplusplus

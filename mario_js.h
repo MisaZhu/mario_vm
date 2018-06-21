@@ -96,6 +96,7 @@ typedef struct st_bytecode {
 
 #define THIS "this"
 #define PROTOTYPE "class"
+#define SUPER "super"
 #define CONSTRUCTOR "constructor"
 
 typedef struct st_var {
@@ -119,6 +120,7 @@ typedef struct st_func {
 	PC pc;
 	void *data;
 	m_array_t args; //argument names
+	var_t* owner;
 } func_t;
 
 //script node for var member children
@@ -168,7 +170,7 @@ bool vm_load(vm_t* vm, const char* s);
 bool vm_run(vm_t* vm);
 void vm_close(vm_t* vm);
 
-var_t* new_obj(vm_t* vm, const char* clsName);
+var_t* new_obj(vm_t* vm, const char* clsName, int argNum);
 node_t* vm_reg_var(vm_t* vm, const char* cls, const char* name, var_t* var, bool beConst);
 node_t* vm_reg_const(vm_t* vm, const char* cls, const char* name, var_t* var);
 node_t* vm_reg_native(vm_t* vm, const char* cls, const char* decl, native_func_t native, void* data);
