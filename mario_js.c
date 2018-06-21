@@ -2319,18 +2319,11 @@ void var_to_json_str(var_t* var, str_t* ret, int level) {
 			str_append(ret, "{");
 
 		int i;
-		str_t* sname = str_new(""); //short name for func.
 		for(i=0; i<sz; ++i) {
 			node_t* n = var_get(var, i);
 			append_json_spaces(ret, level);
 			str_add(ret, '"');
-			if(n->var->type == V_FUNC) {
-				parse_func_name(n->name, sname);
-				str_append(ret, sname->cstr);
-			}
-			else {
-				str_append(ret, n->name);
-			}
+			str_append(ret, n->name);
 			str_add(ret, '"');
 			str_append(ret, ": ");
 
@@ -2343,7 +2336,6 @@ void var_to_json_str(var_t* var, str_t* ret, int level) {
 				str_append(ret, ",\n");
 			}
 		}
-		str_free(sname);
 
 		if(sz > 0) {
 			str_add(ret, '\n');
@@ -2730,34 +2722,18 @@ var_t* var_new_func(func_t* func) {
 	return var;
 }
 
-var_t* find_func(vm_t* vm, var_t* obj, const char* full) {
+var_t* find_func(vm_t* vm, var_t* obj, const char* fname) {
 	//try full name with argNum
 	node_t* node;
 	if(obj != NULL) {
-		node = find_member(obj, full);
+		node = find_member(obj, fname);
 	}
 	else {
-		node = vm_find_in_scopes(vm, full);
+		node = vm_find_in_scopes(vm, fname);
 	}
-
-	if(node != NULL && node->var != NULL && node->var->type == V_FUNC)
-		return node->var;
-
-	//try short name
-	str_t* sname = str_new("");
-	int argNum = parse_func_name(full, sname);
-	if(obj != NULL) {
-		node = find_member(obj, sname->cstr);
-	}
-	else {
-		node = vm_find_in_scopes(vm, sname->cstr);
-	}
-	str_free(sname);
 
 	if(node != NULL && node->var != NULL && node->var->type == V_FUNC) {
-		func_t* func = (func_t*)node->var->value;
-		if(func->args.size == argNum)
-			return node->var;
+		return node->var;
 	}
 	return NULL;
 }
@@ -2773,14 +2749,24 @@ var_t* get_super(var_t* var) {
 }
 
 void vm_run_code(vm_t* vm);
-bool func_call(vm_t* vm, var_t* obj, func_t* func) {
+bool func_call(vm_t* vm, var_t* obj, func_t* func, int argNum) {
 	int i;
 	var_t *env = var_new();
 	env->type = V_ARRAY;
 
+	for(i=argNum; i>func->args.size; i--) {
+		vm_pop(vm);
+	}
+
 	for(i=func->args.size-1; i>=0; i--) {
 		const char* argName = (const char*)array_get(&func->args, i);
-		var_t* v = vm_pop2(vm);	
+		var_t* v = NULL;
+		if(i >= argNum) {
+			v = var_ref(var_new());
+		}
+		else {
+			v = vm_pop2(vm);	
+		}	
 		if(v != NULL) {
 			var_add(env, argName, v);
 			var_unref(v, true);
@@ -3083,17 +3069,10 @@ var_t* new_obj(vm_t* vm, const char* clsName, int argNum) {
 	obj = var_new_obj(NULL, NULL);
 	var_add(obj, PROTOTYPE, n->var);
 
-	str_t* name = str_new(CONSTRUCTOR);
-	if(argNum > 0) {
-		str_add(name, '$');
-		str_append(name, str_from_int(argNum));
-	}
-
-	n = var_find(n->var, name->cstr);
-	str_free(name);
+	n = var_find(n->var, CONSTRUCTOR);
 
 	if(n != NULL) {
-		func_call(vm, obj, (func_t*)n->var->value);
+		func_call(vm, obj, (func_t*)n->var->value, argNum);
 		obj = vm_pop2(vm);
 		var_unref(obj, false);
 	}
@@ -3468,12 +3447,11 @@ void vm_run_code(vm_t* vm) {
 			case INSTR_CALL: 
 			case INSTR_CALLO: 
 			{
+				var_t* func = NULL;
+				var_t* obj = NULL;
 				const char* s = bc_getstr(&vm->bc, offset);
 				str_t* name = str_new("");
 				int argNum = parse_func_name(s, name);
-
-				var_t* func = NULL;
-				var_t* obj = NULL;
 				
 				if(instr == INSTR_CALLO) {
 					obj = vm_stack_pick(vm, argNum+1);
@@ -3481,29 +3459,23 @@ void vm_run_code(vm_t* vm) {
 
 				if(obj == NULL && strcmp(SUPER, name->cstr) == 0) { //super constructor
 					str_cpy(name, CONSTRUCTOR);
-					if(argNum > 0) {
-						str_add(name, '$');
-						str_append(name, str_from_int(argNum));
-					}
-					s = name->cstr;
 					var_t* v = vm_get_scope_var(vm, true);
 					if(v != NULL) {
 						node_t* n = var_find(v, THIS);
 						if(n != NULL)
 							obj = var_ref(n->var);
-
 						n = var_find(v, SUPER);
 						if(n != NULL)
-							func = find_func(vm, n->var, s);
+							func = find_func(vm, n->var, name->cstr);
 					}
 				}
 				else {
-					func = find_func(vm, obj, s);
+					func = find_func(vm, obj, name->cstr);
 				}
 				str_free(name);
 
 				if(func != NULL) {
-					func_call(vm, obj, (func_t*)func->value);
+					func_call(vm, obj, (func_t*)func->value, argNum);
 				}
 				else {
 					while(argNum > 0) {
@@ -3525,22 +3497,15 @@ void vm_run_code(vm_t* vm) {
 
 				var_t* v = vm_pop2(vm);
 				if(v != NULL) {
-					str_t* fname = str_new("");
 					var_t *var = vm_get_scope_var(vm, true);
 
 					if(v->type == V_FUNC) {
 						func_t* func = (func_t*)v->value;
 						func->owner = var;
-						gen_func_name(s, func->args.size, fname);
 					}
-					else {
-						str_cpy(fname, s);
-					}
-
 					if(var != NULL)
-						var_add(var, fname->cstr, v);
+						var_add(var, s, v);
 
-					str_free(fname);
 					var_unref(v, true);
 				}
 				break;
@@ -3710,7 +3675,6 @@ node_t* vm_reg_native(vm_t* vm, const char* cls, const char* decl, native_func_t
 		clsVar = clsNode->var;
 	}
 
-	str_t* fname = str_new("");
 	str_t* name = str_new("");
 	str_t* arg = str_new("");
 
@@ -3740,13 +3704,10 @@ node_t* vm_reg_native(vm_t* vm, const char* cls, const char* decl, native_func_t
 	} 
 	str_free(arg);
 
-	gen_func_name(name->cstr, func->args.size, fname);
+	var_t* var = var_new_func(func);
+	node_t* node = var_add(clsVar, name->cstr, var);
 	str_free(name);
 
-	var_t* var = var_new_func(func);
-	node_t* node = var_add(clsVar, fname->cstr, var);
-
-	str_free(fname);
 	return node;
 }
 
