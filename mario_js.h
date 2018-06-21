@@ -163,6 +163,7 @@ int var_get_int(var_t* var);
 float var_get_float(var_t* var);
 func_t* var_get_func(var_t* var);
 
+void var_to_json_str(var_t*, str_t*, int);
 var_t* json_parse(const char* str);
 
 void vm_init(vm_t* vm);

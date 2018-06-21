@@ -2209,8 +2209,6 @@ void get_js_str(const char* str, str_t* ret) {
 	str_add(ret, '"');
 }
 
-void var_to_json_str(var_t*, str_t*, int);
-
 void var_dump(var_t* var) {
 	str_t* s = str_new("");
 
