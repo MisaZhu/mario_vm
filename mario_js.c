@@ -2258,7 +2258,7 @@ void get_parsable_str(var_t* var, str_t* ret) {
 			for(i=0; i<sz; ++i) {
 				str_append(ret, (const char*)func->args.items[i]);
 				if ((i+1) < sz) {
-					str_add(ret, ',');
+					str_append(ret, ", ");
 				}
 			}
 		}
@@ -2302,7 +2302,7 @@ void var_to_json_str(var_t* var, str_t* ret, int level) {
 	uint32_t sz = done.size;
 	for(i=0; i<sz; ++i) {
 		if(done.items[i] == var) { //already done before.
-			str_cpy(ret, "{......}");
+			str_cpy(ret, "{}");
 			if(level == 0)
 				array_remove_all(&done);
 			return;
@@ -2319,11 +2319,18 @@ void var_to_json_str(var_t* var, str_t* ret, int level) {
 			str_append(ret, "{");
 
 		int i;
+		str_t* sname = str_new(""); //short name for func.
 		for(i=0; i<sz; ++i) {
 			node_t* n = var_get(var, i);
 			append_json_spaces(ret, level);
 			str_add(ret, '"');
-			str_append(ret, n->name);
+			if(n->var->type == V_FUNC) {
+				parse_func_name(n->name, sname);
+				str_append(ret, sname->cstr);
+			}
+			else {
+				str_append(ret, n->name);
+			}
 			str_add(ret, '"');
 			str_append(ret, ": ");
 
@@ -2336,6 +2343,8 @@ void var_to_json_str(var_t* var, str_t* ret, int level) {
 				str_append(ret, ",\n");
 			}
 		}
+		str_free(sname);
+
 		if(sz > 0) {
 			str_add(ret, '\n');
 		}
@@ -2722,6 +2731,7 @@ var_t* var_new_func(func_t* func) {
 }
 
 var_t* find_func(vm_t* vm, var_t* obj, const char* full) {
+	//try full name with argNum
 	node_t* node;
 	if(obj != NULL) {
 		node = find_member(obj, full);
@@ -2730,9 +2740,26 @@ var_t* find_func(vm_t* vm, var_t* obj, const char* full) {
 		node = vm_find_in_scopes(vm, full);
 	}
 
-	if(node == NULL || node->var == NULL || node->var->type != V_FUNC)
-		return NULL;
-	return node->var;
+	if(node != NULL && node->var != NULL && node->var->type == V_FUNC)
+		return node->var;
+
+	//try short name
+	str_t* sname = str_new("");
+	int argNum = parse_func_name(full, sname);
+	if(obj != NULL) {
+		node = find_member(obj, sname->cstr);
+	}
+	else {
+		node = vm_find_in_scopes(vm, sname->cstr);
+	}
+	str_free(sname);
+
+	if(node != NULL && node->var != NULL && node->var->type == V_FUNC) {
+		func_t* func = (func_t*)node->var->value;
+		if(func->args.size == argNum)
+			return node->var;
+	}
+	return NULL;
 }
 
 var_t* get_super(var_t* var) {
