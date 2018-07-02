@@ -2209,16 +2209,6 @@ void get_js_str(const char* str, str_t* ret) {
 	str_add(ret, '"');
 }
 
-void var_dump(var_t* var) {
-	str_t* s = str_new("");
-
-	var_to_json_str(var, s, 0);
-	_debug(s->cstr);
-	_debug("\n");
-
-	str_free(s);
-}
-
 void var_to_str(var_t* var, str_t* ret) {
 	str_reset(ret);
 
@@ -3400,8 +3390,9 @@ void vm_run_code(vm_t* vm) {
 					if(modi) 
 						node_replace(n, v);
 					else {
-					//TODO
-					//	ERR("Can not change a const variable: %s! %s\n", node->name.c_str(), DEBUG_LINE);
+						_debug("Can not change a const variable: '");
+						_debug(n->name);
+						_debug("'!\n");
 					}
 					var_unref(v, true);
 					vm_push(vm, n->var);
@@ -3736,8 +3727,24 @@ var_t* native_dump(vm_t* vm, var_t* env, void* data) {
 	(void)vm; (void)data;
 
 	node_t* n = var_find(env, "var");
-	if(n != NULL)
-		var_dump(n->var);
+	if(n == NULL)
+		return NULL;
+
+	str_t* s = str_new("");
+	var_to_json_str(n->var, s, 0);
+	_debug(s->cstr);
+	str_free(s);
+
+	_debug("\n");
+	return NULL;
+}
+
+/**print string*/
+var_t* native_print(vm_t* vm, var_t* env, void* data) {
+	(void)vm; (void)data;
+
+	const char* s = get_str(env, "str");
+	_debug(s);
 	return NULL;
 }
 
@@ -3750,6 +3757,8 @@ void vm_init(vm_t* vm) {
 	vm->root = var_ref(var_new_obj(NULL, NULL));
 
 	vm_reg_native(vm, "Debug", "dump(var)", native_dump, NULL);
+	vm_reg_native(vm, "Debug", "print(str)", native_print, NULL);
+	vm_reg_native(vm, "", "print(str)", native_print, NULL);
 	vm_reg_native(vm, "", "dump(var)", native_dump, NULL);
 }
 

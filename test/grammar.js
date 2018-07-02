@@ -50,3 +50,6 @@ function f(callback, s) {
 	callback(s);
 }
 f(function(x) { dump(x); }, "callback test");
+
+const x = "aaa";
+x = "bbb";
