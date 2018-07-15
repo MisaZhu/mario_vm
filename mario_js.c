@@ -798,6 +798,7 @@ bool lex_chkread(lex_t* lex, uint32_t expected_tk) {
 typedef uint16_t OprCode;
 
 #define ILLEGAL_PC 0x0FFFFFFF
+#define INSTR_NEED_CACHE	 0x80000000 // NEED CACHE next time.
 #define INS(ins, off) (((((int32_t)ins) << 16) & 0xFFFF0000) | ((off) & 0x0000FFFF))
 
 #define INSTR_NIL					 0x0000 // NIL									: Do nothing.
@@ -817,6 +818,7 @@ typedef uint16_t OprCode;
 #define INSTR_ARRAY_END		 0x000C // ARRAY_END 						: array end
 #define INSTR_INT_S				 0x000D // SHORT_INT int 				: push short int
 #define INSTR_LET					 0x000E // LET x								: declare let x
+#define INSTR_CACHE				 0x000F // CACHE index					: load cache at 'index' and push 
 
 #define INSTR_FUNC				 0x0010 // FUNC x								: function definetion x
 #define INSTR_FUNC_GET		 0x0011 // GET FUNC x						: class get function definetion x
@@ -1805,21 +1807,21 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 	else if (l->tk==LEX_R_VAR || l->tk == LEX_R_CONST || l->tk == LEX_R_LET) {
 		pop = false;
 		OprCode op;
-		bool beConst;
+		//bool beConst;
 
 		if(l->tk == LEX_R_VAR) {
 			if(!lex_chkread(l, LEX_R_VAR)) return false;
-			beConst = false;
+			//beConst = false;
 			op = INSTR_VAR;
 		}
 		else if(l->tk == LEX_R_LET) {
 			if(!lex_chkread(l, LEX_R_LET)) return false;
-			beConst = false;
+			//beConst = false;
 			op = INSTR_LET;
 		}
 		else {
 			if(!lex_chkread(l, LEX_R_CONST)) return false;
-			beConst = true;
+			//beConst = true;
 			op = INSTR_CONST;
 		}
 
@@ -2364,6 +2366,53 @@ void var_to_json_str(var_t* var, str_t* ret, int level) {
 	}
 }
 
+/** var cache for const value --------------*/
+
+#ifdef VAR_CACHE
+
+static var_t** _var_cache = NULL;
+static uint32_t _var_cache_used = 0;
+static uint32_t _var_cache_size = 0;
+
+void var_cache_init(uint16_t size) {
+	_var_cache_size = size;	
+	_var_cache = (var_t**)_malloc(sizeof(var_t*) * size);
+	_var_cache_used = 0;	
+}
+
+void var_cache_free() {
+	uint32_t i;
+	for(i=0; i<_var_cache_used; ++i) {
+		var_t* v = _var_cache[i];
+		var_unref(v, true);
+	}
+	_free(_var_cache);
+	_var_cache_used = 0;	
+}
+
+int32_t var_cache(var_t* v) {
+	if(_var_cache_used >= _var_cache_size)
+		return -1;
+	_var_cache[_var_cache_used] = var_ref(v);
+	_var_cache_used++;
+	return _var_cache_used-1;
+}
+
+bool try_cache(PC* ins, var_t* v) {
+	if((*ins) & INSTR_NEED_CACHE) {
+		int index = var_cache(v); 
+		if(index >= 0) 
+			*ins = (INSTR_CACHE << 16 | index);
+		return true;
+	}
+
+	*ins = (*ins) | INSTR_NEED_CACHE;
+	return false;
+}
+
+#define get_cache(index) _var_cache[index]
+
+#endif
 
 /** JSON Parser-----------------------------*/
 
@@ -3090,7 +3139,7 @@ void vm_run_code(vm_t* vm) {
 
 	while(vm->pc < codeSize) {
 		PC ins = code[vm->pc++];
-		OprCode instr = ins >> 16;
+		OprCode instr = (ins >> 16) & 0x0FFF; //git rid of high bit for cache label
 		OprCode offset = ins & 0x0000FFFF;
 
 		if(instr == INSTR_END)
@@ -3119,15 +3168,29 @@ void vm_run_code(vm_t* vm) {
 				}	
 				break;
 			}
+			#ifdef VAR_CACHE
+			case INSTR_CACHE: 
+			{	
+				var_t* v = get_cache(offset);
+				vm_push(vm, v);
+				break;
+			}
+			#endif
 			case INSTR_TRUE: 
 			{
 				var_t* v = var_new_int(1);	
+				#ifdef VAR_CACHE
+				try_cache(&code[vm->pc-1], v);
+				#endif
 				vm_push(vm, v);
 				break;
 			}
 			case INSTR_FALSE: 
 			{
 				var_t* v = var_new_int(0);	
+				#ifdef VAR_CACHE
+				try_cache(&code[vm->pc-1], v);
+				#endif
 				vm_push(vm, v);
 				break;
 			}
@@ -3358,18 +3421,29 @@ void vm_run_code(vm_t* vm) {
 			case INSTR_INT:
 			{
 				var_t* v = var_new_int((int)code[vm->pc++]);
+				#ifdef VAR_CACHE
+				if(try_cache(&code[vm->pc-2], v))
+					code[vm->pc-1] = INSTR_NIL;
+				#endif
 				vm_push(vm, v);
 				break;
 			}
 			case INSTR_INT_S:
 			{
 				var_t* v = var_new_int(offset);
+				#ifdef VAR_CACHE
+				try_cache(&code[vm->pc-1], v);
+				#endif
 				vm_push(vm, v);
 				break;
 			}
 			case INSTR_FLOAT: 
 			{
 				var_t* v = var_new_float(*(float*)(&code[vm->pc++]));
+				#ifdef VAR_CACHE
+				if(try_cache(&code[vm->pc-2], v))
+					code[vm->pc-1] = INSTR_NIL;
+				#endif
 				vm_push(vm, v);
 				break;
 			}
@@ -3377,6 +3451,9 @@ void vm_run_code(vm_t* vm) {
 			{
 				const char* s = bc_getstr(&vm->bc, offset);
 				var_t* v = var_new_str(s);
+				#ifdef VAR_CACHE	
+				try_cache(&code[vm->pc-1], v);
+				#endif
 				vm_push(vm, v);
 				break;
 			}
@@ -3632,6 +3709,10 @@ bool vm_run(vm_t* vm) {
 void vm_close(vm_t* vm) {
 	var_unref(vm->root, true);
 
+	#ifdef VAR_CACHE
+	var_cache_free();
+	#endif
+
 	array_clean(&vm->scopes, NULL);	
 	array_clean(&vm->stack, vm_stack_free);	
 	bc_release(&vm->bc);
@@ -3748,17 +3829,34 @@ var_t* native_print(vm_t* vm, var_t* env, void* data) {
 	return NULL;
 }
 
+/**println string*/
+var_t* native_println(vm_t* vm, var_t* env, void* data) {
+	(void)vm; (void)data;
+
+	const char* s = get_str(env, "str");
+	_debug(s);
+	_debug("\n");
+	return NULL;
+}
+
+#define VAR_CACHE_MAX 32
+
 void vm_init(vm_t* vm) {
 	vm->pc = 0;
 	bc_init(&vm->bc);
 	array_init(&vm->stack);	
 	array_init(&vm->scopes);	
 
+	#ifdef VAR_CACHE
+	var_cache_init(VAR_CACHE_MAX);
+	#endif
+
 	vm->root = var_ref(var_new_obj(NULL, NULL));
 
 	vm_reg_native(vm, "Debug", "dump(var)", native_dump, NULL);
 	vm_reg_native(vm, "Debug", "print(str)", native_print, NULL);
 	vm_reg_native(vm, "", "print(str)", native_print, NULL);
+	vm_reg_native(vm, "", "println(str)", native_println, NULL);
 	vm_reg_native(vm, "", "dump(var)", native_dump, NULL);
 }
 
