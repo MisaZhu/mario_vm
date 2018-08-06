@@ -798,8 +798,9 @@ bool lex_chkread(lex_t* lex, uint32_t expected_tk) {
 typedef uint16_t OprCode;
 
 #define ILLEGAL_PC 0x0FFFFFFF
-#define INSTR_NEED_CACHE	 0x80000000 // NEED CACHE next time.
+#define INSTR_NEED_IMPROVE	 0x80000000 // NEED CACHE next time.
 #define INS(ins, off) (((((int32_t)ins) << 16) & 0xFFFF0000) | ((off) & 0x0000FFFF))
+#define OP(ins) (((ins) >>16) & 0x0FFF)
 
 #define INSTR_NIL					 0x0000 // NIL									: Do nothing.
 
@@ -2435,14 +2436,14 @@ int32_t var_cache(var_t* v) {
 }
 
 bool try_cache(PC* ins, var_t* v) {
-	if((*ins) & INSTR_NEED_CACHE) {
+	if((*ins) & INSTR_NEED_IMPROVE) {
 		int index = var_cache(v); 
 		if(index >= 0) 
 			*ins = (INSTR_CACHE << 16 | index);
 		return true;
 	}
 
-	*ins = (*ins) | INSTR_NEED_CACHE;
+	*ins = (*ins) | INSTR_NEED_IMPROVE;
 	return false;
 }
 
@@ -3178,7 +3179,7 @@ void vm_run_code(vm_t* vm) {
 
 	while(vm->pc < codeSize) {
 		PC ins = code[vm->pc++];
-		OprCode instr = (ins >> 16) & 0x0FFF; //git rid of high bit for cache label
+		OprCode instr = OP(ins);
 		OprCode offset = ins & 0x0000FFFF;
 
 		if(instr == INSTR_END)
@@ -3364,7 +3365,10 @@ void vm_run_code(vm_t* vm) {
 				if(v != NULL) {
 					int *i = (int*)v->value;
 					(*i)--;
-					vm_push(vm, v);
+					if((ins & INSTR_NEED_IMPROVE) == 0) {
+						vm_push(vm, v);
+						if(OP(code[vm->pc]) == INSTR_POP) { code[vm->pc] = INSTR_NIL; code[vm->pc-1] |= INSTR_NEED_IMPROVE; }
+					}
 					var_unref(v, true);
 				}
 				break;
@@ -3374,9 +3378,12 @@ void vm_run_code(vm_t* vm) {
 				var_t* v = vm_pop2(vm);
 				if(v != NULL) {
 					int *i = (int*)v->value;
-					var_t* v2 = var_new_int(*i);
+					if((ins & INSTR_NEED_IMPROVE) == 0) {
+						var_t* v2 = var_new_int(*i);
+						vm_push(vm, v2);
+						if(OP(code[vm->pc]) == INSTR_POP) { code[vm->pc] = INSTR_NIL; code[vm->pc-1] |= INSTR_NEED_IMPROVE; }
+					}
 					(*i)--;
-					vm_push(vm, v2);
 					var_unref(v, true);
 				}
 				break;
@@ -3387,7 +3394,11 @@ void vm_run_code(vm_t* vm) {
 				if(v != NULL) {
 					int *i = (int*)v->value;
 					(*i)++;
-					vm_push(vm, v);
+					
+					if((ins & INSTR_NEED_IMPROVE) == 0) {
+						vm_push(vm, v);
+						if(OP(code[vm->pc]) == INSTR_POP) { code[vm->pc] = INSTR_NIL; code[vm->pc-1] |= INSTR_NEED_IMPROVE; }
+					}
 					var_unref(v, true);
 				}
 				break;
@@ -3398,9 +3409,13 @@ void vm_run_code(vm_t* vm) {
 				var_t* v = vm_pop2(vm);
 				if(v != NULL) {
 					int *i = (int*)v->value;
-					var_t* v2 = var_new_int(*i);
+					if((ins & INSTR_NEED_IMPROVE) == 0) {
+						var_t* v2 = var_new_int(*i);
+						vm_push(vm, v2);
+						if(OP(code[vm->pc]) == INSTR_POP) { code[vm->pc] = INSTR_NIL; code[vm->pc-1] |= INSTR_NEED_IMPROVE; }
+					}
+
 					(*i)++;
-					vm_push(vm, v2);
 					var_unref(v, true);
 				}
 				break;
@@ -3510,7 +3525,11 @@ void vm_run_code(vm_t* vm) {
 						_debug("'!\n");
 					}
 					var_unref(v, true);
-					vm_push(vm, n->var);
+
+					if((ins & INSTR_NEED_IMPROVE) == 0) {
+						vm_push(vm, n->var);
+						//if(OP(code[vm->pc]) == INSTR_POP) { code[vm->pc] = INSTR_NIL; code[vm->pc-1] |= INSTR_NEED_IMPROVE; }
+					}
 				}
 				break;
 			}
