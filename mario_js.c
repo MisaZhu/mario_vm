@@ -24,11 +24,11 @@ void _debug(const char* s) {
 
 void array_init(m_array_t* array) {
 	array->items = NULL;
-	array->max = 0;
 	array->size = 0;
+	array->max = 0;
 }
 
-void* array_add(m_array_t* array, void* item) {
+inline void* array_add(m_array_t* array, void* item) {
 	int new_size = array->size + 1;
 	if(array->max <= new_size) {
 		new_size = array->size + ARRAY_BUF; /*ARRAY BUF for buffer*/
@@ -56,11 +56,16 @@ void* array_get(m_array_t* array, uint32_t index) {
 	return array->items[index];
 }
 
-void* array_tail(m_array_t* array) {
+/*void* array_tail(m_array_t* array) {
 	if(array->items == NULL || array->size == 0)
 		return NULL;
 	return array->items[array->size-1];
 }
+*/
+
+#define array_tail(array) (((array)->items == NULL || (array)->size == 0) ? \
+	NULL : ((array)->items[(array)->size-1]))
+
 
 void* array_head(m_array_t* array) {
 	if(array->items == NULL || array->size == 0)
@@ -2078,11 +2083,16 @@ node_t* var_find(var_t* var, const char*name, int16_t nameID) {
 		for(i=0; i<var->children.size; i++) {
 			node_t* node = (node_t*)var->children.items[i];
 			if(node != NULL) {
-				if(node->nameID == nameID) 
+				if(node->nameID == nameID)  {
 					return node;
+				}
 			}
 		}
 	}
+
+	/*_debug(name);
+	_debug(" xxx\n");
+	*/
 
 	for(i=0; i<var->children.size; i++) {
 		node_t* node = (node_t*)var->children.items[i];
@@ -2176,7 +2186,7 @@ var_t* var_new_int(int i) {
 	var_t* var = var_new();
 	var->type = V_INT;
 	var->value = _malloc(sizeof(int));
-	memcpy(var->value, &i, sizeof(int));
+	*((int*)var->value) = i;
 	return var;
 }
 
@@ -2184,7 +2194,7 @@ var_t* var_new_float(float i) {
 	var_t* var = var_new();
 	var->type = V_FLOAT;
 	var->value = _malloc(sizeof(float));
-	memcpy(var->value, &i, sizeof(float));
+	*((float*)var->value) = i;
 	return var;
 }
 
@@ -2591,12 +2601,17 @@ var_t* vm_pop2(vm_t* vm) {
 		return NULL;
 
 	int8_t magic = *(int8_t*)vm->stack.items[index];
+	var_t* var;
 	if(magic == 1) {//node
-		node_t* node = (node_t*)array_remove(&vm->stack, index);
-		return node->var;
+		var = ((node_t*)vm->stack.items[index])->var;
+	}
+	else {
+		var = (var_t*)vm->stack.items[index];
 	}
 
-	return (var_t*)array_remove(&vm->stack, index);
+	vm->stack.items[index] = NULL;
+	vm->stack.size--;
+	return var;
 }
 
 var_t* vm_stack_pick(vm_t* vm, int depth) {
@@ -2642,9 +2657,7 @@ void scope_free(void* p) {
 	_free(sc);
 }
 
-scope_t* vm_get_scope(vm_t* vm) {
-	return (scope_t*)array_tail(&vm->scopes);
-}
+#define vm_get_scope(vm) (scope_t*)array_tail(&(vm)->scopes)
 
 var_t* vm_get_scope_var(vm_t* vm, bool skipBlock) {
 	scope_t* sc = (scope_t*)array_tail(&vm->scopes);
@@ -2728,7 +2741,7 @@ node_t* vm_find_in_scopes(vm_t* vm, const char* name, int16_t nameID) {
 		if(ret != NULL)
 			return ret;
 
-		node_t* n = var_find(sc->var, THIS, _thisStrIndex);
+		node_t* n = var_find(sc->var, THIS, -1);//_thisStrIndex);
 		if(n != NULL)  {
 			ret = find_member(n->var, name, nameID);
 			if(ret != NULL)
@@ -3528,7 +3541,7 @@ void vm_run_code(vm_t* vm) {
 
 					if((ins & INSTR_NEED_IMPROVE) == 0) {
 						vm_push(vm, n->var);
-						//if(OP(code[vm->pc]) == INSTR_POP) { code[vm->pc] = INSTR_NIL; code[vm->pc-1] |= INSTR_NEED_IMPROVE; }
+						if(OP(code[vm->pc]) == INSTR_POP) { code[vm->pc] = INSTR_NIL; code[vm->pc-1] |= INSTR_NEED_IMPROVE; }
 					}
 				}
 				break;
