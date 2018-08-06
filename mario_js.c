@@ -901,11 +901,34 @@ typedef uint16_t OprCode;
 
 #define BC_BUF_SIZE  3232
 
+static int16_t _thisStrIndex = 0;
+
+uint16_t bc_getstrindex(bytecode_t* bc, const char* str) {
+	uint16_t sz = bc->strTable.size;
+	uint16_t i;
+	if(str == NULL || str[0] == 0)
+		return 0xFFFF;
+
+	for(i=0; i<sz; ++i) {
+		char* s = (char*)bc->strTable.items[i];
+		if(s != NULL && strcmp(s, str) == 0)
+			return i;
+	}
+
+	uint32_t len = strlen(str);
+	char* p = (char*)_malloc(len + 1);
+	memcpy(p, str, len+1);
+	array_add(&bc->strTable, p);
+	return sz;
+}	
+
 void bc_init(bytecode_t* bc) {
 	bc->cindex = 0;
 	bc->codeBuf = NULL;
 	bc->bufSize = 0;
 	array_init(&bc->strTable);
+
+	_thisStrIndex = bc_getstrindex(bc, THIS);
 }
 
 void bc_release(bytecode_t* bc) {
@@ -935,30 +958,14 @@ PC bc_reserve(bytecode_t* bc) {
   return bc->cindex-1;
 }
 
-const char* bc_getstr(bytecode_t* bc, int i) {
+#define bc_getstr(bc, i) ((i>=(bc)->strTable.size) ? "" : (const char*)(bc)->strTable.items[i])
+
+/*const char* bc_getstr(bytecode_t* bc, int i) {
 	if(i<0 || i == 0xFFFF ||  i>=bc->strTable.size)
 		return "";
 	return (const char*)bc->strTable.items[i];
 }	
-
-uint16_t bc_getstrindex(bytecode_t* bc, const char* str) {
-	uint16_t sz = bc->strTable.size;
-	uint16_t i;
-	if(str == NULL || str[0] == 0)
-		return 0xFFFF;
-
-	for(i=0; i<sz; ++i) {
-		char* s = (char*)bc->strTable.items[i];
-		if(s != NULL && strcmp(s, str) == 0)
-			return i;
-	}
-
-	uint32_t len = strlen(str);
-	char* p = (char*)_malloc(len + 1);
-	memcpy(p, str, len+1);
-	array_add(&bc->strTable, p);
-	return sz;
-}	
+*/
 
 PC bc_bytecode(bytecode_t* bc, OprCode instr, const char* str) {
 	OprCode r = instr;
@@ -1259,12 +1266,19 @@ int callFunc(lex_t* l, bytecode_t* bc) {
 }
 
 bool block(lex_t* l, bytecode_t* bc, loop_t* loop, bool func) {
+	bool doBlock = false;
 	if(!lex_chkread(l, '{')) return false;
 
-	if(loop)
-		loop->blockDepth++;
+	if(!func) 
+		doBlock = true;
 
-	if(!func)
+	if(loop) {
+		if(loop->blockDepth == 0)
+			doBlock = false;
+		loop->blockDepth++;
+	}
+	
+	if(doBlock)
 		bc_gen(bc, INSTR_BLOCK);
 
 	while (l->tk && l->tk!='}'){
@@ -1273,11 +1287,12 @@ bool block(lex_t* l, bytecode_t* bc, loop_t* loop, bool func) {
 	}
 	if(!lex_chkread(l, '}')) return false;
 
-	if(!func)
-		bc_gen_short(bc, INSTR_BLOCK_END, 0);
 
 	if(loop)
 		loop->blockDepth--;
+
+	if(doBlock) 
+		bc_gen_short(bc, INSTR_BLOCK_END, 1);
 	return true;
 }
 
@@ -1888,6 +1903,8 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 	}
 	else if (l->tk == LEX_R_WHILE) {
 		if(!lex_chkread(l, LEX_R_WHILE)) return false;
+		bc_gen(bc, INSTR_BLOCK);
+
 		if(!lex_chkread(l, '(')) return false;
 		PC cpc = bc->cindex; //continue anchor
 		if(!base(l, bc)) return false; //condition
@@ -1906,11 +1923,14 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 
 		bc_add_instr(bc, cpc, INSTR_JMPB, ILLEGAL_PC); //coninue anchor;
 		bc_set_instr(bc, pc, INSTR_NJMP, ILLEGAL_PC); // end anchor;
+		bc_gen_short(bc, INSTR_BLOCK_END, 1);
 		bc_set_instr(bc, pcb, INSTR_JMP, ILLEGAL_PC); // end anchor;
 		pop = false;
 	}
 	else if (l->tk==LEX_R_FOR) {
 		if(!lex_chkread(l, LEX_R_FOR)) return false;
+		bc_gen(bc, INSTR_BLOCK);
+
 		if(!lex_chkread(l, '(')) return false;
 		if(!statement(l, bc, true, NULL)) //init statement
 			return false;
@@ -1941,6 +1961,7 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 
 		bc_add_instr(bc, ipc, INSTR_JMPB, ILLEGAL_PC); //jump to iterator anchor;
 		bc_set_instr(bc, pc, INSTR_NJMP, ILLEGAL_PC); // end anchor;
+		bc_gen_short(bc, INSTR_BLOCK_END, 1);
 		bc_set_instr(bc, pcb, INSTR_JMP, ILLEGAL_PC); // end anchor;
 		pop = false;
 	}
@@ -2008,6 +2029,7 @@ node_t* node_new(const char* name) {
 	uint32_t len = strlen(name);
 	node->name = (char*)_malloc(len+1);
 	memcpy(node->name, name, len+1);
+	node->nameID = -1;
 
 	node->beConst = false;
 	node->var = var_new();	
@@ -2048,20 +2070,34 @@ node_t* var_add(var_t* var, const char* name, var_t* add) {
 	return node;
 }
 
-node_t* var_find(var_t* var, const char*name) {
+node_t* var_find(var_t* var, const char*name, int16_t nameID) {
 	int i;
+
+	if(nameID >= 0) {
+		for(i=0; i<var->children.size; i++) {
+			node_t* node = (node_t*)var->children.items[i];
+			if(node != NULL) {
+				if(node->nameID == nameID) 
+					return node;
+			}
+		}
+	}
+
 	for(i=0; i<var->children.size; i++) {
 		node_t* node = (node_t*)var->children.items[i];
 		if(node != NULL) {
-			if(strcmp(node->name, name) == 0)
+			if(strcmp(node->name, name) == 0) {
+				if(nameID >= 0)
+					node->nameID = nameID;
 				return node;
+			}
 		}
 	}
 	return NULL;
 }
 
-node_t* var_find_create(var_t* var, const char*name) {
-	node_t* n = var_find(var, name);
+node_t* var_find_create(var_t* var, const char*name , int16_t nameID) {
+	node_t* n = var_find(var, name, nameID);
 	if(n != NULL)
 		return n;
 	n = var_add(var, name, NULL);
@@ -2368,7 +2404,7 @@ void var_to_json_str(var_t* var, str_t* ret, int level) {
 
 /** var cache for const value --------------*/
 
-#ifdef VAR_CACHE
+#ifdef MARIO_CACHE
 
 static var_t** _var_cache = NULL;
 static uint32_t _var_cache_used = 0;
@@ -2588,7 +2624,9 @@ typedef struct st_scope {
 scope_t* scope_new(var_t* var, PC pc) {
 	scope_t* sc = (scope_t*)_malloc(sizeof(scope_t));
 	sc->prev = NULL;
-	sc->var = var_ref(var);
+
+	if(var != NULL)
+		sc->var = var_ref(var);
 	sc->pc = pc;
 	sc->isBlock = false;
 	return sc;
@@ -2598,7 +2636,8 @@ void scope_free(void* p) {
 	scope_t* sc = (scope_t*)p;
 	if(sc == NULL)
 		return;
-	var_unref(sc->var, true);
+	if(sc->var != NULL)
+		var_unref(sc->var, true);
 	_free(sc);
 }
 
@@ -2651,46 +2690,46 @@ void vm_stack_free(void* p) {
 	}
 }
 
-node_t* vm_find(vm_t* vm, const char* name) {
+node_t* vm_find(vm_t* vm, const char* name, int16_t nameID) {
 	var_t* var = vm_get_scope_var(vm, true);
 	if(var == NULL)
 		return NULL;
-	return var_find(var, name);	
+	return var_find(var, name, nameID);	
 }
 
-node_t* vm_find_in_class(var_t* var, const char* name) {
-	node_t* n = var_find(var, PROTOTYPE);
+node_t* vm_find_in_class(var_t* var, const char* name, int16_t nameID) {
+	node_t* n = var_find(var, PROTOTYPE, -1);
 
 	while(n != NULL && n->var != NULL && n->var->type == V_OBJECT) {
 		node_t* ret = NULL;
-		ret = var_find(n->var, name);
+		ret = var_find(n->var, name, nameID);
 		if(ret != NULL)
 			return ret;
-		n = var_find(n->var, SUPER);
+		n = var_find(n->var, SUPER, -1);
 	}
 	return NULL;
 }
 
-node_t* find_member(var_t* obj, const char* full) {
-	node_t* node = var_find(obj, full);
+node_t* find_member(var_t* obj, const char* name, int16_t nameID) {
+	node_t* node = var_find(obj, name, nameID);
 	if(node == NULL) { 
-		node = vm_find_in_class(obj, full);
+		node = vm_find_in_class(obj, name, nameID);
 	}
 	return node;
 }
 
-node_t* vm_find_in_scopes(vm_t* vm, const char* name) {
+node_t* vm_find_in_scopes(vm_t* vm, const char* name, int16_t nameID) {
 	node_t* ret = NULL;
 	scope_t* sc = vm_get_scope(vm);
 	
 	if(sc != NULL && sc->var != NULL) {
-		ret = var_find(sc->var, name);
+		ret = var_find(sc->var, name, nameID);
 		if(ret != NULL)
 			return ret;
 
-		node_t* n = var_find(sc->var, THIS);
+		node_t* n = var_find(sc->var, THIS, _thisStrIndex);
 		if(n != NULL)  {
-			ret = find_member(n->var, name);
+			ret = find_member(n->var, name, nameID);
 			if(ret != NULL)
 				return ret;
 		}
@@ -2699,18 +2738,18 @@ node_t* vm_find_in_scopes(vm_t* vm, const char* name) {
 
 	while(sc != NULL) {
 		if(sc->var != NULL) {
-			ret = var_find(sc->var, name);
+			ret = var_find(sc->var, name, nameID);
 			if(ret != NULL)
 				return ret;
 		}
 		sc = sc->prev;
 	}
 
-	return var_find(vm->root, name);
+	return var_find(vm->root, name, nameID);
 }
 
-node_t* vm_load_node(vm_t* vm, const char* name, bool create) {
-	node_t* n =  vm_find_in_scopes(vm, name);	
+node_t* vm_load_node(vm_t* vm, const char* name, int16_t nameID, bool create) {
+	node_t* n =  vm_find_in_scopes(vm, name, nameID);	
 	if(n != NULL)
 		return n;
 	/*
@@ -2763,10 +2802,10 @@ var_t* find_func(vm_t* vm, var_t* obj, const char* fname) {
 	//try full name with argNum
 	node_t* node;
 	if(obj != NULL) {
-		node = find_member(obj, fname);
+		node = find_member(obj, fname, -1);
 	}
 	else {
-		node = vm_find_in_scopes(vm, fname);
+		node = vm_find_in_scopes(vm, fname, -1);
 	}
 
 	if(node != NULL && node->var != NULL && node->var->type == V_FUNC) {
@@ -2779,7 +2818,7 @@ var_t* get_super(var_t* var) {
 	if(var == NULL)
 		return NULL;
 
-	node_t* n = var_find(var, SUPER);
+	node_t* n = var_find(var, SUPER, -1);
 	if(n != NULL)
 		return n->var;
 	return NULL;
@@ -3037,7 +3076,7 @@ void compare(vm_t* vm, OprCode op, var_t* v1, var_t* v2) {
 	vm_push(vm, var_new_int(i));
 }
 
-void do_get(vm_t* vm, var_t* v, const char* name) {
+void do_get(vm_t* vm, var_t* v, const char* name, int16_t nameID) {
 	if(v->type == V_STRING && strcmp(name, "length") == 0) {
 		int len = strlen(var_get_str(v));
 		vm_push(vm, var_new_int(len));
@@ -3049,7 +3088,7 @@ void do_get(vm_t* vm, var_t* v, const char* name) {
 		return;
 	}	
 
-	node_t* n = find_member(v, name);
+	node_t* n = find_member(v, name, nameID);
 	if(n != NULL) {
 		/*if(n->var->type == V_FUNC) {
 			func_t* func = var_get_func(n->var);
@@ -3080,7 +3119,7 @@ void do_get(vm_t* vm, var_t* v, const char* name) {
 }
 
 void doExtends(vm_t* vm, var_t* cls, const char* superName) {
-	node_t* n = vm_find_in_scopes(vm, superName);
+	node_t* n = vm_find_in_scopes(vm, superName, -1);
 	if(n == NULL) {
 		_debug("Super Class '");
 		_debug(superName);
@@ -3094,7 +3133,7 @@ void doExtends(vm_t* vm, var_t* cls, const char* superName) {
 var_t* new_obj(vm_t* vm, const char* clsName, int argNum) {
 	var_t* obj = NULL;
 
-	node_t* n = vm_load_node(vm, clsName, false); //load class;
+	node_t* n = vm_load_node(vm, clsName, -1, false); //load class;
 
 	if(n == NULL || n->var->type != V_OBJECT) {
 		_debug("Error: There is no class: '");
@@ -3106,7 +3145,7 @@ var_t* new_obj(vm_t* vm, const char* clsName, int argNum) {
 	obj = var_new_obj(NULL, NULL);
 	var_add(obj, PROTOTYPE, n->var);
 
-	n = var_find(n->var, CONSTRUCTOR);
+	n = var_find(n->var, CONSTRUCTOR, -1);
 
 	if(n != NULL) {
 		func_call(vm, obj, (func_t*)n->var->value, argNum);
@@ -3150,12 +3189,11 @@ void vm_run_code(vm_t* vm) {
 			case INSTR_BLOCK: 
 			{
 				scope_t* bl = vm_get_scope(vm);
-				scope_t* sc;
-				if(bl != NULL) 
+				scope_t* sc = NULL;
+				if(bl != NULL)
 					sc = scope_new(bl->var, bl->pc);
 				else
 					sc = scope_new(var_new_obj(NULL, NULL), 0xFFFFFFFF);
-
 				sc->isBlock = true;
 				vm_push_scope(vm, sc);
 				break;
@@ -3163,12 +3201,12 @@ void vm_run_code(vm_t* vm) {
 			case INSTR_BLOCK_END: 
 			{
 				int i;
-				for(i=0; i<=offset; i++) {
+				for(i=0; i<offset; i++) {
 					vm_pop_scope(vm);
 				}	
 				break;
 			}
-			#ifdef VAR_CACHE
+			#ifdef MARIO_CACHE
 			case INSTR_CACHE: 
 			{	
 				var_t* v = get_cache(offset);
@@ -3179,7 +3217,7 @@ void vm_run_code(vm_t* vm) {
 			case INSTR_TRUE: 
 			{
 				var_t* v = var_new_int(1);	
-				#ifdef VAR_CACHE
+				#ifdef MARIO_CACHE
 				try_cache(&code[vm->pc-1], v);
 				#endif
 				vm_push(vm, v);
@@ -3188,7 +3226,7 @@ void vm_run_code(vm_t* vm) {
 			case INSTR_FALSE: 
 			{
 				var_t* v = var_new_int(0);	
-				#ifdef VAR_CACHE
+				#ifdef MARIO_CACHE
 				try_cache(&code[vm->pc-1], v);
 				#endif
 				vm_push(vm, v);
@@ -3373,7 +3411,7 @@ void vm_run_code(vm_t* vm) {
 				scope_t* sc = vm_get_scope(vm);
 				if(sc != NULL) {
 					if(instr == INSTR_RETURN) {//return without value, push "this" to stack
-						node_t* n = vm_load_node(vm, THIS, false); //load variable.
+						node_t* n = vm_load_node(vm, THIS, _thisStrIndex, false); //load variable.
 						if(n != NULL)
 							vm_push(vm, n->var);
 						else
@@ -3388,7 +3426,7 @@ void vm_run_code(vm_t* vm) {
 			case INSTR_CONST: 
 			{
 				const char* s = bc_getstr(&vm->bc, offset);
-				node_t *node = vm_find(vm, s);
+				node_t *node = vm_find(vm, s, offset);
 				if(node != NULL) { //find just in current scope
 					_debug("Warning: '");
 					_debug(s);
@@ -3407,7 +3445,7 @@ void vm_run_code(vm_t* vm) {
 			{
 				const char* s = bc_getstr(&vm->bc, offset);
 				var_t* v = vm_get_scope_var(vm, false);
-				node_t *node = var_find(v, s);
+				node_t *node = var_find(v, s, offset);
 				if(node != NULL) { //find just in current scope
 					_debug("Warning: '");
 					_debug(s);
@@ -3421,7 +3459,7 @@ void vm_run_code(vm_t* vm) {
 			case INSTR_INT:
 			{
 				var_t* v = var_new_int((int)code[vm->pc++]);
-				#ifdef VAR_CACHE
+				#ifdef MARIO_CACHE
 				if(try_cache(&code[vm->pc-2], v))
 					code[vm->pc-1] = INSTR_NIL;
 				#endif
@@ -3431,7 +3469,7 @@ void vm_run_code(vm_t* vm) {
 			case INSTR_INT_S:
 			{
 				var_t* v = var_new_int(offset);
-				#ifdef VAR_CACHE
+				#ifdef MARIO_CACHE
 				try_cache(&code[vm->pc-1], v);
 				#endif
 				vm_push(vm, v);
@@ -3440,7 +3478,7 @@ void vm_run_code(vm_t* vm) {
 			case INSTR_FLOAT: 
 			{
 				var_t* v = var_new_float(*(float*)(&code[vm->pc++]));
-				#ifdef VAR_CACHE
+				#ifdef MARIO_CACHE
 				if(try_cache(&code[vm->pc-2], v))
 					code[vm->pc-1] = INSTR_NIL;
 				#endif
@@ -3451,7 +3489,7 @@ void vm_run_code(vm_t* vm) {
 			{
 				const char* s = bc_getstr(&vm->bc, offset);
 				var_t* v = var_new_str(s);
-				#ifdef VAR_CACHE	
+				#ifdef MARIO_CACHE	
 				try_cache(&code[vm->pc-1], v);
 				#endif
 				vm_push(vm, v);
@@ -3478,18 +3516,19 @@ void vm_run_code(vm_t* vm) {
 			}
 			case INSTR_LOAD: 
 			{
-				const char* s = bc_getstr(&vm->bc, offset);
 				bool loaded = false;
-				if(strcmp(THIS, s) == 0) {
+				if(offset == _thisStrIndex) {
 					var_t* v = vm_get_scope_var(vm, true);
 					if(v->type == V_OBJECT) {
 						vm_push(vm, v);
 						loaded = true;
 					}
 				}
-				
+
 				if(!loaded) {
-					node_t* n = vm_load_node(vm, s, true); //load variable, create if not exist.
+					const char* s = bc_getstr(&vm->bc, offset);
+					node_t* n = vm_load_node(vm, s, offset, true); //load variable, create if not exist.
+					//node_t* n = vm_load_node(vm, s, -1, true); //load variable, create if not exist.
 					vm_push_node(vm, n);
 				}
 				break;
@@ -3499,7 +3538,7 @@ void vm_run_code(vm_t* vm) {
 				const char* s = bc_getstr(&vm->bc, offset);
 				var_t* v = vm_pop2(vm);
 				if(v != NULL) {
-					do_get(vm, v, s);
+					do_get(vm, v, s, offset);
 					var_unref(v, true);
 				}
 				else {
@@ -3527,10 +3566,10 @@ void vm_run_code(vm_t* vm) {
 					str_cpy(name, CONSTRUCTOR);
 					var_t* v = vm_get_scope_var(vm, true);
 					if(v != NULL) {
-						node_t* n = var_find(v, THIS);
+						node_t* n = var_find(v, THIS, _thisStrIndex);
 						if(n != NULL)
 							obj = var_ref(n->var);
-						n = var_find(v, SUPER);
+						n = var_find(v, SUPER, -1);
 						if(n != NULL)
 							func = find_func(vm, n->var, name->cstr);
 					}
@@ -3625,7 +3664,7 @@ void vm_run_code(vm_t* vm) {
 			case INSTR_CLASS: 
 			{
 				const char* s =  bc_getstr(&vm->bc, offset);
-				node_t* n = var_find_create(vm->root, s);
+				node_t* n = var_find_create(vm->root, s, offset);
 				n->var->type = V_OBJECT;
 				//read extends
 				ins = code[vm->pc];
@@ -3709,7 +3748,7 @@ bool vm_run(vm_t* vm) {
 void vm_close(vm_t* vm) {
 	var_unref(vm->root, true);
 
-	#ifdef VAR_CACHE
+	#ifdef MARIO_CACHE
 	var_cache_free();
 	#endif
 
@@ -3721,7 +3760,7 @@ void vm_close(vm_t* vm) {
 /** native extended functions.-----------------------------*/
 
 node_t* vm_new_class(vm_t* vm, const char* cls) {
-	node_t* clsNode = vm_load_node(vm, cls, true);
+	node_t* clsNode = vm_load_node(vm, cls, -1, true);
 	clsNode->var->type = V_OBJECT;
 	return clsNode;
 }
@@ -3782,22 +3821,22 @@ node_t* vm_reg_native(vm_t* vm, const char* cls, const char* decl, native_func_t
 }
 
 const char* get_str(var_t* var, const char* name) {
-	node_t* n = var_find(var, name);
+	node_t* n = var_find(var, name, -1);
 	return n == NULL ? "" : var_get_str(n->var);
 }
 
 int get_int(var_t* var, const char* name) {
-	node_t* n = var_find(var, name);
+	node_t* n = var_find(var, name, -1);
 	return n == NULL ? 0 : var_get_int(n->var);
 }
 
 float get_float(var_t* var, const char* name) {
-	node_t* n = var_find(var, name);
+	node_t* n = var_find(var, name, -1);
 	return n == NULL ? 0.0 : var_get_float(n->var);
 }
 
 var_t* get_obj(var_t* var, const char* name) {
-	node_t* n = var_find(var, name);
+	node_t* n = var_find(var, name, -1);
 	if(n == NULL)
 		return NULL;
 	return n->var;
@@ -3807,7 +3846,7 @@ var_t* get_obj(var_t* var, const char* name) {
 var_t* native_dump(vm_t* vm, var_t* env, void* data) {
 	(void)vm; (void)data;
 
-	node_t* n = var_find(env, "var");
+	node_t* n = var_find(env, "var", -1);
 	if(n == NULL)
 		return NULL;
 
@@ -3847,7 +3886,7 @@ void vm_init(vm_t* vm) {
 	array_init(&vm->stack);	
 	array_init(&vm->scopes);	
 
-	#ifdef VAR_CACHE
+	#ifdef MARIO_CACHE
 	var_cache_init(VAR_CACHE_MAX);
 	#endif
 

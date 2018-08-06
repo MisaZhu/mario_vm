@@ -9,8 +9,8 @@ LD := $(CROSS_COMPILE)gcc
 
 test_OBJS = jstest.o mario_js.o
 
-CFLAGS =  -g -Wall -DMARIO_DEBUG -DVAR_CACHE
-#CFLAGS = -Wall -DMARIO_DEBUG
+#CFLAGS = -g -Wall -DMARIO_CACHE -DMARIO_DEBUG 
+CFLAGS = -O2 -Wall -DMARIO_CACHE -DMARIO_DEBUG 
 
 all: $(test_OBJS)
 	$(LD) -o jstest $(LDFLAGS) $(test_OBJS)
