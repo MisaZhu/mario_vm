@@ -48,7 +48,7 @@ typedef struct st_array {
 } m_array_t;
 
 void array_init(m_array_t* array);
-void* array_add(m_array_t* array, void* item);
+//void* array_add(m_array_t* array, void* item);
 void* array_add_buf(m_array_t* array, void* s, uint32_t sz);
 void* array_get(m_array_t* array, uint32_t index);
 void* array_tail(m_array_t* array);
@@ -152,11 +152,46 @@ node_t* var_add(var_t* var, const char* name, var_t* add);
 node_t* var_find(var_t* var, const char*name, int16_t nameID);
 node_t* var_find_create(var_t* var, const char*name, int16_t nameID);
 node_t* var_get(var_t* var, int32_t index);
-void var_unref(var_t* var, bool del);
-var_t* var_ref(var_t* var);
-var_t* var_new();
+
+void var_free(void* p);
+
+//var_t* var_ref(var_t* var);
+//void var_unref(var_t* var);
+
+#define var_unref(var, del) \
+	if(var != NULL) { \
+		var->refs--; \
+		if(var->refs <= 0 && del) \
+			var_free(var); \
+	}
+
+#define var_ref(var) ({ \
+	if((var) != NULL) \
+		(var)->refs++; \
+	(var); })
+
+//var_t* var_new();
+//var_t* var_new_int(int i);
+
+#define var_new() ({ \
+	var_t* var = (var_t*)_malloc(sizeof(var_t)); \
+	var->magic = 0; \
+	var->refs = 0; \
+	var->type = V_UNDEF; \
+	var->size = 0; \
+	var->value = NULL; \
+	var->freeFunc = NULL; \
+	array_init(&var->children); \
+	var; })
+
+#define var_new_int(i) ({ \
+	var_t* var = var_new(); \
+	var->type = V_INT; \
+	var->value = _malloc(sizeof(int)); \
+	*((int*)var->value) = (i); \
+	var; })
+
 var_t* var_new_obj(void*p, free_func_t fr);
-var_t* var_new_int(int i);
 var_t* var_new_float(float i);
 var_t* var_new_str(const char* s);
 const char* var_get_str(var_t* var);
