@@ -28,7 +28,7 @@ void array_init(m_array_t* array) {
 	array->max = 0;
 }
 
-inline void* array_add(m_array_t* array, void* item) {
+void* array_add(m_array_t* array, void* item) {
 	int new_size = array->size + 1;
 	if(array->max <= new_size) {
 		new_size = array->size + ARRAY_BUF; /*ARRAY BUF for buffer*/
@@ -2568,19 +2568,22 @@ node_t* vm_push_node(vm_t* vm, node_t* node) {
 }
 
 void vm_pop(vm_t* vm) {
-	if(vm->stack.size <= 0)
+	int index = vm->stack.size-1;
+	if(index < 0)
 		return;
 
-	int8_t magic = *(int8_t*)vm->stack.items[vm->stack.size-1];
+	int8_t magic = *(int8_t*)vm->stack.items[index];
 	if(magic == 0) {//var
-		var_t* var = (var_t*)array_remove(&vm->stack, vm->stack.size-1);
+		var_t* var = (var_t*)vm->stack.items[index];
 		var_unref(var, true);
 	}
 	else { //node
-		node_t* node = (node_t*)array_remove(&vm->stack, vm->stack.size-1);
+		node_t* node = (node_t*)vm->stack.items[index];
 		if(node != NULL)
 			var_unref(node->var, true);
 	}
+	vm->stack.items[index] = NULL;
+	vm->stack.size--;
 }
 
 node_t* vm_pop2node(vm_t* vm) {
@@ -2592,7 +2595,10 @@ node_t* vm_pop2node(vm_t* vm) {
 	if(magic != 1) //not node!
 		return NULL;
 
-	return (node_t*)array_remove(&vm->stack, index);
+	node_t* node = (node_t*)vm->stack.items[index];
+	vm->stack.items[index] = NULL;
+	vm->stack.size--;
+	return node;
 }
 
 var_t* vm_pop2(vm_t* vm) {
