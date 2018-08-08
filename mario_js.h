@@ -56,6 +56,7 @@ void* array_head(m_array_t* array);
 void* array_remove(m_array_t* array, uint32_t index);
 void array_del(m_array_t* array, uint32_t index, free_func_t fr);
 void array_remove_all(m_array_t* array);
+
 void array_clean(m_array_t* array, free_func_t fr);
 
 typedef struct st_str {

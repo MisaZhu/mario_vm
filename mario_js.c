@@ -22,11 +22,11 @@ void _debug(const char* s) {
 
 #define ARRAY_BUF 16
 
-void array_init(m_array_t* array) {
-	array->items = NULL;
-	array->size = 0;
-	array->max = 0;
-}
+#define array_init(array) ({ \
+	(array)->items = NULL; \
+	(array)->size = 0; \
+	(array)->max = 0; })
+
 
 //void* array_add(m_array_t* array, void* item) {
 #define array_add(array, item) \
