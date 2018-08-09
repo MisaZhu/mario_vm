@@ -159,17 +159,21 @@ void var_free(void* p);
 //var_t* var_ref(var_t* var);
 //void var_unref(var_t* var);
 
-#define var_unref(var, del) \
-	if(var != NULL) { \
-		var->refs--; \
-		if(var->refs <= 0 && del) \
-			var_free(var); \
-	}
+#define var_unref(v, d) ({\
+	var_t* _var_ = (v); \
+	bool del = d; \
+	if(_var_ != NULL) { \
+		_var_->refs--; \
+		if(_var_->refs <= 0 && del) \
+			var_free(_var_); \
+	} \
+	})
 
 #define var_ref(var) ({ \
-	if((var) != NULL) \
-		(var)->refs++; \
-	(var); })
+	var_t* _var_ = (var); \
+	if(_var_ != NULL) \
+		_var_->refs++; \
+	_var_; })
 
 //var_t* var_new();
 //var_t* var_new_int(int i);
@@ -186,10 +190,11 @@ void var_free(void* p);
 	var; })
 
 #define var_new_int(i) ({ \
+	int iv = i; \
 	var_t* var = var_new(); \
 	var->type = V_INT; \
 	var->value = _malloc(sizeof(int)); \
-	*((int*)var->value) = (i); \
+	*((int*)var->value) = iv; \
 	var; })
 
 var_t* var_new_obj(void*p, free_func_t fr);

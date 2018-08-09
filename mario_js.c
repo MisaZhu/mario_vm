@@ -29,14 +29,15 @@ void _debug(const char* s) {
 
 
 //void* array_add(m_array_t* array, void* item) {
-#define array_add(array, item) \
+#define array_add(array, it) \
+	void* _item_ = (it); \
 	int new_size = (array)->size + 1; \
 	if((array)->max <= new_size) { \
 		new_size = (array)->size + ARRAY_BUF; /*ARRAY BUF for buffer*/ \
 		(array)->items = (void**)_realloc((array)->items, new_size*sizeof(void*)); \
 		(array)->max = new_size; \
 	} \
-	(array)->items[(array)->size] = (item); \
+	(array)->items[(array)->size] = _item_; \
 	(array)->size++; \
 	(array)->items[(array)->size] = NULL; \
 
@@ -2544,13 +2545,15 @@ var_t* json_parse(const char* str) {
 
 
 #define vm_push(vm, var) ({ \
-	var_ref((var)); \
-	array_add(&(vm)->stack, (var));  \
+	var_t* __var_ = (var); \
+	var_ref(__var_); \
+	array_add(&(vm)->stack, __var_);  \
 	})
 
 #define vm_push_node(vm, node) ({ \
-	var_ref((node)->var); \
-	array_add(&(vm)->stack, (node)); })
+	node_t* _node_ = node; \
+	var_ref(_node_->var); \
+	array_add(&(vm)->stack, _node_); })
 
 void vm_pop(vm_t* vm) {
 	int index = vm->stack.size-1;
