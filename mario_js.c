@@ -2111,6 +2111,7 @@ node_t* var_find_create(var_t* var, const char*name , int16_t nameID) {
 	if(n != NULL)
 		return n;
 	n = var_add(var, name, NULL);
+	n->nameID = nameID;
 	return n;
 }
 
@@ -2770,6 +2771,7 @@ node_t* vm_load_node(vm_t* vm, const char* name, int16_t nameID, bool create) {
 		return NULL;
 
 	n =var_add(var, name, NULL);	
+	n->nameID = nameID;
 	return n;
 }
 
@@ -3470,8 +3472,10 @@ void vm_run_code(vm_t* vm) {
 				}
 				else {
 					var_t* v = vm_get_scope_var(vm, true);
-					if(v != NULL) 
+					if(v != NULL) {
 						node = var_add(v, s, NULL);
+						node->nameID = offset;
+					}
 					if(node != NULL && instr == INSTR_CONST)
 						node->beConst = true;
 				}
@@ -3650,8 +3654,11 @@ void vm_run_code(vm_t* vm) {
 						func_t* func = (func_t*)v->value;
 						func->owner = var;
 					}
-					if(var != NULL)
-						var_add(var, s, v);
+					if(var != NULL) {
+						node_t* n = var_add(var, s, v);
+						if(instr == INSTR_MEMBERN)
+							n->nameID = offset;
+					}	
 
 					var_unref(v, true);
 				}
