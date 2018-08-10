@@ -105,7 +105,7 @@ void array_remove_all(m_array_t* array) { //remove all items bot not free them.
 	array->max = array->size = 0;
 }
 
-void array_clean(m_array_t* array, free_func_t fr) { //remove all items and free them.
+static inline void _array_clean(m_array_t* array, free_func_t fr) { //remove all items and free them.
 	if(array->items != NULL) {
 		int i;
 		for(i=0; i<array->size; i++) {
@@ -121,6 +121,10 @@ void array_clean(m_array_t* array, free_func_t fr) { //remove all items and free
 		array->items = NULL;
 	}
 	array->max = array->size = 0;
+}
+
+void array_clean(m_array_t* array, free_func_t fr) { //remove all items and free them.
+	_array_clean(array, fr);
 }
 
 /** str functions.-----------------------------*/
@@ -937,7 +941,7 @@ void bc_init(bytecode_t* bc) {
 }
 
 void bc_release(bytecode_t* bc) {
-	array_clean(&bc->strTable, NULL);
+	_array_clean(&bc->strTable, NULL);
 	if(bc->codeBuf != NULL)
 		_free(bc->codeBuf);
 }
@@ -1500,7 +1504,7 @@ bool factor(lex_t* l, bytecode_t* bc) {
 					bc_gen_str(bc, INSTR_CALLO, s->cstr);	
 				}
 				load = false;
-				array_clean(&names, NULL);
+				_array_clean(&names, NULL);
 				str_free(s);
 			} 
 			else if (l->tk == '.') { // ------------------------------------- Record Access
@@ -1524,7 +1528,7 @@ bool factor(lex_t* l, bytecode_t* bc) {
 					bc_gen_str(bc, load ? INSTR_LOAD:INSTR_GET, (const char*)names.items[i]);	
 					load = false;
 				}
-				array_clean(&names, NULL);
+				_array_clean(&names, NULL);
 
 				if(!lex_chkread(l, '[')) return false;
 				if(!base(l, bc)) return false;
@@ -1542,7 +1546,7 @@ bool factor(lex_t* l, bytecode_t* bc) {
 				bc_gen_str(bc, load ? INSTR_LOAD:INSTR_GET, (const char*)names.items[i]);	
 				load = false;
 			}
-			array_clean(&names, NULL);
+			_array_clean(&names, NULL);
 		}
 		str_free(name);
 	}
@@ -2058,9 +2062,13 @@ var_t* node_replace(node_t* node, var_t* v) {
 	return node->var;
 }
 
-void var_remove_all(var_t* var) {
+static inline void _var_remove_all(var_t* var) {
 	/*free children*/
-	array_clean(&var->children, node_free);
+	_array_clean(&var->children, node_free);
+}
+
+void var_remove_all(var_t* var) {
+	_var_remove_all(var);
 }
 
 node_t* var_add(var_t* var, const char* name, var_t* add) {
@@ -2075,7 +2083,7 @@ node_t* var_add(var_t* var, const char* name, var_t* add) {
 	return node;
 }
 
-node_t* var_find(var_t* var, const char*name, int16_t nameID) {
+static inline node_t* _var_find(var_t* var, const char*name, int16_t nameID) {
 	int i;
 
 	if(nameID >= 0) {
@@ -2106,8 +2114,12 @@ node_t* var_find(var_t* var, const char*name, int16_t nameID) {
 	return NULL;
 }
 
+node_t* var_find(var_t* var, const char*name, int16_t nameID) {
+	return _var_find(var, name, nameID);
+}
+
 node_t* var_find_create(var_t* var, const char*name , int16_t nameID) {
-	node_t* n = var_find(var, name, nameID);
+	node_t* n = _var_find(var, name, nameID);
 	if(n != NULL)
 		return n;
 	n = var_add(var, name, NULL);
@@ -2127,13 +2139,13 @@ node_t* var_get(var_t* var, int32_t index) {
 
 void func_free(void* p);
 
-void var_free(void* p) {
+static inline void _var_free(void* p) {
 	var_t* var = (var_t*)p;
 	if(var == NULL || var->refs > 0)
 		return;
 
 	/*free children*/
-	var_remove_all(var);	
+	_var_remove_all(var);	
 
 	/*free value*/
 	if(var->value != NULL) {
@@ -2144,6 +2156,10 @@ void var_free(void* p) {
 	}
 	
 	_free(var);
+}
+
+void var_free(void *p) {
+	_var_free(p);
 }
 
 /*
@@ -2692,7 +2708,7 @@ void vm_stack_free(void* p) {
 	}
 	else {
 		var_t* var = (var_t*)p;
-		var_free(var);
+		_var_free(var);
 	}
 }
 
@@ -2700,40 +2716,40 @@ node_t* vm_find(vm_t* vm, const char* name, int16_t nameID) {
 	var_t* var = vm_get_scope_var(vm, true);
 	if(var == NULL)
 		return NULL;
-	return var_find(var, name, nameID);	
+	return _var_find(var, name, nameID);	
 }
 
 node_t* vm_find_in_class(var_t* var, const char* name, int16_t nameID) {
-	node_t* n = var_find(var, PROTOTYPE, -1);
+	node_t* n = _var_find(var, PROTOTYPE, -1);
 
 	while(n != NULL && n->var != NULL && n->var->type == V_OBJECT) {
 		node_t* ret = NULL;
-		ret = var_find(n->var, name, nameID);
+		ret = _var_find(n->var, name, nameID);
 		if(ret != NULL)
 			return ret;
-		n = var_find(n->var, SUPER, -1);
+		n = _var_find(n->var, SUPER, -1);
 	}
 	return NULL;
 }
 
 node_t* find_member(var_t* obj, const char* name, int16_t nameID) {
-	node_t* node = var_find(obj, name, nameID);
+	node_t* node = _var_find(obj, name, nameID);
 	if(node == NULL) { 
 		node = vm_find_in_class(obj, name, nameID);
 	}
 	return node;
 }
 
-node_t* vm_find_in_scopes(vm_t* vm, const char* name, int16_t nameID) {
+static inline node_t* vm_find_in_scopes(vm_t* vm, const char* name, int16_t nameID) {
 	node_t* ret = NULL;
 	scope_t* sc = vm_get_scope(vm);
 	
 	if(sc != NULL && sc->var != NULL) {
-		ret = var_find(sc->var, name, nameID);
+		ret = _var_find(sc->var, name, nameID);
 		if(ret != NULL)
 			return ret;
 
-		node_t* n = var_find(sc->var, THIS, -1);//_thisStrIndex);
+		node_t* n = _var_find(sc->var, THIS, -1);//_thisStrIndex);
 		if(n != NULL)  {
 			ret = find_member(n->var, name, nameID);
 			if(ret != NULL)
@@ -2744,14 +2760,14 @@ node_t* vm_find_in_scopes(vm_t* vm, const char* name, int16_t nameID) {
 
 	while(sc != NULL) {
 		if(sc->var != NULL) {
-			ret = var_find(sc->var, name, nameID);
+			ret = _var_find(sc->var, name, nameID);
 			if(ret != NULL)
 				return ret;
 		}
 		sc = sc->prev;
 	}
 
-	return var_find(vm->root, name, nameID);
+	return _var_find(vm->root, name, nameID);
 }
 
 node_t* vm_load_node(vm_t* vm, const char* name, int16_t nameID, bool create) {
@@ -2793,7 +2809,7 @@ func_t* func_new() {
 
 void func_free(void* p) {
 	func_t* func = (func_t*)p;
-	array_clean(&func->args, NULL);
+	_array_clean(&func->args, NULL);
 	_free(p);
 }
 
@@ -2825,7 +2841,7 @@ var_t* get_super(var_t* var) {
 	if(var == NULL)
 		return NULL;
 
-	node_t* n = var_find(var, SUPER, -1);
+	node_t* n = _var_find(var, SUPER, -1);
 	if(n != NULL)
 		return n->var;
 	return NULL;
@@ -2904,19 +2920,73 @@ var_t* func_def(vm_t* vm, bool regular) {
 	return ret;
 }
 
-void math_op(vm_t* vm, OprCode op, var_t* v1, var_t* v2) {
-	if(v1->value == NULL || v2->value == NULL) {
+static inline void math_op(vm_t* vm, OprCode op, var_t* v1, var_t* v2) {
+	/*if(v1->value == NULL || v2->value == NULL) {
 		vm_push(vm, var_new());
 		return;
 	}	
+	*/
 
-	if((v1->type == V_INT || v1->type == V_FLOAT) && 
-			(v2->type == V_INT || v2->type == V_FLOAT)) {
-		//do number 
+	//do int
+	if(v1->type == V_INT && v2->type == V_INT) {
+		int i1, i2, ret = 0;
+		i1 = *(int*)v1->value;
+		i2 = *(int*)v2->value;
+
+		switch(op) {
+			case INSTR_PLUS: 
+			case INSTR_PLUSEQ: 
+				ret = (i1 + i2);
+				break; 
+			case INSTR_MINUS: 
+			case INSTR_MINUSEQ: 
+				ret = (i1 - i2);
+				break; 
+			case INSTR_DIV: 
+			case INSTR_DIVEQ: 
+				ret = (i1 / i2);
+				break; 
+			case INSTR_MULTI: 
+			case INSTR_MULTIEQ: 
+				ret = (i1 * i2);
+				break; 
+			case INSTR_MOD: 
+			case INSTR_MODEQ: 
+				ret = i1 % i2;
+				break; 
+			case INSTR_RSHIFT: 
+				ret = i1 >> i2;
+				break; 
+			case INSTR_LSHIFT: 
+				ret = i1 << i2;
+				break; 
+			case INSTR_AND: 
+				ret = i1 & i2;
+				break; 
+			case INSTR_OR: 
+				ret = i1 | i2;
+				break; 
+		}
+
+		var_t* v;
+		if(op == INSTR_PLUSEQ || 
+				op == INSTR_MINUSEQ ||
+				op == INSTR_DIVEQ ||
+				op == INSTR_MULTIEQ ||
+				op == INSTR_MODEQ)  {
+			v = v1;
+			*(int*)v->value = ret;
+		}
+		else {
+			v = var_new_int((int)ret);
+		}
+		vm_push(vm, v);
+		return;
+	}
+
+	//do float
+	if(v1->type == V_FLOAT || v2->type == V_FLOAT) {
 		float f1, f2, ret = 0.0;
-		bool floatMode = false;
-		if(v1->type == V_FLOAT || v2->type == V_FLOAT)
-			floatMode = true;
 
 		if(v1->type == V_FLOAT)
 			f1 = *(float*)v1->value;
@@ -2945,22 +3015,6 @@ void math_op(vm_t* vm, OprCode op, var_t* v1, var_t* v2) {
 			case INSTR_MULTIEQ: 
 				ret = (f1 * f2);
 				break; 
-			case INSTR_MOD: 
-			case INSTR_MODEQ: 
-				ret = (((int)f1) % (int)f2);
-				break; 
-			case INSTR_RSHIFT: 
-				ret = (((int)f1) >> (int)f2);
-				break; 
-			case INSTR_LSHIFT: 
-				ret = (((int)f1) << (int)f2);
-				break; 
-			case INSTR_AND: 
-				ret = (((int)f1) & (int)f2);
-				break; 
-			case INSTR_OR: 
-				ret = (((int)f1) | (int)f2);
-				break; 
 		}
 
 		var_t* v;
@@ -2970,16 +3024,10 @@ void math_op(vm_t* vm, OprCode op, var_t* v1, var_t* v2) {
 				op == INSTR_MULTIEQ ||
 				op == INSTR_MODEQ)  {
 			v = v1;
-			if(floatMode) 
-				*(float*)v->value = ret;
-			else 
-				*(int*)v->value = (int)ret;
+			*(float*)v->value = ret;
 		}
 		else {
-			if(floatMode) 
-				v = var_new_float(ret);
-			else 
-				v = var_new_int((int)ret);
+			v = var_new_float(ret);
 		}
 		vm_push(vm, v);
 		return;
@@ -3020,7 +3068,42 @@ void math_op(vm_t* vm, OprCode op, var_t* v1, var_t* v2) {
 	}
 }
 
-void compare(vm_t* vm, OprCode op, var_t* v1, var_t* v2) {
+static inline void compare(vm_t* vm, OprCode op, var_t* v1, var_t* v2) {
+	//do int
+	if(v1->type == V_INT && v2->type == V_INT) {
+		int i1, i2;
+		i1 = *(int*)v1->value;
+		i2 = *(int*)v2->value;
+
+		bool i = false;
+		switch(op) {
+			case INSTR_EQ: 
+			case INSTR_TEQ:
+				i = (i1 == i2);
+				break; 
+			case INSTR_NEQ: 
+			case INSTR_NTEQ:
+				i = (i1 != i2);
+				break; 
+			case INSTR_LES: 
+				i = (i1 < i2);
+				break; 
+			case INSTR_GRT: 
+				i = (i1 > i2);
+				break; 
+			case INSTR_LEQ: 
+				i = (i1 <= i2);
+				break; 
+			case INSTR_GEQ: 
+				i = (i1 >= i2);
+				break; 
+		}
+		var_t* ret = var_new_int(i);
+		vm_push(vm, ret);
+		return;
+	}
+
+	
 	float f1, f2;
 	if(v1->value == NULL)
 		f1 = 0.0;
@@ -3153,7 +3236,7 @@ var_t* new_obj(vm_t* vm, const char* clsName, int argNum) {
 	obj = var_new_obj(NULL, NULL);
 	var_add(obj, PROTOTYPE, n->var);
 
-	n = var_find(n->var, CONSTRUCTOR, -1);
+	n = _var_find(n->var, CONSTRUCTOR, -1);
 
 	if(n != NULL) {
 		func_call(vm, obj, (func_t*)n->var->value, argNum);
@@ -3485,7 +3568,7 @@ void vm_run_code(vm_t* vm) {
 			{
 				const char* s = bc_getstr(&vm->bc, offset);
 				var_t* v = vm_get_scope_var(vm, false);
-				node_t *node = var_find(v, s, offset);
+				node_t *node = _var_find(v, s, offset);
 				if(node != NULL) { //find just in current scope
 					_debug("Warning: '");
 					_debug(s);
@@ -3612,10 +3695,10 @@ void vm_run_code(vm_t* vm) {
 					str_cpy(name, CONSTRUCTOR);
 					var_t* v = vm_get_scope_var(vm, true);
 					if(v != NULL) {
-						node_t* n = var_find(v, THIS, _thisStrIndex);
+						node_t* n = _var_find(v, THIS, _thisStrIndex);
 						if(n != NULL)
 							obj = var_ref(n->var);
-						n = var_find(v, SUPER, -1);
+						n = _var_find(v, SUPER, -1);
 						if(n != NULL)
 							func = find_func(vm, n->var, name->cstr);
 					}
@@ -3801,8 +3884,8 @@ void vm_close(vm_t* vm) {
 	var_cache_free();
 	#endif
 
-	array_clean(&vm->scopes, NULL);	
-	array_clean(&vm->stack, vm_stack_free);	
+	_array_clean(&vm->scopes, NULL);	
+	_array_clean(&vm->stack, vm_stack_free);	
 	bc_release(&vm->bc);
 }	
 
@@ -3870,22 +3953,22 @@ node_t* vm_reg_native(vm_t* vm, const char* cls, const char* decl, native_func_t
 }
 
 const char* get_str(var_t* var, const char* name) {
-	node_t* n = var_find(var, name, -1);
+	node_t* n = _var_find(var, name, -1);
 	return n == NULL ? "" : var_get_str(n->var);
 }
 
 int get_int(var_t* var, const char* name) {
-	node_t* n = var_find(var, name, -1);
+	node_t* n = _var_find(var, name, -1);
 	return n == NULL ? 0 : var_get_int(n->var);
 }
 
 float get_float(var_t* var, const char* name) {
-	node_t* n = var_find(var, name, -1);
+	node_t* n = _var_find(var, name, -1);
 	return n == NULL ? 0.0 : var_get_float(n->var);
 }
 
 var_t* get_obj(var_t* var, const char* name) {
-	node_t* n = var_find(var, name, -1);
+	node_t* n = _var_find(var, name, -1);
 	if(n == NULL)
 		return NULL;
 	return n->var;
@@ -3895,7 +3978,7 @@ var_t* get_obj(var_t* var, const char* name) {
 var_t* native_dump(vm_t* vm, var_t* env, void* data) {
 	(void)vm; (void)data;
 
-	node_t* n = var_find(env, "var", -1);
+	node_t* n = _var_find(env, "var", -1);
 	if(n == NULL)
 		return NULL;
 

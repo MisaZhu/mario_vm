@@ -48,7 +48,7 @@ typedef struct st_array {
 } m_array_t;
 
 void array_init(m_array_t* array);
-//void* array_add(m_array_t* array, void* item);
+void* array_add(m_array_t* array, void* item);
 void* array_add_buf(m_array_t* array, void* s, uint32_t sz);
 void* array_get(m_array_t* array, uint32_t index);
 void* array_tail(m_array_t* array);
