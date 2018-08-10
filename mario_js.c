@@ -22,30 +22,37 @@ void _debug(const char* s) {
 
 #define ARRAY_BUF 16
 
-#define array_init(array) ({ \
-	(array)->items = NULL; \
-	(array)->size = 0; \
-	(array)->max = 0; })
+static inline void _array_init(m_array_t* array) { 
+	array->items = NULL; 
+	array->size = 0; 
+	array->max = 0; 
+}
 
+void array_init(m_array_t* array) { 
+	_array_init(array);
+}
 
-//void* array_add(m_array_t* array, void* item) {
-#define array_add(array, it) \
-	void* _item_ = (it); \
-	int new_size = (array)->size + 1; \
-	if((array)->max <= new_size) { \
-		new_size = (array)->size + ARRAY_BUF; /*ARRAY BUF for buffer*/ \
-		(array)->items = (void**)_realloc((array)->items, new_size*sizeof(void*)); \
-		(array)->max = new_size; \
-	} \
-	(array)->items[(array)->size] = _item_; \
-	(array)->size++; \
-	(array)->items[(array)->size] = NULL; \
+static inline void _array_add(m_array_t* array, void* item) {
+	int new_size = array->size + 1; 
+	if(array->max <= new_size) { 
+		new_size = array->size + ARRAY_BUF; /*ARRAY BUF for buffer*/ 
+		array->items = (void**)_realloc(array->items, new_size*sizeof(void*)); 
+		array->max = new_size; 
+	} 
+	array->items[array->size] = item; 
+	array->size++; 
+	array->items[array->size] = NULL; 
+}
+
+void array_add(m_array_t* array, void* item) {
+	_array_add(array, item);
+}
 
 void* array_add_buf(m_array_t* array, void* s, uint32_t sz) {
 	void* item = _malloc(sz);
 	if(s != NULL)
 		memcpy(item, s, sz);
-	array_add(array, item);
+	_array_add(array, item);
 	return item;
 }
 
@@ -254,7 +261,7 @@ void str_split(const char* str, char c, m_array_t* array) {
 			char* p = (char*)_malloc(i+1);
 			memcpy(p, str, i+1);
 			p[i] = 0;
-			array_add(array, p);
+			_array_add(array, p);
 			if(offc == 0)
 				break;
 
@@ -927,7 +934,7 @@ uint16_t bc_getstrindex(bytecode_t* bc, const char* str) {
 	uint32_t len = strlen(str);
 	char* p = (char*)_malloc(len + 1);
 	memcpy(p, str, len+1);
-	array_add(&bc->strTable, p);
+	_array_add(&bc->strTable, p);
 	return sz;
 }	
 
@@ -935,7 +942,7 @@ void bc_init(bytecode_t* bc) {
 	bc->cindex = 0;
 	bc->codeBuf = NULL;
 	bc->bufSize = 0;
-	array_init(&bc->strTable);
+	_array_init(&bc->strTable);
 
 	_thisStrIndex = bc_getstrindex(bc, THIS);
 }
@@ -1477,7 +1484,7 @@ bool factor(lex_t* l, bytecode_t* bc) {
 		if(!lex_chkread(l, LEX_ID)) return false;
 
 		m_array_t names;
-		array_init(&names);
+		_array_init(&names);
 
 		bool load = true;
 		while (l->tk=='(' || l->tk=='.' || l->tk=='[') {
@@ -2078,7 +2085,7 @@ node_t* var_add(var_t* var, const char* name, var_t* add) {
 			node_replace(node, add);
 		else 
 			var_ref(node->var);
-		array_add(&var->children, node);
+		_array_add(&var->children, node);
 	}
 	return node;
 }
@@ -2114,17 +2121,21 @@ static inline node_t* _var_find(var_t* var, const char*name, int16_t nameID) {
 	return NULL;
 }
 
-node_t* var_find(var_t* var, const char*name, int16_t nameID) {
-	return _var_find(var, name, nameID);
+node_t* var_find(var_t* var, const char*name) {
+	return _var_find(var, name, -1);
 }
 
-node_t* var_find_create(var_t* var, const char*name , int16_t nameID) {
+static inline node_t* _var_find_create(var_t* var, const char*name , int16_t nameID) {
 	node_t* n = _var_find(var, name, nameID);
 	if(n != NULL)
 		return n;
 	n = var_add(var, name, NULL);
 	n->nameID = nameID;
 	return n;
+}
+
+node_t* var_find_create(var_t* var, const char*name) {
+	return _var_find_create(var, name, -1);
 }
 
 node_t* var_get(var_t* var, int32_t index) {
@@ -2178,7 +2189,7 @@ var_t* var_new() {
 
 	var->value = NULL;
 	var->freeFunc = NULL;
-	array_init(&var->children);
+	_array_init(&var->children);
 	return var;
 }
 
@@ -2340,7 +2351,7 @@ void var_to_json_str(var_t* var, str_t* ret, int level) {
 	static m_array_t done;
 	if(level == 0) {
 		if(!_done_arr_inited) {		
-			array_init(&done);
+			_array_init(&done);
 			_done_arr_inited = true;
 		}
 		array_remove_all(&done);
@@ -2354,7 +2365,7 @@ void var_to_json_str(var_t* var, str_t* ret, int level) {
 			return;
 		}
 	}
-	array_add(&done, var);
+	_array_add(&done, var);
 
 	if (var->type == V_OBJECT) {
 		// children - handle with bracketed list
@@ -2564,13 +2575,13 @@ var_t* json_parse(const char* str) {
 #define vm_push(vm, var) ({ \
 	var_t* __var_ = (var); \
 	var_ref(__var_); \
-	array_add(&(vm)->stack, __var_);  \
+	_array_add(&(vm)->stack, __var_);  \
 	})
 
 #define vm_push_node(vm, node) ({ \
 	node_t* _node_ = node; \
 	var_ref(_node_->var); \
-	array_add(&(vm)->stack, _node_); })
+	_array_add(&(vm)->stack, _node_); })
 
 void vm_pop(vm_t* vm) {
 	int index = vm->stack.size-1;
@@ -2681,7 +2692,7 @@ void vm_push_scope(vm_t* vm, scope_t* sc) {
 	scope_t* prev = NULL;
 	if(vm->scopes.size > 0)
 		prev = (scope_t*)array_tail(&vm->scopes);
-	array_add(&vm->scopes, sc);	
+	_array_add(&vm->scopes, sc);	
 	sc->prev = prev;
 }
 
@@ -2803,7 +2814,7 @@ func_t* func_new() {
 	func->pc = 0;
 	func->data = NULL;
 	func->owner = NULL;
-	array_init(&func->args);
+	_array_init(&func->args);
 	return func;
 }
 
@@ -3796,7 +3807,7 @@ void vm_run_code(vm_t* vm) {
 			case INSTR_CLASS: 
 			{
 				const char* s =  bc_getstr(&vm->bc, offset);
-				node_t* n = var_find_create(vm->root, s, offset);
+				node_t* n = _var_find_create(vm->root, s, offset);
 				n->var->type = V_OBJECT;
 				//read extends
 				ins = code[vm->pc];
@@ -4015,8 +4026,8 @@ var_t* native_println(vm_t* vm, var_t* env, void* data) {
 void vm_init(vm_t* vm) {
 	vm->pc = 0;
 	bc_init(&vm->bc);
-	array_init(&vm->stack);	
-	array_init(&vm->scopes);	
+	_array_init(&vm->stack);	
+	_array_init(&vm->scopes);	
 
 	#ifdef MARIO_CACHE
 	var_cache_init(VAR_CACHE_MAX);

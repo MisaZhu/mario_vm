@@ -48,7 +48,7 @@ typedef struct st_array {
 } m_array_t;
 
 void array_init(m_array_t* array);
-void* array_add(m_array_t* array, void* item);
+void array_add(m_array_t* array, void* item);
 void* array_add_buf(m_array_t* array, void* s, uint32_t sz);
 void* array_get(m_array_t* array, uint32_t index);
 void* array_tail(m_array_t* array);
@@ -150,8 +150,8 @@ var_t* node_replace(node_t* node, var_t* v);
 void var_dump(var_t* var);
 void var_remove_all(var_t* var);
 node_t* var_add(var_t* var, const char* name, var_t* add);
-node_t* var_find(var_t* var, const char*name, int16_t nameID);
-node_t* var_find_create(var_t* var, const char*name, int16_t nameID);
+node_t* var_find(var_t* var, const char*name);
+node_t* var_find_create(var_t* var, const char*name);
 node_t* var_get(var_t* var, int32_t index);
 
 void var_free(void* p);
@@ -215,7 +215,7 @@ void vm_close(vm_t* vm);
 
 var_t* new_obj(vm_t* vm, const char* clsName, int argNum);
 node_t* vm_reg_var(vm_t* vm, const char* cls, const char* name, var_t* var, bool beConst);
-node_t* vm_reg_const(vm_t* vm, const char* cls, const char* name, var_t* var);
+//node_t* vm_reg_const(vm_t* vm, const char* cls, const char* name, var_t* var);
 node_t* vm_reg_native(vm_t* vm, const char* cls, const char* decl, native_func_t native, void* data);
 
 var_t* get_obj(var_t* obj, const char* name);
