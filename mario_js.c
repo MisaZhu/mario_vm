@@ -2933,6 +2933,8 @@ var_t* func_def(vm_t* vm, bool regular) {
 	return ret;
 }
 
+static var_t* _var_int;
+
 static inline void math_op(vm_t* vm, OprCode op, var_t* v1, var_t* v2) {
 	/*if(v1->value == NULL || v2->value == NULL) {
 		vm_push(vm, var_new());
@@ -2988,11 +2990,11 @@ static inline void math_op(vm_t* vm, OprCode op, var_t* v1, var_t* v2) {
 				op == INSTR_MULTIEQ ||
 				op == INSTR_MODEQ)  {
 			v = v1;
-			*(int*)v->value = ret;
 		}
 		else {
-			v = var_new_int((int)ret);
+			v = _var_int;
 		}
+		*(int*)v->value = ret;
 		vm_push(vm, v);
 		return;
 	}
@@ -3894,6 +3896,8 @@ void vm_close(vm_t* vm) {
 	var_unref(vm->root, true);
 	var_unref(_var_true, true);
 	var_unref(_var_false, true);
+	var_unref(_var_int, true);
+
 
 	#ifdef MARIO_CACHE
 	var_cache_free();
@@ -4037,6 +4041,8 @@ void vm_init(vm_t* vm) {
 	var_ref(_var_true);
 	_var_false = var_new_int(false);
 	var_ref(_var_false);
+	_var_int = var_new_int(0);
+	var_ref(_var_int);
 
 	#ifdef MARIO_CACHE
 	var_cache_init(VAR_CACHE_MAX);
