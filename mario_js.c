@@ -48,30 +48,25 @@ void* array_add_buf(m_array_t* array, void* s, uint32_t sz) {
 	return item;
 }
 
-void* array_get(m_array_t* array, uint32_t index) {
+extern inline void* array_get(m_array_t* array, uint32_t index) {
 	if(array->items == NULL || index >= array->size)
 		return NULL;
 	return array->items[index];
 }
 
-/*void* array_tail(m_array_t* array) {
+extern inline void* array_tail(m_array_t* array) {
 	if(array->items == NULL || array->size == 0)
 		return NULL;
 	return array->items[array->size-1];
 }
-*/
 
-#define array_tail(array) (((array)->items == NULL || (array)->size == 0) ? \
-	NULL : ((array)->items[(array)->size-1]))
-
-
-void* array_head(m_array_t* array) {
+extern inline void* array_head(m_array_t* array) {
 	if(array->items == NULL || array->size == 0)
 		return NULL;
 	return array->items[0];
 }
 
-void* array_remove(m_array_t* array, uint32_t index) { //remove out but not free
+extern inline void* array_remove(m_array_t* array, uint32_t index) { //remove out but not free
 	if(index >= array->size)
 		return NULL;
 
@@ -86,7 +81,7 @@ void* array_remove(m_array_t* array, uint32_t index) { //remove out but not free
 	return p;
 }
 
-void array_del(m_array_t* array, uint32_t index, free_func_t fr) { // remove out and free.
+extern inline void array_del(m_array_t* array, uint32_t index, free_func_t fr) { // remove out and free.
 	void* p = array_remove(array, index);
 	if(p != NULL) {
 		if(fr != NULL)
@@ -96,7 +91,7 @@ void array_del(m_array_t* array, uint32_t index, free_func_t fr) { // remove out
 	}
 }
 
-void array_remove_all(m_array_t* array) { //remove all items bot not free them.
+extern inline void array_remove_all(m_array_t* array) { //remove all items bot not free them.
 	if(array->items != NULL) {
 		_free(array->items);
 		array->items = NULL;
@@ -2197,7 +2192,7 @@ extern inline var_t* var_new_int(int i) {
 	return var;
 }
 
-var_t* var_new_obj(void*p, free_func_t fr) {
+extern inline var_t* var_new_obj(void*p, free_func_t fr) {
 	var_t* var = var_new();
 	var->type = V_OBJECT;
 	var->value = p;
@@ -2205,7 +2200,7 @@ var_t* var_new_obj(void*p, free_func_t fr) {
 	return var;
 }
 
-var_t* var_new_float(float i) {
+extern inline var_t* var_new_float(float i) {
 	var_t* var = var_new();
 	var->type = V_FLOAT;
 	var->value = _malloc(sizeof(float));
@@ -2213,7 +2208,7 @@ var_t* var_new_float(float i) {
 	return var;
 }
 
-var_t* var_new_str(const char* s) {
+extern inline var_t* var_new_str(const char* s) {
 	var_t* var = var_new();
 	var->type = V_STRING;
 	var->size = strlen(s);
@@ -2222,14 +2217,14 @@ var_t* var_new_str(const char* s) {
 	return var;
 }
 
-const char* var_get_str(var_t* var) {
+extern inline const char* var_get_str(var_t* var) {
 	if(var == NULL || var->value == NULL)
 		return "";
 	
 	return (const char*)var->value;
 }
 
-int var_get_int(var_t* var) {
+extern inline int var_get_int(var_t* var) {
 	if(var == NULL || var->value == NULL)
 		return 0;
 	if(var->type == V_FLOAT)	
@@ -2237,7 +2232,7 @@ int var_get_int(var_t* var) {
 	return *(int*)var->value;
 }
 
-float var_get_float(var_t* var) {
+extern inline float var_get_float(var_t* var) {
 	if(var == NULL || var->value == NULL)
 		return 0.0;
 	
@@ -2246,7 +2241,7 @@ float var_get_float(var_t* var) {
 	return *(float*)var->value;
 }
 
-func_t* var_get_func(var_t* var) {
+extern inline func_t* var_get_func(var_t* var) {
 	if(var == NULL || var->value == NULL)
 		return NULL;
 	
@@ -3333,20 +3328,12 @@ void vm_run_code(vm_t* vm) {
 			#endif
 			case INSTR_TRUE: 
 			{
-				var_t* v = var_new_int(1);	
-				#ifdef MARIO_CACHE
-				try_cache(&code[vm->pc-1], v);
-				#endif
-				vm_push(vm, v);
+				vm_push(vm, _var_true);
 				break;
 			}
 			case INSTR_FALSE: 
 			{
-				var_t* v = var_new_int(0);	
-				#ifdef MARIO_CACHE
-				try_cache(&code[vm->pc-1], v);
-				#endif
-				vm_push(vm, v);
+				vm_push(vm, _var_false);
 				break;
 			}
 			case INSTR_UNDEF: 
