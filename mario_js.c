@@ -22,17 +22,13 @@ void _debug(const char* s) {
 
 #define ARRAY_BUF 16
 
-static inline void _array_init(m_array_t* array) { 
+extern inline void array_init(m_array_t* array) { 
 	array->items = NULL; 
 	array->size = 0; 
 	array->max = 0; 
 }
 
-void array_init(m_array_t* array) { 
-	_array_init(array);
-}
-
-static inline void _array_add(m_array_t* array, void* item) {
+extern inline void array_add(m_array_t* array, void* item) {
 	int new_size = array->size + 1; 
 	if(array->max <= new_size) { 
 		new_size = array->size + ARRAY_BUF; /*ARRAY BUF for buffer*/ 
@@ -44,15 +40,11 @@ static inline void _array_add(m_array_t* array, void* item) {
 	array->items[array->size] = NULL; 
 }
 
-void array_add(m_array_t* array, void* item) {
-	_array_add(array, item);
-}
-
 void* array_add_buf(m_array_t* array, void* s, uint32_t sz) {
 	void* item = _malloc(sz);
 	if(s != NULL)
 		memcpy(item, s, sz);
-	_array_add(array, item);
+	array_add(array, item);
 	return item;
 }
 
@@ -112,7 +104,7 @@ void array_remove_all(m_array_t* array) { //remove all items bot not free them.
 	array->max = array->size = 0;
 }
 
-static inline void _array_clean(m_array_t* array, free_func_t fr) { //remove all items and free them.
+extern inline void array_clean(m_array_t* array, free_func_t fr) { //remove all items and free them.
 	if(array->items != NULL) {
 		int i;
 		for(i=0; i<array->size; i++) {
@@ -128,10 +120,6 @@ static inline void _array_clean(m_array_t* array, free_func_t fr) { //remove all
 		array->items = NULL;
 	}
 	array->max = array->size = 0;
-}
-
-void array_clean(m_array_t* array, free_func_t fr) { //remove all items and free them.
-	_array_clean(array, fr);
 }
 
 /** str functions.-----------------------------*/
@@ -261,7 +249,7 @@ void str_split(const char* str, char c, m_array_t* array) {
 			char* p = (char*)_malloc(i+1);
 			memcpy(p, str, i+1);
 			p[i] = 0;
-			_array_add(array, p);
+			array_add(array, p);
 			if(offc == 0)
 				break;
 
@@ -934,7 +922,7 @@ uint16_t bc_getstrindex(bytecode_t* bc, const char* str) {
 	uint32_t len = strlen(str);
 	char* p = (char*)_malloc(len + 1);
 	memcpy(p, str, len+1);
-	_array_add(&bc->strTable, p);
+	array_add(&bc->strTable, p);
 	return sz;
 }	
 
@@ -942,13 +930,13 @@ void bc_init(bytecode_t* bc) {
 	bc->cindex = 0;
 	bc->codeBuf = NULL;
 	bc->bufSize = 0;
-	_array_init(&bc->strTable);
+	array_init(&bc->strTable);
 
 	_thisStrIndex = bc_getstrindex(bc, THIS);
 }
 
 void bc_release(bytecode_t* bc) {
-	_array_clean(&bc->strTable, NULL);
+	array_clean(&bc->strTable, NULL);
 	if(bc->codeBuf != NULL)
 		_free(bc->codeBuf);
 }
@@ -1484,7 +1472,7 @@ bool factor(lex_t* l, bytecode_t* bc) {
 		if(!lex_chkread(l, LEX_ID)) return false;
 
 		m_array_t names;
-		_array_init(&names);
+		array_init(&names);
 
 		bool load = true;
 		while (l->tk=='(' || l->tk=='.' || l->tk=='[') {
@@ -1511,7 +1499,7 @@ bool factor(lex_t* l, bytecode_t* bc) {
 					bc_gen_str(bc, INSTR_CALLO, s->cstr);	
 				}
 				load = false;
-				_array_clean(&names, NULL);
+				array_clean(&names, NULL);
 				str_free(s);
 			} 
 			else if (l->tk == '.') { // ------------------------------------- Record Access
@@ -1535,7 +1523,7 @@ bool factor(lex_t* l, bytecode_t* bc) {
 					bc_gen_str(bc, load ? INSTR_LOAD:INSTR_GET, (const char*)names.items[i]);	
 					load = false;
 				}
-				_array_clean(&names, NULL);
+				array_clean(&names, NULL);
 
 				if(!lex_chkread(l, '[')) return false;
 				if(!base(l, bc)) return false;
@@ -1553,7 +1541,7 @@ bool factor(lex_t* l, bytecode_t* bc) {
 				bc_gen_str(bc, load ? INSTR_LOAD:INSTR_GET, (const char*)names.items[i]);	
 				load = false;
 			}
-			_array_clean(&names, NULL);
+			array_clean(&names, NULL);
 		}
 		str_free(name);
 	}
@@ -2062,20 +2050,24 @@ void node_free(void* p) {
 	_free(node);
 }
 
-var_t* node_replace(node_t* node, var_t* v) {
-	var_t* old = node->var;
-	node->var = var_ref(v);
-	var_unref(old, true);
+extern inline var_t* node_replace(node_t* node, var_t* v) {
+	if(node->var->type == V_INT && v->type == V_INT) {
+		*(int*)(node->var->value) = *(int*)(v->value);
+	}
+	else if(node->var->type == V_FLOAT && v->type == V_FLOAT) {
+		*(float*)(node->var->value) = *(float*)(v->value);
+	}
+	else {
+		var_t* old = node->var;
+		node->var = var_ref(v);
+		var_unref(old, true);
+	}
 	return node->var;
 }
 
-static inline void _var_remove_all(var_t* var) {
+extern inline void var_remove_all(var_t* var) {
 	/*free children*/
-	_array_clean(&var->children, node_free);
-}
-
-void var_remove_all(var_t* var) {
-	_var_remove_all(var);
+	array_clean(&var->children, node_free);
 }
 
 node_t* var_add(var_t* var, const char* name, var_t* add) {
@@ -2085,7 +2077,7 @@ node_t* var_add(var_t* var, const char* name, var_t* add) {
 			node_replace(node, add);
 		else 
 			var_ref(node->var);
-		_array_add(&var->children, node);
+		array_add(&var->children, node);
 	}
 	return node;
 }
@@ -2150,13 +2142,14 @@ node_t* var_get(var_t* var, int32_t index) {
 
 void func_free(void* p);
 
-static inline void _var_free(void* p) {
+extern inline void var_free(void* p) {
 	var_t* var = (var_t*)p;
 	if(var == NULL || var->refs > 0)
 		return;
 
 	/*free children*/
-	_var_remove_all(var);	
+	if(var->children.size > 0)
+		var_remove_all(var);	
 
 	/*free value*/
 	if(var->value != NULL) {
@@ -2169,18 +2162,21 @@ static inline void _var_free(void* p) {
 	_free(var);
 }
 
-void var_free(void *p) {
-	_var_free(p);
-}
-
-/*
-var_t* var_ref(var_t* var) {
+extern inline var_t* var_ref(var_t* var) {
 	if(var != NULL)
 		var->refs++;
 	return var;
 }
 
-var_t* var_new() {
+extern inline void var_unref(var_t* var, bool del) {
+	if(var != NULL) {
+		var->refs--;
+			if(var->refs <= 0 && del)
+				var_free(var);
+	}
+}
+
+extern inline var_t* var_new() {
 	var_t* var = (var_t*)_malloc(sizeof(var_t));
 	var->magic = 0;
 	var->refs = 0;
@@ -2189,18 +2185,17 @@ var_t* var_new() {
 
 	var->value = NULL;
 	var->freeFunc = NULL;
-	_array_init(&var->children);
+	array_init(&var->children);
 	return var;
 }
 
-var_t* var_new_int(int i) {
+extern inline var_t* var_new_int(int i) {
 	var_t* var = var_new();
 	var->type = V_INT;
 	var->value = _malloc(sizeof(int));
 	*((int*)var->value) = i;
 	return var;
 }
-*/
 
 var_t* var_new_obj(void*p, free_func_t fr) {
 	var_t* var = var_new();
@@ -2351,7 +2346,7 @@ void var_to_json_str(var_t* var, str_t* ret, int level) {
 	static m_array_t done;
 	if(level == 0) {
 		if(!_done_arr_inited) {		
-			_array_init(&done);
+			array_init(&done);
 			_done_arr_inited = true;
 		}
 		array_remove_all(&done);
@@ -2365,7 +2360,7 @@ void var_to_json_str(var_t* var, str_t* ret, int level) {
 			return;
 		}
 	}
-	_array_add(&done, var);
+	array_add(&done, var);
 
 	if (var->type == V_OBJECT) {
 		// children - handle with bracketed list
@@ -2572,16 +2567,28 @@ var_t* json_parse(const char* str) {
 /** Interpreter-----------------------------*/
 
 
+/*
 #define vm_push(vm, var) ({ \
 	var_t* __var_ = (var); \
 	var_ref(__var_); \
-	_array_add(&(vm)->stack, __var_);  \
+	array_add(&(vm)->stack, __var_);  \
 	})
 
 #define vm_push_node(vm, node) ({ \
 	node_t* _node_ = node; \
 	var_ref(_node_->var); \
-	_array_add(&(vm)->stack, _node_); })
+	array_add(&(vm)->stack, _node_); })
+*/
+
+static inline void vm_push(vm_t* vm, var_t* var) { 
+	var_ref(var);
+	array_add(&vm->stack, var);
+}
+
+static inline void vm_push_node(vm_t* vm, node_t* node) {
+	var_ref(node->var);
+	array_add(&vm->stack, node);
+}
 
 void vm_pop(vm_t* vm) {
 	int index = vm->stack.size-1;
@@ -2602,7 +2609,7 @@ void vm_pop(vm_t* vm) {
 	vm->stack.size--;
 }
 
-node_t* vm_pop2node(vm_t* vm) {
+static inline node_t* vm_pop2node(vm_t* vm) {
 	int index = vm->stack.size-1;
 	if(index < 0)
 		return NULL;
@@ -2692,7 +2699,7 @@ void vm_push_scope(vm_t* vm, scope_t* sc) {
 	scope_t* prev = NULL;
 	if(vm->scopes.size > 0)
 		prev = (scope_t*)array_tail(&vm->scopes);
-	_array_add(&vm->scopes, sc);	
+	array_add(&vm->scopes, sc);	
 	sc->prev = prev;
 }
 
@@ -2719,7 +2726,7 @@ void vm_stack_free(void* p) {
 	}
 	else {
 		var_t* var = (var_t*)p;
-		_var_free(var);
+		var_free(var);
 	}
 }
 
@@ -2781,7 +2788,7 @@ static inline node_t* vm_find_in_scopes(vm_t* vm, const char* name, int16_t name
 	return _var_find(vm->root, name, nameID);
 }
 
-node_t* vm_load_node(vm_t* vm, const char* name, int16_t nameID, bool create) {
+static inline node_t* vm_load_node(vm_t* vm, const char* name, int16_t nameID, bool create) {
 	node_t* n =  vm_find_in_scopes(vm, name, nameID);	
 	if(n != NULL)
 		return n;
@@ -2814,13 +2821,13 @@ func_t* func_new() {
 	func->pc = 0;
 	func->data = NULL;
 	func->owner = NULL;
-	_array_init(&func->args);
+	array_init(&func->args);
 	return func;
 }
 
 void func_free(void* p) {
 	func_t* func = (func_t*)p;
-	_array_clean(&func->args, NULL);
+	array_clean(&func->args, NULL);
 	_free(p);
 }
 
@@ -3079,6 +3086,9 @@ static inline void math_op(vm_t* vm, OprCode op, var_t* v1, var_t* v2) {
 	}
 }
 
+static var_t* _var_true;
+static var_t* _var_false;
+
 static inline void compare(vm_t* vm, OprCode op, var_t* v1, var_t* v2) {
 	//do int
 	if(v1->type == V_INT && v2->type == V_INT) {
@@ -3109,8 +3119,10 @@ static inline void compare(vm_t* vm, OprCode op, var_t* v1, var_t* v2) {
 				i = (i1 >= i2);
 				break; 
 		}
-		var_t* ret = var_new_int(i);
-		vm_push(vm, ret);
+		if(i)
+			vm_push(vm, _var_true);
+		else
+			vm_push(vm, _var_false);
 		return;
 	}
 
@@ -3174,8 +3186,11 @@ static inline void compare(vm_t* vm, OprCode op, var_t* v1, var_t* v2) {
 	else if(op == INSTR_NEQ || op == INSTR_NTEQ) {
 		i = true;
 	}
-	var_t* ret = var_new_int(i);
-	vm_push(vm, ret);
+
+	if(i)
+		vm_push(vm, _var_true);
+	else
+		vm_push(vm, _var_false);
 }
 
 void do_get(vm_t* vm, var_t* v, const char* name, int16_t nameID) {
@@ -3890,13 +3905,15 @@ bool vm_run(vm_t* vm) {
 
 void vm_close(vm_t* vm) {
 	var_unref(vm->root, true);
+	var_unref(_var_true, true);
+	var_unref(_var_false, true);
 
 	#ifdef MARIO_CACHE
 	var_cache_free();
 	#endif
 
-	_array_clean(&vm->scopes, NULL);	
-	_array_clean(&vm->stack, vm_stack_free);	
+	array_clean(&vm->scopes, NULL);	
+	array_clean(&vm->stack, vm_stack_free);	
 	bc_release(&vm->bc);
 }	
 
@@ -4026,8 +4043,13 @@ var_t* native_println(vm_t* vm, var_t* env, void* data) {
 void vm_init(vm_t* vm) {
 	vm->pc = 0;
 	bc_init(&vm->bc);
-	_array_init(&vm->stack);	
-	_array_init(&vm->scopes);	
+	array_init(&vm->stack);	
+	array_init(&vm->scopes);	
+
+	_var_true = var_new_int(true);
+	var_ref(_var_true);
+	_var_false = var_new_int(false);
+	var_ref(_var_false);
 
 	#ifdef MARIO_CACHE
 	var_cache_init(VAR_CACHE_MAX);

@@ -156,47 +156,11 @@ node_t* var_get(var_t* var, int32_t index);
 
 void var_free(void* p);
 
-//var_t* var_ref(var_t* var);
-//void var_unref(var_t* var);
+var_t* var_ref(var_t* var);
+void var_unref(var_t* var, bool del);
 
-#define var_unref(v, d) ({\
-	var_t* _var_ = (v); \
-	bool del = d; \
-	if(_var_ != NULL) { \
-		_var_->refs--; \
-		if(_var_->refs <= 0 && del) \
-			var_free(_var_); \
-	} \
-	})
-
-#define var_ref(var) ({ \
-	var_t* _var_ = (var); \
-	if(_var_ != NULL) \
-		_var_->refs++; \
-	_var_; })
-
-//var_t* var_new();
-//var_t* var_new_int(int i);
-
-#define var_new() ({ \
-	var_t* var = (var_t*)_malloc(sizeof(var_t)); \
-	var->magic = 0; \
-	var->refs = 0; \
-	var->type = V_UNDEF; \
-	var->size = 0; \
-	var->value = NULL; \
-	var->freeFunc = NULL; \
-	array_init(&var->children); \
-	var; })
-
-#define var_new_int(i) ({ \
-	int iv = i; \
-	var_t* var = var_new(); \
-	var->type = V_INT; \
-	var->value = _malloc(sizeof(int)); \
-	*((int*)var->value) = iv; \
-	var; })
-
+var_t* var_new();
+var_t* var_new_int(int i);
 var_t* var_new_obj(void*p, free_func_t fr);
 var_t* var_new_float(float i);
 var_t* var_new_str(const char* s);
