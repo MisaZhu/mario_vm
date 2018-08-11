@@ -133,10 +133,13 @@ typedef struct st_node {
 	var_t* var;
 } node_t;
 
+#define VM_STACK_MAX 32
+
 typedef struct st_vm {
 	bytecode_t bc;
 	m_array_t scopes;
-	m_array_t stack;
+	void* stack[VM_STACK_MAX];
+	int32_t stackTop;
 	PC pc;
 
 	var_t* root;

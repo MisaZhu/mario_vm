@@ -31,7 +31,7 @@ extern inline void array_init(m_array_t* array) {
 extern inline void array_add(m_array_t* array, void* item) {
 	int new_size = array->size + 1; 
 	if(array->max <= new_size) { 
-		new_size = array->size + ARRAY_BUF; /*ARRAY BUF for buffer*/ 
+		new_size = array->size + ARRAY_BUF;
 		array->items = (void**)_realloc(array->items, new_size*sizeof(void*)); 
 		array->max = new_size; 
 	} 
@@ -2427,13 +2427,16 @@ void var_to_json_str(var_t* var, str_t* ret, int level) {
 
 #ifdef MARIO_CACHE
 
-static var_t** _var_cache = NULL;
-static uint32_t _var_cache_used = 0;
-static uint32_t _var_cache_size = 0;
+#define VAR_CACHE_MAX 32
 
-void var_cache_init(uint16_t size) {
-	_var_cache_size = size;	
-	_var_cache = (var_t**)_malloc(sizeof(var_t*) * size);
+static var_t* _var_cache[VAR_CACHE_MAX];
+static uint32_t _var_cache_used = 0;
+
+void var_cache_init() {
+	uint32_t i;
+	for(i=0; i<_var_cache_used; ++i) {
+		_var_cache[i] = NULL;
+	}
 	_var_cache_used = 0;	
 }
 
@@ -2442,13 +2445,13 @@ void var_cache_free() {
 	for(i=0; i<_var_cache_used; ++i) {
 		var_t* v = _var_cache[i];
 		var_unref(v, true);
+		_var_cache[i] = NULL;
 	}
-	_free(_var_cache);
 	_var_cache_used = 0;	
 }
 
 int32_t var_cache(var_t* v) {
-	if(_var_cache_used >= _var_cache_size)
+	if(_var_cache_used >= VAR_CACHE_MAX)
 		return -1;
 	_var_cache[_var_cache_used] = var_ref(v);
 	_var_cache_used++;
@@ -2468,6 +2471,54 @@ bool try_cache(PC* ins, var_t* v) {
 }
 
 #define get_cache(index) _var_cache[index]
+
+
+typedef struct st_node_cache_t {
+	node_t* node;
+	var_t* sc_var;
+} node_cache_t;
+
+#define NODE_CACHE_MAX 16
+
+static node_cache_t _node_cache[NODE_CACHE_MAX];
+
+void node_cache_init() {
+	int i; 
+	for(i=0; i<NODE_CACHE_MAX; ++i) {
+		_node_cache[i].node = NULL;
+		_node_cache[i].sc_var = NULL;
+	}
+}
+
+int node_cache(var_t* sc_var, node_t* node) {
+	int i; 
+
+	for(i=0; i<NODE_CACHE_MAX; ++i) {
+		if(_node_cache[i].node == node &&
+				_node_cache[i].sc_var == sc_var)
+			return i;
+	}
+
+	for(i=0; i<NODE_CACHE_MAX; ++i) {
+		if(_node_cache[i].node == NULL) {
+			_node_cache[i].node = node;
+			_node_cache[i].sc_var = sc_var;
+			return i;
+		}
+	}
+	return -1;
+}
+
+void node_uncache(node_t* node) {
+	int i; 
+	for(i=0; i<NODE_CACHE_MAX; ++i) {
+		if(_node_cache[i].node == node) {
+			_node_cache[i].node = NULL;
+			_node_cache[i].sc_var = NULL;
+		}
+	}
+}
+
 
 #endif
 
@@ -2561,91 +2612,92 @@ var_t* json_parse(const char* str) {
 
 /** Interpreter-----------------------------*/
 
-
-/*
-#define vm_push(vm, var) ({ \
-	var_t* __var_ = (var); \
-	var_ref(__var_); \
-	array_add(&(vm)->stack, __var_);  \
-	})
-
-#define vm_push_node(vm, node) ({ \
-	node_t* _node_ = node; \
-	var_ref(_node_->var); \
-	array_add(&(vm)->stack, _node_); })
-*/
-
 static inline void vm_push(vm_t* vm, var_t* var) { 
 	var_ref(var);
-	array_add(&vm->stack, var);
+	if(vm->stackTop < VM_STACK_MAX) {
+		vm->stack[vm->stackTop++] = var;
+	}
+	else 
+		_debug("Panic: stack overflow!\n");	
 }
 
 static inline void vm_push_node(vm_t* vm, node_t* node) {
 	var_ref(node->var);
-	array_add(&vm->stack, node);
+	if(vm->stackTop < VM_STACK_MAX)
+		vm->stack[vm->stackTop++] = node;
+	else 
+		_debug("Panic: stack overflow!\n");	
 }
 
-void vm_pop(vm_t* vm) {
-	int index = vm->stack.size-1;
-	if(index < 0)
-		return;
+static inline var_t* vm_pop2(vm_t* vm) {
+	void *p = NULL;
+	/*if(vm->stackTop <= 0)
+		return NULL;
+	*/
 
-	int8_t magic = *(int8_t*)vm->stack.items[index];
-	if(magic == 0) {//var
-		var_t* var = (var_t*)vm->stack.items[index];
+	vm->stackTop--;
+	p = vm->stack[vm->stackTop];
+	int8_t magic = *(int8_t*)p;
+	//var
+	if(magic == 0) {
+		return(var_t*)p;
+	}
+
+	//node
+	node_t* node = (node_t*)p;
+	if(node != NULL)
+		return node->var;
+
+	return NULL;
+}
+
+static inline void vm_pop(vm_t* vm) {
+	var_t* var = vm_pop2(vm);
+	if(var != NULL)
 		var_unref(var, true);
-	}
-	else { //node
-		node_t* node = (node_t*)vm->stack.items[index];
-		if(node != NULL)
-			var_unref(node->var, true);
-	}
-	vm->stack.items[index] = NULL;
-	vm->stack.size--;
 }
 
 static inline node_t* vm_pop2node(vm_t* vm) {
-	int index = vm->stack.size-1;
-	if(index < 0)
+	void *p = NULL;
+	/*if(vm->stackTop <= 0) 
 		return NULL;
+	*/
 
-	int8_t magic = *(int8_t*)vm->stack.items[index];
-	if(magic != 1) //not node!
+	vm->stackTop--;
+	p = vm->stack[vm->stackTop];
+	int8_t magic = *(int8_t*)p;
+	if(magic != 1) {//not node!
 		return NULL;
+	}
 
-	node_t* node = (node_t*)vm->stack.items[index];
-	vm->stack.items[index] = NULL;
-	vm->stack.size--;
-	return node;
+	return (node_t*)p;
 }
 
-//var_t* vm_pop2(vm_t* vm) {
-#define  vm_pop2(vm) ({\
-	int index = (vm)->stack.size-1; \
-	if(index < 0) \
-		NULL; \
-	void* p = (vm)->stack.items[index]; \
-	int8_t magic = *(int8_t*)p; \
-	var_t* var; \
-	if(magic == 1) \
-		var = ((node_t*)p)->var; \
-	else  \
-		var = (var_t*)p; \
-	(vm)->stack.items[index] = NULL; \
-	(vm)->stack.size--; \
-	var; })\
-
 var_t* vm_stack_pick(vm_t* vm, int depth) {
-	int index = (int)vm->stack.size-depth;
+	int index = vm->stackTop - depth;
 	if(index < 0)
 		return NULL;
 
-	int8_t magic = *(int8_t*)vm->stack.items[index];
+	void* p = vm->stack[index];
+	var_t* ret = NULL;
+	if(p == NULL)
+		return ret;
+
+	int8_t magic = *(int8_t*)p;
 	if(magic == 1) {//node
-		node_t* node = (node_t*)array_remove(&vm->stack, index);
-		return node->var;
+		node_t* node = (node_t*)p;
+		ret = node->var;
 	}
-	return (var_t*)array_remove(&vm->stack, index);
+	else {
+		ret = (var_t*)p;
+	}
+
+	vm->stackTop--;
+	int i;
+	for(i=index; i<vm->stackTop; ++i) {
+		vm->stack[i] = vm->stack[i+1];
+	}
+	return ret;
 }
 
 //scope of vm runing
@@ -3662,19 +3714,36 @@ void vm_run_code(vm_t* vm) {
 			case INSTR_LOAD: 
 			{
 				bool loaded = false;
-				if(offset == _thisStrIndex) {
-					var_t* v = vm_get_scope_var(vm, true);
-					if(v->type == V_OBJECT) {
-						vm_push(vm, v);
+				var_t* sc_var = vm_get_scope_var(vm, true);
+
+				if((ins & INSTR_NEED_IMPROVE) != 0) { //try cached.
+					node_t* n = _node_cache[offset].node;
+					if(_node_cache[offset].sc_var == sc_var) { //cached
+						vm_push_node(vm, n);
 						loaded = true;
+					}
+					else {
+						offset = n->nameID;
 					}
 				}
 
-				if(!loaded) {
-					const char* s = bc_getstr(&vm->bc, offset);
-					node_t* n = vm_load_node(vm, s, offset, true); //load variable, create if not exist.
-					//node_t* n = vm_load_node(vm, s, -1, true); //load variable, create if not exist.
-					vm_push_node(vm, n);
+				if(!loaded) { //not cached.
+					if(offset == _thisStrIndex) {
+						if(sc_var->type == V_OBJECT) {
+							vm_push(vm, sc_var);
+							loaded = true;
+						}
+					}
+
+					if(!loaded) {
+						const char* s = bc_getstr(&vm->bc, offset);
+						node_t* n = vm_load_node(vm, s, offset, true); //load variable, create if not exist.
+						vm_push_node(vm, n);
+						int cache_id = node_cache(sc_var, n);
+						if(cache_id >= 0) {
+							code[vm->pc-1] = INSTR_NEED_IMPROVE | ( INSTR_LOAD << 16 ) | cache_id;
+						}
+					}
 				}
 				break;
 			}
@@ -3907,8 +3976,8 @@ void vm_close(vm_t* vm) {
 	#endif
 
 	array_clean(&vm->scopes, NULL);	
-	array_clean(&vm->stack, vm_stack_free);	
 	bc_release(&vm->bc);
+	vm->stackTop = 0;
 }	
 
 /** native extended functions.-----------------------------*/
@@ -4032,12 +4101,12 @@ var_t* native_println(vm_t* vm, var_t* env, void* data) {
 	return NULL;
 }
 
-#define VAR_CACHE_MAX 32
 
 void vm_init(vm_t* vm) {
 	vm->pc = 0;
+	vm->stackTop = 0;
+
 	bc_init(&vm->bc);
-	array_init(&vm->stack);	
 	array_init(&vm->scopes);	
 
 	_var_true = var_new_int(true);
@@ -4050,7 +4119,8 @@ void vm_init(vm_t* vm) {
 	var_ref(_var_float);
 
 	#ifdef MARIO_CACHE
-	var_cache_init(VAR_CACHE_MAX);
+	var_cache_init();
+	node_cache_init();
 	#endif
 
 	vm->root = var_new_obj(NULL, NULL);
