@@ -1902,16 +1902,16 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 	}
 	else if (l->tk == LEX_R_WHILE) {
 		if(!lex_chkread(l, LEX_R_WHILE)) return false;
-		bc_gen(bc, INSTR_BLOCK);
+		PC pc = bc_gen(bc, INSTR_BLOCK);
+		bc_add_instr(bc, pc, INSTR_JMP, pc+2); //jmp to loop(skip the next jump instruction).
+		PC pcb = bc_reserve(bc); //jump out of loop (for break anchor);
 
 		if(!lex_chkread(l, '(')) return false;
 		PC cpc = bc->cindex; //continue anchor
 		if(!base(l, bc)) return false; //condition
 		if(!lex_chkread(l, ')')) return false;
 
-		PC pc = bc_reserve(bc); //njmp on condition
-		bc_add_instr(bc, pc, INSTR_JMP, pc+2); //jmp to loop(skip the next jump instruction).
-		PC pcb = bc_reserve(bc); //jump out of loop (for break anchor);
+		pc = bc_reserve(bc); //njmp on condition
 		
 		loop_t lp;
 		lp.continueAnchor = cpc;
@@ -1928,7 +1928,9 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 	}
 	else if (l->tk==LEX_R_FOR) {
 		if(!lex_chkread(l, LEX_R_FOR)) return false;
-		bc_gen(bc, INSTR_BLOCK);
+		PC pc = bc_gen(bc, INSTR_BLOCK);
+		bc_add_instr(bc, pc, INSTR_JMP, pc+2); //jmp to loop(skip the next jump instruction).
+		PC pcb = bc_reserve(bc); //jump out of loop (for break anchor);
 
 		if(!lex_chkread(l, '(')) return false;
 		if(!statement(l, bc, true, NULL)) //init statement
@@ -1938,7 +1940,7 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 		if(!base(l, bc)) //condition
 			return false; 
 		if(!lex_chkread(l, ';')) return false;
-		PC pc = bc_reserve(bc); //njmp on condition for jump out of loop.
+		pc = bc_reserve(bc); //njmp on condition for jump out of loop.
 		PC lpc = bc_reserve(bc); //jmp to loop(skip iterator part).
 
 		PC ipc = bc->cindex;  //iterator anchor;
@@ -1947,8 +1949,6 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 		if(!lex_chkread(l, ')')) return false;
 		bc_gen(bc, INSTR_POP); //pop the stack.
 		bc_add_instr(bc, cpc, INSTR_JMPB, ILLEGAL_PC); //jump to coninue anchor;
-
-		PC pcb = bc_reserve(bc); //jump out of loop (for break anchor);
 
 		loop_t lp;
 		lp.continueAnchor = cpc;
