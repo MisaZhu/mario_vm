@@ -2158,17 +2158,17 @@ extern inline void var_free(void* p) {
 }
 
 extern inline var_t* var_ref(var_t* var) {
-	if(var != NULL)
+//	if(var != NULL)
 		var->refs++;
 	return var;
 }
 
 extern inline void var_unref(var_t* var, bool del) {
-	if(var != NULL) {
+//	if(var != NULL) {
 		var->refs--;
 			if(var->refs <= 0 && del)
 				var_free(var);
-	}
+//	}
 }
 
 extern inline var_t* var_new() {
@@ -3736,7 +3736,8 @@ void vm_run_code(vm_t* vm) {
 					_debug(s);
 					_debug("'!\n");
 				}
-				var_unref(obj, true);
+				if(obj != NULL)
+					var_unref(obj, true);
 				break;
 			}
 			case INSTR_MEMBER: 
