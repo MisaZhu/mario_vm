@@ -54,11 +54,7 @@ extern inline void* array_get(m_array_t* array, uint32_t index) {
 	return array->items[index];
 }
 
-extern inline void* array_tail(m_array_t* array) {
-	if(array->items == NULL || array->size == 0)
-		return NULL;
-	return array->items[array->size-1];
-}
+#define array_tail(array) (((array)->items == NULL || (array)->size == 0) ? NULL: (array)->items[(array)->size-1]);
 
 extern inline void* array_head(m_array_t* array) {
 	if(array->items == NULL || array->size == 0)
@@ -2130,19 +2126,20 @@ extern inline void var_free(void* p) {
 	_free(var);
 }
 
-extern inline var_t* var_ref(var_t* var) {
+/*extern inline var_t* var_ref(var_t* var) {
 //	if(var != NULL)
-		var->refs++;
+		++var->refs;
 	return var;
 }
 
 extern inline void var_unref(var_t* var, bool del) {
 //	if(var != NULL) {
-		var->refs--;
+		--var->refs;
 			if(var->refs <= 0 && del)
 				var_free(var);
 //	}
 }
+*/
 
 extern inline var_t* var_new() {
 	var_t* var = (var_t*)_malloc(sizeof(var_t));
@@ -2587,29 +2584,22 @@ var_t* json_parse(const char* str) {
 
 /** Interpreter-----------------------------*/
 
-static inline void vm_push(vm_t* vm, var_t* var) { 
-	var_ref(var);
-	if(vm->stackTop < VM_STACK_MAX) {
-		vm->stack[vm->stackTop++] = var;
-	}
-	else 
-		_debug("Panic: stack overflow!\n");	
-}
+#define vm_push(vm, var) ({  \
+	var_ref((var)); \
+	if((vm)->stackTop < VM_STACK_MAX) { \
+		(vm)->stack[(vm)->stackTop++] = (var); \
+	} \
+})
 
-static inline void vm_push_node(vm_t* vm, node_t* node) {
-	var_ref(node->var);
-	if(vm->stackTop < VM_STACK_MAX)
-		vm->stack[vm->stackTop++] = node;
-	else 
-		_debug("Panic: stack overflow!\n");	
-}
+#define vm_push_node(vm, node) ({ \
+	var_ref((node)->var); \
+	if((vm)->stackTop < VM_STACK_MAX) \
+		(vm)->stack[(vm)->stackTop++] = (node); \
+})
 
+/*
 static inline var_t* vm_pop2(vm_t* vm) {
 	void *p = NULL;
-	/*if(vm->stackTop <= 0)
-		return NULL;
-	*/
-
 	vm->stackTop--;
 	p = vm->stack[vm->stackTop];
 	int8_t magic = *(int8_t*)p;
@@ -2625,6 +2615,25 @@ static inline var_t* vm_pop2(vm_t* vm) {
 
 	return NULL;
 }
+*/
+
+#define vm_pop2(vm) ({ \
+	(vm)->stackTop--; \
+	void* p = (vm)->stack[(vm)->stackTop]; \
+	int8_t magic = *(int8_t*)p; \
+	var_t* ret = NULL; \
+	if(magic == 0) { \
+		ret = (var_t*)p; \
+	} \
+	else { \
+	node_t* node = (node_t*)p; \
+	if(node != NULL) \
+		ret = node->var; \
+	else \
+		ret = NULL; \
+	} \
+	ret; \
+})
 
 static inline void vm_pop(vm_t* vm) {
 	var_t* var = vm_pop2(vm);
@@ -2707,15 +2716,17 @@ void scope_free(void* p) {
 
 #define vm_get_scope(vm) (scope_t*)array_tail(&(vm)->scopes)
 
-var_t* vm_get_scope_var(vm_t* vm, bool skipBlock) {
-	scope_t* sc = (scope_t*)array_tail(&vm->scopes);
-	if(skipBlock && sc != NULL && sc->isBlock) //skip blocks
-		sc = sc->prev;
-
-	if(sc == NULL)
-		return vm->root;
-	return sc->var;	
-}
+#define vm_get_scope_var(vm, skipBlock) ({ \
+	scope_t* sc = (scope_t*)array_tail(&(vm)->scopes); \
+	if((skipBlock) && sc != NULL && sc->isBlock) \
+		sc = sc->prev; \
+	var_t* ret; \
+	if(sc == NULL) \
+		ret = (vm)->root; \
+	else \
+		ret = sc->var; \
+	ret; \
+})
 
 void vm_push_scope(vm_t* vm, scope_t* sc) {
 	scope_t* prev = NULL;
@@ -3116,7 +3127,7 @@ static var_t* _var_false;
 static inline void compare(vm_t* vm, OprCode op, var_t* v1, var_t* v2) {
 	//do int
 	if(v1->type == V_INT && v2->type == V_INT) {
-		int i1, i2;
+		register int i1, i2;
 		i1 = *(int*)v1->value;
 		i2 = *(int*)v2->value;
 
@@ -3151,7 +3162,7 @@ static inline void compare(vm_t* vm, OprCode op, var_t* v1, var_t* v2) {
 	}
 
 	
-	float f1, f2;
+	register float f1, f2;
 	if(v1->value == NULL)
 		f1 = 0.0;
 	else if(v1->type == V_FLOAT)
@@ -3314,18 +3325,94 @@ void do_new(vm_t* vm, const char* full) {
 
 void vm_run_code(vm_t* vm) {
 	//int32_t scDeep = vm->scopes.size;
-	PC codeSize = vm->bc.cindex;
-	PC* code = vm->bc.codeBuf;
+	register PC codeSize = vm->bc.cindex;
+	register PC* code = vm->bc.codeBuf;
 
-	while(vm->pc < codeSize) {
-		PC ins = code[vm->pc++];
-		OprCode instr = OP(ins);
-		OprCode offset = ins & 0x0000FFFF;
+	do {
+		register PC ins = code[vm->pc++];
+		register OprCode instr = OP(ins);
+		register OprCode offset = ins & 0x0000FFFF;
 
 		if(instr == INSTR_END)
 			break;
 		
 		switch(instr) {
+			case INSTR_JMP: 
+			{
+				vm->pc = vm->pc + offset - 1;
+				break;
+			}
+			case INSTR_JMPB: 
+			{
+				vm->pc = vm->pc - offset - 1;
+				break;
+			}
+			case INSTR_NJMP: 
+			{
+				var_t* v = vm_pop2(vm);
+				if(v != NULL) {
+					if(v->type == V_UNDEF ||
+							v->value == NULL ||
+							*(int*)(v->value) == 0)
+						vm->pc = vm->pc + offset - 1;
+					var_unref(v, true);
+				}
+				break;
+			}
+			case INSTR_LOAD: 
+			{
+				bool loaded = false;
+				var_t* sc_var = vm_get_scope_var(vm, true);
+
+				if((ins & INSTR_NEED_IMPROVE) != 0) { //try cached.
+					node_t* n = _node_cache[offset].node;
+					if(_node_cache[offset].sc_var == sc_var) { //cached
+						vm_push_node(vm, n);
+						loaded = true;
+					}
+					else {
+						offset = _node_cache[offset].name_id;
+					}
+				}
+
+				if(!loaded) { //not cached.
+					if(offset == _thisStrIndex) {
+						if(sc_var->type == V_OBJECT) {
+							vm_push(vm, sc_var);
+							loaded = true;
+						}
+					}
+
+					if(!loaded) {
+						const char* s = bc_getstr(&vm->bc, offset);
+						node_t* n = vm_load_node(vm, s, true); //load variable, create if not exist.
+						vm_push_node(vm, n);
+						int cache_id = node_cache(sc_var, n, offset);
+						if(cache_id >= 0) {
+							code[vm->pc-1] = INSTR_NEED_IMPROVE | ( INSTR_LOAD << 16 ) | cache_id;
+						}
+					}
+				}
+				break;
+			}
+			case INSTR_LES: 
+			case INSTR_EQ: 
+			case INSTR_NEQ: 
+			case INSTR_TEQ:
+			case INSTR_NTEQ:
+			case INSTR_GRT: 
+			case INSTR_LEQ: 
+			case INSTR_GEQ: 
+			{
+				var_t* v2 = vm_pop2(vm);
+				var_t* v1 = vm_pop2(vm);
+				if(v1 != NULL && v2 != NULL) {
+					compare(vm, instr, v1, v2);
+					var_unref(v1, true);
+					var_unref(v2, true);
+				}
+				break;
+			}
 			case INSTR_NIL: {	break; }
 			case INSTR_BLOCK: 
 			{
@@ -3376,28 +3463,6 @@ void vm_run_code(vm_t* vm) {
 				vm_pop(vm);
 				break;
 			}
-			case INSTR_JMP: 
-			{
-				vm->pc = vm->pc + offset - 1;
-				break;
-			}
-			case INSTR_JMPB: 
-			{
-				vm->pc = vm->pc - offset - 1;
-				break;
-			}
-			case INSTR_NJMP: 
-			{
-				var_t* v = vm_pop2(vm);
-				if(v != NULL) {
-					if(v->type == V_UNDEF ||
-							v->value == NULL ||
-							*(int*)(v->value) == 0)
-						vm->pc = vm->pc + offset - 1;
-					var_unref(v, true);
-				}
-				break;
-			}
 			case INSTR_NEG: 
 			{
 				var_t* v = vm_pop2(vm);
@@ -3425,24 +3490,6 @@ void vm_run_code(vm_t* vm) {
 						i = 1;
 					var_unref(v, true);
 					vm_push(vm, var_new_int(i));
-				}
-				break;
-			}
-			case INSTR_EQ: 
-			case INSTR_NEQ: 
-			case INSTR_TEQ:
-			case INSTR_NTEQ:
-			case INSTR_LES: 
-			case INSTR_GRT: 
-			case INSTR_LEQ: 
-			case INSTR_GEQ: 
-			{
-				var_t* v2 = vm_pop2(vm);
-				var_t* v1 = vm_pop2(vm);
-				if(v1 != NULL && v2 != NULL) {
-					compare(vm, instr, v1, v2);
-					var_unref(v1, true);
-					var_unref(v2, true);
 				}
 				break;
 			}
@@ -3684,42 +3731,6 @@ void vm_run_code(vm_t* vm) {
 				}
 				break;
 			}
-			case INSTR_LOAD: 
-			{
-				bool loaded = false;
-				var_t* sc_var = vm_get_scope_var(vm, true);
-
-				if((ins & INSTR_NEED_IMPROVE) != 0) { //try cached.
-					node_t* n = _node_cache[offset].node;
-					if(_node_cache[offset].sc_var == sc_var) { //cached
-						vm_push_node(vm, n);
-						loaded = true;
-					}
-					else {
-						offset = _node_cache[offset].name_id;
-					}
-				}
-
-				if(!loaded) { //not cached.
-					if(offset == _thisStrIndex) {
-						if(sc_var->type == V_OBJECT) {
-							vm_push(vm, sc_var);
-							loaded = true;
-						}
-					}
-
-					if(!loaded) {
-						const char* s = bc_getstr(&vm->bc, offset);
-						node_t* n = vm_load_node(vm, s, true); //load variable, create if not exist.
-						vm_push_node(vm, n);
-						int cache_id = node_cache(sc_var, n, offset);
-						if(cache_id >= 0) {
-							code[vm->pc-1] = INSTR_NEED_IMPROVE | ( INSTR_LOAD << 16 ) | cache_id;
-						}
-					}
-				}
-				break;
-			}
 			case INSTR_GET: 
 			{
 				const char* s = bc_getstr(&vm->bc, offset);
@@ -3923,6 +3934,7 @@ void vm_run_code(vm_t* vm) {
 			*/
 		}
 	}
+	while(vm->pc < codeSize);
 }
 
 bool vm_load(vm_t* vm, const char* s) {

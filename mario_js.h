@@ -158,8 +158,11 @@ node_t* var_get(var_t* var, int32_t index);
 
 void var_free(void* p);
 
-var_t* var_ref(var_t* var);
-void var_unref(var_t* var, bool del);
+//var_t* var_ref(var_t* var);
+//void var_unref(var_t* var, bool del);
+
+#define var_ref(var) ({ ++(var)->refs; var; })
+#define var_unref(var, del) ({ --(var)->refs; if((var)->refs <= 0 && (del)) var_free((var)); })
 
 var_t* var_new();
 var_t* var_new_int(int i);
