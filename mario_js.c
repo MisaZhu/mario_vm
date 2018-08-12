@@ -3364,6 +3364,7 @@ void vm_run_code(vm_t* vm) {
 				bool loaded = false;
 				var_t* sc_var = vm_get_scope_var(vm, true);
 
+				#ifdef MARIO_CACHE
 				if((ins & INSTR_NEED_IMPROVE) != 0) { //try cached.
 					node_t* n = _node_cache[offset].node;
 					if(_node_cache[offset].sc_var == sc_var) { //cached
@@ -3374,6 +3375,7 @@ void vm_run_code(vm_t* vm) {
 						offset = _node_cache[offset].name_id;
 					}
 				}
+				#endif
 
 				if(!loaded) { //not cached.
 					if(offset == _thisStrIndex) {
@@ -3387,10 +3389,13 @@ void vm_run_code(vm_t* vm) {
 						const char* s = bc_getstr(&vm->bc, offset);
 						node_t* n = vm_load_node(vm, s, true); //load variable, create if not exist.
 						vm_push_node(vm, n);
+
+						#ifdef MARIO_CACHE
 						int cache_id = node_cache(sc_var, n, offset);
 						if(cache_id >= 0) {
 							code[vm->pc-1] = INSTR_NEED_IMPROVE | ( INSTR_LOAD << 16 ) | cache_id;
 						}
+						#endif
 					}
 				}
 				break;
