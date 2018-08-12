@@ -129,7 +129,6 @@ typedef struct st_node {
 	int16_t magic: 8; //1 for node
   int16_t beConst : 8;
 	char* name;
-	int16_t nameID;
 	var_t* var;
 } node_t;
 
