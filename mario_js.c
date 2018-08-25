@@ -3546,12 +3546,17 @@ void vm_run_code(vm_t* vm) {
 				var_t* v = vm_pop2(vm);
 				if(v != NULL) {
 					int *i = (int*)v->value;
-					(*i)--;
-					if((ins & INSTR_NEED_IMPROVE) == 0) {
-						if(OP(code[vm->pc]) != INSTR_POP) { 
-							vm_push(vm, v);
+					if(i != NULL) {
+						(*i)--;
+						if((ins & INSTR_NEED_IMPROVE) == 0) {
+							if(OP(code[vm->pc]) != INSTR_POP) { 
+								vm_push(vm, v);
+							}
+							else { code[vm->pc] = INSTR_NIL; code[vm->pc-1] |= INSTR_NEED_IMPROVE; }
 						}
-						else { code[vm->pc] = INSTR_NIL; code[vm->pc-1] |= INSTR_NEED_IMPROVE; }
+					}
+					else {
+						vm_push(vm, v);
 					}
 					var_unref(v, true);
 				}
@@ -3562,18 +3567,23 @@ void vm_run_code(vm_t* vm) {
 				var_t* v = vm_pop2(vm);
 				if(v != NULL) {
 					int *i = (int*)v->value;
-					if((ins & INSTR_NEED_IMPROVE) == 0) {
-						var_t* v2 = var_new_int(*i);
-						if(OP(code[vm->pc]) != INSTR_POP) {
-							vm_push(vm, v2);
+					if(i != NULL) {
+						if((ins & INSTR_NEED_IMPROVE) == 0) {
+							var_t* v2 = var_new_int(*i);
+							if(OP(code[vm->pc]) != INSTR_POP) {
+								vm_push(vm, v2);
+							}
+							else { 
+								code[vm->pc] = INSTR_NIL; 
+								code[vm->pc-1] |= INSTR_NEED_IMPROVE;
+								var_unref(v2, true);
+							}
 						}
-						else { 
-							code[vm->pc] = INSTR_NIL; 
-							code[vm->pc-1] |= INSTR_NEED_IMPROVE;
-							var_unref(v2, true);
-						}
+						(*i)--;
 					}
-					(*i)--;
+					else {
+						vm_push(vm, v);
+					}
 					var_unref(v, true);
 				}
 				break;
@@ -3583,13 +3593,18 @@ void vm_run_code(vm_t* vm) {
 				var_t* v = vm_pop2(vm);
 				if(v != NULL) {
 					int *i = (int*)v->value;
-					(*i)++;
-					
-					if((ins & INSTR_NEED_IMPROVE) == 0) {
-						if(OP(code[vm->pc]) != INSTR_POP) { 
-							vm_push(vm, v);
+					if(i != NULL) {
+						(*i)++;
+
+						if((ins & INSTR_NEED_IMPROVE) == 0) {
+							if(OP(code[vm->pc]) != INSTR_POP) { 
+								vm_push(vm, v);
+							}
+							else { code[vm->pc] = INSTR_NIL; code[vm->pc-1] |= INSTR_NEED_IMPROVE; }
 						}
-						else { code[vm->pc] = INSTR_NIL; code[vm->pc-1] |= INSTR_NEED_IMPROVE; }
+					}
+					else {
+						vm_push(vm, v);
 					}
 					var_unref(v, true);
 				}
@@ -3601,19 +3616,24 @@ void vm_run_code(vm_t* vm) {
 				var_t* v = vm_pop2(vm);
 				if(v != NULL) {
 					int *i = (int*)v->value;
-					if((ins & INSTR_NEED_IMPROVE) == 0) {
-						var_t* v2 = var_new_int(*i);
-						if(OP(code[vm->pc]) != INSTR_POP) {
-							vm_push(vm, v2);
+					if(i != NULL) {
+						if((ins & INSTR_NEED_IMPROVE) == 0) {
+							var_t* v2 = var_new_int(*i);
+							if(OP(code[vm->pc]) != INSTR_POP) {
+								vm_push(vm, v2);
+							}
+							else { 
+								code[vm->pc] = INSTR_NIL;
+								code[vm->pc-1] |= INSTR_NEED_IMPROVE; 
+								var_unref(v2, true);
+							}
 						}
-						else { 
-							code[vm->pc] = INSTR_NIL;
-							code[vm->pc-1] |= INSTR_NEED_IMPROVE; 
-							var_unref(v2, true);
-						}
-					}
 
-					(*i)++;
+						(*i)++;
+					}
+					else {
+						vm_push(vm, v);
+					}
 					var_unref(v, true);
 				}
 				break;
