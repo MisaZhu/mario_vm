@@ -2030,10 +2030,18 @@ node_t* node_new(const char* name) {
 	return node;
 }
 
+#ifdef MARIO_CACHE
+void node_uncache(node_t* node);
+#endif
+
 void node_free(void* p) {
 	node_t* node = (node_t*)p;
 	if(node == NULL)
 		return;
+
+#ifdef MARIO_CACHE
+	node_uncache(node);
+#endif
 
 	_free(node->name);
 	var_unref(node->var, true);
@@ -3422,7 +3430,7 @@ void vm_run_code(vm_t* vm) {
 				scope_t* bl = vm_get_scope(vm);
 				scope_t* sc = NULL;
 				if(bl != NULL)
-					sc = scope_new(bl->var, bl->pc);
+					sc = scope_new(var_new_obj(NULL, NULL), bl->pc);
 				else
 					sc = scope_new(var_new_obj(NULL, NULL), 0xFFFFFFFF);
 				sc->isBlock = true;
@@ -3681,9 +3689,10 @@ void vm_run_code(vm_t* vm) {
 				var_t* v = vm_get_scope_var(vm, false);
 				node_t *node = var_find(v, s);
 				if(node != NULL) { //find just in current scope
-					_debug("Warning: '");
+					_debug("Error: let '");
 					_debug(s);
 					_debug("' has already existed!\n");
+					vm->pc = codeSize; //exit.
 				}
 				else {
 					node = var_add(v, s, NULL);
