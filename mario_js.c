@@ -3664,7 +3664,6 @@ void vm_run_code(vm_t* vm) {
 				return;
 			}
 			case INSTR_VAR:
-			case INSTR_CONST: 
 			{
 				const char* s = bc_getstr(&vm->bc, offset);
 				node_t *node = vm_find(vm, s);
@@ -3678,12 +3677,11 @@ void vm_run_code(vm_t* vm) {
 					if(v != NULL) {
 						node = var_add(v, s, NULL);
 					}
-					if(node != NULL && instr == INSTR_CONST)
-						node->beConst = true;
 				}
 				break;
 			}
 			case INSTR_LET:
+			case INSTR_CONST: 
 			{
 				const char* s = bc_getstr(&vm->bc, offset);
 				var_t* v = vm_get_scope_var(vm, false);
@@ -3696,6 +3694,8 @@ void vm_run_code(vm_t* vm) {
 				}
 				else {
 					node = var_add(v, s, NULL);
+					if(node != NULL && instr == INSTR_CONST)
+						node->beConst = true;
 				}
 				break;
 			}
