@@ -4104,17 +4104,6 @@ var_t* native_print(vm_t* vm, var_t* env, void* data) {
 	return NULL;
 }
 
-/**println string*/
-var_t* native_println(vm_t* vm, var_t* env, void* data) {
-	(void)vm; (void)data;
-
-	const char* s = get_str(env, "str");
-	_debug(s);
-	_debug("\n");
-	return NULL;
-}
-
-
 void vm_init(vm_t* vm) {
 	vm->pc = 0;
 	vm->stackTop = 0;
@@ -4135,10 +4124,7 @@ void vm_init(vm_t* vm) {
 	vm->root = var_new_obj(NULL, NULL);
 	var_ref(vm->root);
 
-	vm_reg_native(vm, "Debug", "dump(var)", native_dump, NULL);
-	vm_reg_native(vm, "Debug", "print(str)", native_print, NULL);
-	vm_reg_native(vm, "", "print(str)", native_print, NULL);
-	vm_reg_native(vm, "", "println(str)", native_println, NULL);
+	vm_reg_native(vm, "console", "log(str)", native_print, NULL);
 	vm_reg_native(vm, "", "dump(var)", native_dump, NULL);
 }
 

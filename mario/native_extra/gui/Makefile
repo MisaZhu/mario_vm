@@ -3,7 +3,7 @@ $(info CROSS_COMPILE=$(CROSS_COMPILE))
 endif
 
 ifeq ($(MARIO_JS),)
-MARIO_JS = ../../../..
+MARIO_JS = ../../..
 endif
 
 CC := $(CROSS_COMPILE)gcc

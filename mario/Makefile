@@ -8,7 +8,7 @@ ifeq ($(MARIO_JS),)
 MARIO_JS = ..
 endif
 
-NATIVE_PATH = native/basic
+NATIVE_PATH = native_builtin
 
 CC := $(CROSS_COMPILE)gcc
 CXX := $(CROSS_COMPILE)g++

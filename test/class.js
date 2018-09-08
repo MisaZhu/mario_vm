@@ -10,12 +10,12 @@ class A {
 
 
 b = new A('xxx');
-Debug.dump(b);
+dump(b);
 
 a = new A();
 c = a.f('aaa');
 
-Debug.dump(c);
+dump(c);
 
 
 function f() {
@@ -24,28 +24,28 @@ function f() {
 }
 
 a = f();
-Debug.dump(a);
+dump(a);
 
 
 class Base {
 	constructor() {
 		this.b = 1;
-		Debug.dump("Super Base Constructor");
+		dump("Super Base Constructor");
 	}
 
 	f() {
-		Debug.dump("Super Base");
+		dump("Super Base");
 	}
 }
 
 class Base1 extends Base {
 	constructor() {
 		super();
-		Debug.dump("Super Base1 Constructor");
+		dump("Super Base1 Constructor");
 	}
 	f() {
 		super.f();
-		Debug.dump("Super Base1");
+		dump("Super Base1");
 	}
 }
 
@@ -57,11 +57,11 @@ class Test extends Base1 {
 
 	f() {
 		super.f();
-		Debug.dump("Test");
+		dump("Test");
 	}
 }
 
 a = new Test(2, 4);
 a.f();
 
-Debug.dump(a);
+dump(a);
