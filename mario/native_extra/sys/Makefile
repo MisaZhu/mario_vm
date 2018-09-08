@@ -16,11 +16,12 @@ OBJS= $(MARIO_JS)/mario_js.o  \
 	native_sys.o \
 	system/native_system.o \
 	socket/native_socket.o  \
+	math/native_math.o  \
 	fs/native_fs.o
 
 
 CFLAGS =  -I$(MARIO_JS) -g -Wall -DMARIO_DEBUG -DMARIO_CACHE
-LDFLAGS = 
+LDFLAGS =  -lm
 
 TARGET=native_sys.so
 

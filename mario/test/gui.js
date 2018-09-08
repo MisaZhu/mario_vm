@@ -1,15 +1,15 @@
 SDL.init();
 
 Font.init();
-font = Font.open("test/extra/wqy.ttc", 32);
+font = Font.open("test/wqy.ttc", 32);
 
 mode = SDL.getDisplayMode();
-Debug.dump(mode);
+dump(mode);
 
 w = SDL.createWindow("hello", 10, 10, 800, 600, false);
 canvas = w.getCanvas();
 
-texImage = Image.loadTexture(canvas, "test/extra/test.png");
+texImage = Image.loadTexture(canvas, "test/test.png");
 texFont = font.genTexture(canvas, "Hello, world(中文)!", 0xFF00FF00);
 
 i = 0; 

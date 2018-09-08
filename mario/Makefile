@@ -15,8 +15,7 @@ CXX := $(CROSS_COMPILE)g++
 AR := $(CROSS_COMPILE)ar
 LD := $(CROSS_COMPILE)gcc
 
-NATIVE_OBJS= $(NATIVE_PATH)/basic/native_basic.o \
-	$(NATIVE_PATH)/math/native_math.o 
+NATIVE_OBJS= $(NATIVE_PATH)/basic/native_basic.o 
 
 OBJS = mario.o $(MARIO_JS)/mario_js.o \
 		$(NATIVE_OBJS)
