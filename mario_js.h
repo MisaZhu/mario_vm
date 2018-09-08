@@ -165,6 +165,7 @@ void var_free(void* p);
 #define var_unref(var, del) ({ --(var)->refs; if((var)->refs <= 0 && (del)) var_free((var)); })
 
 var_t* var_new();
+var_t* var_new_array();
 var_t* var_new_int(int i);
 var_t* var_new_obj(void*p, free_func_t fr);
 var_t* var_new_float(float i);

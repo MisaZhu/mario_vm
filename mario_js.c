@@ -2162,6 +2162,12 @@ inline var_t* var_new() {
 	return var;
 }
 
+inline var_t* var_new_array() {
+	var_t* var = var_new();
+	var->type = V_ARRAY;
+	return var;
+}
+
 inline var_t* var_new_int(int i) {
 	var_t* var = var_new();
 	var->type = V_INT;
@@ -3318,7 +3324,6 @@ var_t* new_obj(vm_t* vm, const char* clsName, int argNum) {
 void do_new(vm_t* vm, const char* full) {
 	str_t* name = str_new("");
 	int argNum = parse_func_name(full, name);
-	(void)argNum;
 
 	var_t* obj = new_obj(vm, name->cstr, argNum);
 	str_free(name);
