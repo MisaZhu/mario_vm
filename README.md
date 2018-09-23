@@ -10,7 +10,7 @@ very tiny simple js engine in one single c  and one single head file "mario_js.c
 		printf("%s", s);
 	}
 
-	var_t* native_print(vm_t* vm, var_t* env, void* data) {
+	var_t* native_out(vm_t* vm, var_t* env, void* data) {
 		node_t* n = var_find(env, "v");
 		const char* s = n == NULL ? "" : var_get_str(n->var);
 		debug(s);
@@ -24,11 +24,11 @@ very tiny simple js engine in one single c  and one single head file "mario_js.c
 		vm_init(&vm);
 
 		//demo: register a native function(mapped to js).
-		vm_reg_native(&vm, "", "print(v)", native_print, NULL);
+		vm_reg_native(&vm, "", "out(v)", native_out, NULL);
 		//demo: register a global variable.
-		vm_reg_var(&vm, "", "_HELLO", var_new_str("Hello, world\n"));
+		vm_reg_var(&vm, "", "_HELLO", var_new_str("Hello, world\n"), true);
 
-		if(vm_load(&vm, "print(this._HELLO); Debug.dump(this);")) {
+		if(vm_load(&vm, "out(this._HELLO); dump(this);")) {
 			vm_run(&vm);
 		}
 
