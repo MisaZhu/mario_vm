@@ -15,7 +15,7 @@ LDFLAGS = -lpthread
 #CFLAGS = -I.. -O2 -Wall -DMARIO_CACHE -DMARIO_DEBUG  -DMARIO_THREAD
 
 all: $(demo_OBJS) $(mario_OBJS)
-	$(LD) -o demo $(LDFLAGS) $(demo_OBJS) $(mario_OBJS)
+	$(LD) -o demo $(demo_OBJS) $(mario_OBJS) $(LDFLAGS) 
 
 
 clean:
