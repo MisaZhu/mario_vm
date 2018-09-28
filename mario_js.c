@@ -3380,6 +3380,8 @@ bool interrupt(vm_t* vm, var_t* obj, node_t* handleFuncNode, var_t* args) {
 	if(_isignalNum >= MAX_ISIGNAL) {
 		_debug("Too many interrupt signals!\n");
 		pthread_mutex_unlock(&_interrupt_lock);
+		if(args != NULL)
+			var_unref(args, true);
 		return false;
 	}
 
@@ -3387,6 +3389,8 @@ bool interrupt(vm_t* vm, var_t* obj, node_t* handleFuncNode, var_t* args) {
 	if(is == NULL) {
 		_debug("Interrupt signal input error!\n");
 		pthread_mutex_unlock(&_interrupt_lock);
+		if(args != NULL)
+			var_unref(args, true);
 		return false;
 	}
 
@@ -3435,7 +3439,7 @@ void tryInterrupter(vm_t* vm) {
 		argNum = sig->args->children.size;
 		int i;
 		for(i=0; i<argNum; i++) {
-			var_t* v = (var_t*)sig->args->children.items[i];
+			var_t* v = ((node_t*)sig->args->children.items[i])->var;
 			vm_push(vm, v);
 		}
 	}
