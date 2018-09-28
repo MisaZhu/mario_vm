@@ -3368,11 +3368,24 @@ typedef struct st_isignal {
 
 isignal_t* _isignalHead = NULL;
 isignal_t* _isignalTail = NULL;
+uint32_t _isignalNum = 0;
+bool _interrupted = false;
+
+#define MAX_ISIGNAL 128
 
 bool interrupt(vm_t* vm, var_t* obj, node_t* handleFuncNode, var_t* args) {
+	while(_interrupted) { }
+
 	pthread_mutex_lock(&_interrupt_lock);
+	if(_isignalNum >= MAX_ISIGNAL) {
+		_debug("Too many interrupt signals!\n");
+		pthread_mutex_unlock(&_interrupt_lock);
+		return false;
+	}
+
 	isignal_t* is = (isignal_t*)_malloc(sizeof(isignal_t));
 	if(is == NULL) {
+		_debug("Interrupt signal input error!\n");
 		pthread_mutex_unlock(&_interrupt_lock);
 		return false;
 	}
@@ -3393,6 +3406,8 @@ bool interrupt(vm_t* vm, var_t* obj, node_t* handleFuncNode, var_t* args) {
 		_isignalTail->next = is;
 		_isignalTail = is;
 	}
+
+	_isignalNum++;
 	pthread_mutex_unlock(&_interrupt_lock);
 	return true;
 }
@@ -3402,11 +3417,17 @@ void tryInterrupter(vm_t* vm) {
 		return;
 	
 	pthread_mutex_lock(&_interrupt_lock);
+	if(_interrupted) {
+		pthread_mutex_unlock(&_interrupt_lock);
+		return;
+	}
+	_interrupted = true;
 
 	isignal_t* sig = _isignalHead;
 	_isignalHead = _isignalHead->next;
 	if(_isignalHead == NULL)
 		_isignalTail = NULL;
+	pthread_mutex_unlock(&_interrupt_lock);
 
 	//push args to stack.
 	int argNum = 0;
@@ -3425,8 +3446,9 @@ void tryInterrupter(vm_t* vm) {
 	if(sig->args != NULL)
 		var_unref(sig->args, true);
 	_free(sig);
+	_isignalNum--;
 
-	pthread_mutex_unlock(&_interrupt_lock);
+	_interrupted = false;
 }
 
 #endif
@@ -4097,6 +4119,10 @@ void vm_close(vm_t* vm) {
 	var_unref(_var_false, true);
 
 
+	#ifdef MARIO_THREAD
+	pthread_mutex_destroy(&_interrupt_lock);
+	#endif
+
 	#ifdef MARIO_CACHE
 	var_cache_free();
 	#endif
@@ -4239,6 +4265,10 @@ void vm_init(vm_t* vm) {
 	#ifdef MARIO_CACHE
 	var_cache_init();
 	node_cache_init();
+	#endif
+
+	#ifdef MARIO_THREAD
+	pthread_mutex_init(&_interrupt_lock, NULL);
 	#endif
 
 	vm->root = var_new_obj(NULL, NULL);

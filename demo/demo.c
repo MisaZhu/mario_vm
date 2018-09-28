@@ -15,7 +15,7 @@ void* interrupterThread(void* arg) {
 		if(func != NULL)
 			interrupt(vm, vm->root, func, NULL);
 
-		usleep(10000);
+		usleep(100);
 	}
 	return NULL;
 }
