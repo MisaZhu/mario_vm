@@ -11,6 +11,7 @@ mario_OBJS=mario_js.o
 test_OBJS = jstest.o 
 
 CFLAGS = -g -Wall -DMARIO_CACHE -DMARIO_DEBUG -DMARIO_THREAD
+LDFLAGS = -lpthread
 #CFLAGS = -O2 -Wall -DMARIO_CACHE -DMARIO_DEBUG  -DMARIO_THREAD
 
 all: $(test_OBJS) $(mario_OBJS)
