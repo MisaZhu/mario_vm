@@ -12,7 +12,6 @@ demo_OBJS = demo.o
 
 CFLAGS = -I.. -g -Wall -DMARIO_CACHE -DMARIO_DEBUG -DMARIO_THREAD
 LDFLAGS = -lpthread
-#CFLAGS = -I.. -O2 -Wall -DMARIO_CACHE -DMARIO_DEBUG  -DMARIO_THREAD
 
 all: $(demo_OBJS) $(mario_OBJS)
 	$(LD) -o demo $(demo_OBJS) $(mario_OBJS) $(LDFLAGS) 
