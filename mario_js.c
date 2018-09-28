@@ -7,6 +7,7 @@ extern "C" {
 #endif
 
 #include "mario_js.h"
+#include <pthread.h>
 
 void _free_none(void* p) { (void)p; }
 
@@ -53,6 +54,14 @@ inline void* array_get(m_array_t* array, uint32_t index) {
 		return NULL;
 	return array->items[index];
 }
+
+inline void* array_set(m_array_t* array, uint32_t index, void* p) {
+	if(array->items == NULL || index >= array->size)
+		return NULL;
+	array->items[index] = p;
+	return p;
+}
+
 
 #define array_tail(array) (((array)->items == NULL || (array)->size == 0) ? NULL: (array)->items[(array)->size-1]);
 
@@ -2130,7 +2139,10 @@ inline void var_free(void* p) {
 		else
 			_free(var->value);
 	}
-	
+
+	if(var->onDestroy != NULL) {
+		var->onDestroy(var);
+	}
 	_free(var);
 }
 
@@ -2158,6 +2170,7 @@ inline var_t* var_new() {
 
 	var->value = NULL;
 	var->freeFunc = NULL;
+	var->onDestroy = NULL;
 	array_init(&var->children);
 	return var;
 }
@@ -2703,7 +2716,8 @@ typedef struct st_scope {
 	struct st_scope* prev;
 	var_t* var;
 	PC pc; //stack pc
-	bool isBlock;
+	int32_t isBlock: 2;
+	int32_t isInterrupt: 2;
 
 	//continue and break anchor for loop(while/for)
 } scope_t;
@@ -2716,6 +2730,7 @@ scope_t* scope_new(var_t* var, PC pc) {
 		sc->var = var_ref(var);
 	sc->pc = pc;
 	sc->isBlock = false;
+	sc->isInterrupt = false;
 	return sc;
 }
 
@@ -2912,7 +2927,7 @@ var_t* get_super(var_t* var) {
 }
 
 void vm_run_code(vm_t* vm);
-bool func_call(vm_t* vm, var_t* obj, func_t* func, int argNum) {
+bool func_call(vm_t* vm, var_t* obj, func_t* func, int argNum, bool isInterrupt) {
 	int i;
 	var_t *env = var_new();
 	env->type = V_ARRAY;
@@ -2943,6 +2958,7 @@ bool func_call(vm_t* vm, var_t* obj, func_t* func, int argNum) {
 		var_add(env, SUPER, super);
 
 	scope_t* sc = scope_new(env, vm->pc);
+	sc->isInterrupt = isInterrupt;
 	vm_push_scope(vm, sc);
 
 	//native function
@@ -3312,7 +3328,7 @@ var_t* new_obj(vm_t* vm, const char* clsName, int argNum) {
 	n = var_find(n->var, CONSTRUCTOR);
 
 	if(n != NULL) {
-		func_call(vm, obj, (func_t*)n->var->value, argNum);
+		func_call(vm, obj, (func_t*)n->var->value, argNum, false);
 		obj = vm_pop2(vm);
 		var_unref(obj, false);
 	}
@@ -3333,6 +3349,89 @@ void do_new(vm_t* vm, const char* full) {
 	else
 		vm_push(vm, obj);
 }
+
+/**
+interrupter
+*/
+
+#ifdef MARIO_THREAD
+
+static pthread_mutex_t _interrupt_lock;
+
+typedef struct st_isignal {
+	var_t* obj;
+	node_t* handleFuncNode;
+	var_t* args;
+	struct st_isignal* next;
+} isignal_t;
+
+
+isignal_t* _isignalHead = NULL;
+isignal_t* _isignalTail = NULL;
+
+bool interrupt(vm_t* vm, var_t* obj, node_t* handleFuncNode, var_t* args) {
+	pthread_mutex_lock(&_interrupt_lock);
+	isignal_t* is = (isignal_t*)_malloc(sizeof(isignal_t));
+	if(is == NULL) {
+		pthread_mutex_unlock(&_interrupt_lock);
+		return false;
+	}
+
+	is->next = NULL;
+	is->obj = var_ref(obj);
+	is->handleFuncNode = handleFuncNode;
+	if(args != NULL)
+		is->args = var_ref(args);
+	else
+		is->args = NULL;
+
+	if(_isignalTail == NULL) {
+		_isignalHead = is;
+		_isignalTail = is;
+	}
+	else {
+		_isignalTail->next = is;
+		_isignalTail = is;
+	}
+	pthread_mutex_unlock(&_interrupt_lock);
+	return true;
+}
+
+void tryInterrupter(vm_t* vm) {
+	if(_isignalHead == NULL)
+		return;
+	
+	pthread_mutex_lock(&_interrupt_lock);
+
+	isignal_t* sig = _isignalHead;
+	_isignalHead = _isignalHead->next;
+	if(_isignalHead == NULL)
+		_isignalTail = NULL;
+
+	//push args to stack.
+	int argNum = 0;
+	if(sig->args != NULL) {
+		argNum = sig->args->children.size;
+		int i;
+		for(i=0; i<argNum; i++) {
+			var_t* v = (var_t*)sig->args->children.items[i];
+			vm_push(vm, v);
+		}
+	}
+
+	func_call(vm, sig->obj, (func_t*)sig->handleFuncNode->var->value, argNum, true);
+
+	var_unref(sig->obj, true);
+	if(sig->args != NULL)
+		var_unref(sig->args, true);
+	_free(sig);
+
+	pthread_mutex_unlock(&_interrupt_lock);
+}
+
+#endif
+
+/*****************/
 
 void vm_run_code(vm_t* vm) {
 	//int32_t scDeep = vm->scopes.size;
@@ -3663,7 +3762,11 @@ void vm_run_code(vm_t* vm) {
 						else
 							vm_push(vm, var_new());
 					}
+
 					vm->pc = sc->pc;
+					if(sc->isInterrupt == true) {
+						vm_pop(vm);
+					}
 					vm_pop_scope(vm);
 				}
 				return;
@@ -3815,7 +3918,7 @@ void vm_run_code(vm_t* vm) {
 				str_free(name);
 
 				if(func != NULL) {
-					func_call(vm, obj, (func_t*)func->value, argNum);
+					func_call(vm, obj, (func_t*)func->value, argNum, false);
 				}
 				else {
 					while(argNum > 0) {
@@ -3829,6 +3932,11 @@ void vm_run_code(vm_t* vm) {
 				}
 				if(obj != NULL)
 					var_unref(obj, true);
+
+				//check and do interrupter.
+				#ifdef MARIO_THREAD
+				tryInterrupter(vm);
+				#endif
 				break;
 			}
 			case INSTR_MEMBER: 
@@ -3994,6 +4102,7 @@ void vm_close(vm_t* vm) {
 	#endif
 
 	array_clean(&vm->scopes, NULL);	
+
 	bc_release(&vm->bc);
 	vm->stackTop = 0;
 }	
@@ -4109,6 +4218,12 @@ var_t* native_print(vm_t* vm, var_t* env, void* data) {
 	return NULL;
 }
 
+/**yield */
+var_t* native_yield(vm_t* vm, var_t* env, void* data) {
+	(void)vm; (void)data; (void)env;
+	return NULL;
+}
+
 void vm_init(vm_t* vm) {
 	vm->pc = 0;
 	vm->stackTop = 0;
@@ -4131,6 +4246,7 @@ void vm_init(vm_t* vm) {
 
 	vm_reg_native(vm, "console", "log(str)", native_print, NULL);
 	vm_reg_native(vm, "", "dump(var)", native_dump, NULL);
+	vm_reg_native(vm, "", "yield()", native_yield, NULL);
 }
 
 #ifdef __cplusplus

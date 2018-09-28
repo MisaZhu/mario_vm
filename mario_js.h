@@ -51,6 +51,7 @@ void array_init(m_array_t* array);
 void array_add(m_array_t* array, void* item);
 void* array_add_buf(m_array_t* array, void* s, uint32_t sz);
 void* array_get(m_array_t* array, uint32_t index);
+void* array_set(m_array_t* array, uint32_t index, void* p);
 void* array_tail(m_array_t* array);
 void* array_head(m_array_t* array);
 void* array_remove(m_array_t* array, uint32_t index);
@@ -108,6 +109,7 @@ typedef struct st_var {
 
 	void* value;
 	free_func_t freeFunc; //how to free value
+	free_func_t onDestroy; //before destroyed.
 
 	m_array_t children;
 } var_t;
@@ -184,14 +186,22 @@ bool vm_run(vm_t* vm);
 void vm_close(vm_t* vm);
 
 var_t* new_obj(vm_t* vm, const char* clsName, int argNum);
+node_t* vm_find(vm_t* vm, const char* name);
+node_t* vm_find_in_class(var_t* var, const char* name);
 node_t* vm_reg_var(vm_t* vm, const char* cls, const char* name, var_t* var, bool beConst);
 //node_t* vm_reg_const(vm_t* vm, const char* cls, const char* name, var_t* var);
 node_t* vm_reg_native(vm_t* vm, const char* cls, const char* decl, native_func_t native, void* data);
 
+node_t* find_member(var_t* obj, const char* name);
 var_t* get_obj(var_t* obj, const char* name);
 const char* get_str(var_t* obj, const char* name);
 int get_int(var_t* obj, const char* name);
 float get_float(var_t* obj, const char* name);
+
+
+#ifdef MARIO_THREAD
+bool interrupt(vm_t* vm, var_t* obj, node_t* handleFuncNode, var_t* args);
+#endif
 
 #ifdef __cplusplus
 }
