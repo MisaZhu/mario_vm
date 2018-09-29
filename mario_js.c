@@ -3383,6 +3383,7 @@ bool interrupt(vm_t* vm, var_t* obj, const char* funcName, var_t* args) {
 			var_unref(args, true);
 		return false;
 	}
+	_debug("Interrupt function found.\n");
 
 	while(_interrupted) { } // can not interrupt another interrupter.
 
