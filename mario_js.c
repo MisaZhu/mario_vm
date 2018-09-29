@@ -3376,6 +3376,9 @@ bool _interrupted = false;
 bool interrupt(vm_t* vm, var_t* obj, const char* funcName, var_t* args) {
 	node_t* func = find_member(obj, funcName);
 	if(func == NULL) {
+		_debug("Interrupt function '");
+		_debug(funcName);
+		_debug("' not defined!\n");
 		if(args != NULL)
 			var_unref(args, true);
 		return false;
