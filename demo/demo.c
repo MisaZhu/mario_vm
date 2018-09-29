@@ -10,15 +10,19 @@ void* interrupterThread(void* arg) {
 	
 	pthread_detach(pthread_self());
 	
-	int32_t count = 0;
+	int32_t count1 = 0;
+	int32_t count2 = 0;
+
 	while(true) {
 		//find function name onInterrupt with 1 argument.
 		var_t* args = var_new();
-		var_add(args, "", var_new_int(count)); //the first argment
+		var_add(args, "", var_new_int(count1)); //the first argment
+		var_add(args, "", var_new_int(count2)); //the second argment
 		interrupt(vm, vm->root, "onInterrupt", args);
 
 		usleep(100);
-		count++;
+		count1++;
+		count2 += 2;
 	}
 	return NULL;
 }
@@ -28,8 +32,8 @@ void debug(const char* s) {
 }
 
 const char* js = " \
-	function onInterrupt(count) { \
-		dump(\"interrupter: \" + count); \
+	function onInterrupt(count1, count2) { \
+		dump(\"interrupter: \" + count1 + \": \" + count2); \
 	} \
 	while(true) { \
 		yield(); \
