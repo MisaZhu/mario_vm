@@ -13,12 +13,9 @@ void* interrupterThread(void* arg) {
 	int32_t count = 0;
 	while(true) {
 		//find function name onInterrupt with 1 argument.
-		node_t* func = find_member(vm->root, "onInterrupt");
-		if(func != NULL) {
-			var_t* args = var_new();
-			var_add(args, "", var_new_int(count));
-			interrupt(vm, vm->root, func, args);
-		}
+		var_t* args = var_new();
+		var_add(args, "", var_new_int(count)); //the first argment
+		interrupt(vm, vm->root, "onInterrupt", args);
 
 		usleep(100);
 		count++;

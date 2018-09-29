@@ -3373,8 +3373,15 @@ bool _interrupted = false;
 
 #define MAX_ISIGNAL 128
 
-bool interrupt(vm_t* vm, var_t* obj, node_t* handleFuncNode, var_t* args) {
-	while(_interrupted) { }
+bool interrupt(vm_t* vm, var_t* obj, const char* funcName, var_t* args) {
+	node_t* func = find_member(obj, funcName);
+	if(func == NULL) {
+		if(args != NULL)
+			var_unref(args, true);
+		return false;
+	}
+
+	while(_interrupted) { } // can not interrupt another interrupter.
 
 	pthread_mutex_lock(&_interrupt_lock);
 	if(_isignalNum >= MAX_ISIGNAL) {
@@ -3396,7 +3403,7 @@ bool interrupt(vm_t* vm, var_t* obj, node_t* handleFuncNode, var_t* args) {
 
 	is->next = NULL;
 	is->obj = var_ref(obj);
-	is->handleFuncNode = handleFuncNode;
+	is->handleFuncNode = func;
 	if(args != NULL)
 		is->args = var_ref(args);
 	else
