@@ -7,10 +7,10 @@ CXX := $(CROSS_COMPILE)g++
 AR := $(CROSS_COMPILE)ar
 LD := $(CROSS_COMPILE)gcc
 
-mario_OBJS=mario_js.o
+mario_OBJS = ../../mario_js.o
 test_OBJS = jstest.o 
 
-CFLAGS = -g -Wall -DMARIO_CACHE -DMARIO_DEBUG
+CFLAGS = -I../.. -g -Wall -DMARIO_CACHE -DMARIO_DEBUG
 LDFLAGS =
 #CFLAGS = -O2 -Wall -DMARIO_CACHE -DMARIO_DEBUG
 
@@ -24,4 +24,4 @@ all: $(test_OBJS) $(mario_OBJS)
 
 
 clean:
-	rm -fr jstest *.o *.dSYM
+	rm -fr jstest $(test_OBJS) $(mario_OBJS) *.dSYM

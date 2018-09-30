@@ -7,10 +7,10 @@ CXX := $(CROSS_COMPILE)g++
 AR := $(CROSS_COMPILE)ar
 LD := $(CROSS_COMPILE)gcc
 
-mario_OBJS= ../mario_js.o
+mario_OBJS= ../../mario_js.o
 demo_OBJS = demo.o 
 
-CFLAGS = -I.. -g -Wall -DMARIO_CACHE -DMARIO_DEBUG -DMARIO_THREAD
+CFLAGS = -I../.. -g -Wall -DMARIO_CACHE -DMARIO_DEBUG -DMARIO_THREAD
 LDFLAGS = -lpthread
 
 all: $(demo_OBJS) $(mario_OBJS)
