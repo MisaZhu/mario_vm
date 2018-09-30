@@ -7,7 +7,6 @@ extern "C" {
 #endif
 
 #include "mario_js.h"
-#include <pthread.h>
 #include <stdio.h>
 
 void _free_none(void* p) { (void)p; }
@@ -35,7 +34,7 @@ inline void array_init(m_array_t* array) {
 }
 
 inline void array_add(m_array_t* array, void* item) {
-	int new_size = array->size + 1; 
+	uint32_t new_size = array->size + 1; 
 	if(array->max <= new_size) { 
 		new_size = array->size + ARRAY_BUF;
 		array->items = (void**)_realloc(array->items, new_size*sizeof(void*)); 
@@ -111,7 +110,7 @@ inline void array_remove_all(m_array_t* array) { //remove all items bot not free
 
 inline void array_clean(m_array_t* array, free_func_t fr) { //remove all items and free them.
 	if(array->items != NULL) {
-		int i;
+		uint32_t i;
 		for(i=0; i<array->size; i++) {
 			void* p = array->items[i];
 			if(p != NULL) {
@@ -151,7 +150,7 @@ char* str_ncpy(str_t* str, const char* src, uint32_t l) {
 	if(len > l)
 		len = l;
 
-	int new_size = len;
+	uint32_t new_size = len;
 	if(str->max <= new_size) {
 		new_size = len + STR_BUF; /*STR BUF for buffer*/
 		str->cstr = (char*)_realloc(str->cstr, new_size);
@@ -184,7 +183,7 @@ char* str_append(str_t* str, const char* src) {
 	}
 
 	int len = strlen(src);
-	int new_size = str->len + len;
+	uint32_t new_size = str->len + len;
 	if(str->max <= new_size) {
 		new_size = str->len + len + STR_BUF; /*STR BUF for buffer*/
 		str->cstr = (char*)_realloc(str->cstr, new_size);
@@ -198,7 +197,7 @@ char* str_append(str_t* str, const char* src) {
 }
 
 char* str_add(str_t* str, char c) {
-	int new_size = str->len + 1;
+	uint32_t new_size = str->len + 1;
 	if(str->max <= new_size) {
 		new_size = str->len + STR_BUF; /*STR BUF for buffer*/
 		str->cstr = (char*)_realloc(str->cstr, new_size);
@@ -910,7 +909,7 @@ typedef uint16_t OprCode;
 
 #define BC_BUF_SIZE  3232
 
-static int16_t _thisStrIndex = 0;
+static uint16_t _thisStrIndex = 0;
 
 uint16_t bc_getstrindex(bytecode_t* bc, const char* str) {
 	uint16_t sz = bc->strTable.size;
@@ -1001,7 +1000,7 @@ PC bc_gen_short(bytecode_t* bc, OprCode instr, int32_t s) {
 }
 	
 PC bc_gen_str(bytecode_t* bc, OprCode instr, const char* str) {
-	int i = 0;
+	uint32_t i = 0;
 	float f = 0.0;
 	const char* s = str;
 
@@ -1022,7 +1021,7 @@ PC bc_gen_str(bytecode_t* bc, OprCode instr, const char* str) {
 	bc_add(bc, ins);
 
 	if(instr == INSTR_INT) {
-		if(i >= 0 && i < 0xFFFF) //short int
+		if(i < 0xFFFF) //short int
 			bc->codeBuf[bc->cindex-1] = INS(INSTR_INT_S, i);
 		else 	
 			bc_add(bc, i);
@@ -2095,7 +2094,7 @@ node_t* var_add(var_t* var, const char* name, var_t* add) {
 }
 
 inline node_t* var_find(var_t* var, const char*name) {
-	int i;
+	uint32_t i;
 
 	for(i=0; i<var->children.size; i++) {
 		node_t* node = (node_t*)var->children.items[i];
@@ -2933,7 +2932,7 @@ var_t* get_super(var_t* var) {
 
 void vm_run_code(vm_t* vm);
 bool func_call(vm_t* vm, var_t* obj, func_t* func, int argNum, bool isInterrupt) {
-	int i;
+	int32_t i;
 	var_t *env = var_new();
 	env->type = V_ARRAY;
 
@@ -2941,7 +2940,7 @@ bool func_call(vm_t* vm, var_t* obj, func_t* func, int argNum, bool isInterrupt)
 		vm_pop(vm);
 	}
 
-	for(i=func->args.size-1; i>=0; i--) {
+	for(i=(int32_t)func->args.size-1; i>=0; i--) {
 		const char* argName = (const char*)array_get(&func->args, i);
 		var_t* v = NULL;
 		if(i >= argNum) {
@@ -3360,7 +3359,7 @@ interrupter
 */
 
 #ifdef MARIO_THREAD
-
+#include <pthread.h>
 static pthread_mutex_t _interrupt_lock;
 
 typedef struct st_isignal {
@@ -3588,7 +3587,7 @@ void vm_run_code(vm_t* vm) {
 			}
 			case INSTR_BLOCK_END: 
 			{
-				int i;
+				uint32_t i;
 				for(i=0; i<offset; i++) {
 					vm_pop_scope(vm);
 				}	
