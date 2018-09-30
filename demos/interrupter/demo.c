@@ -27,10 +27,6 @@ void* interrupterThread(void* arg) {
 	return NULL;
 }
 
-void debug(const char* s) {
-	printf("%s", s);
-}
-
 const char* js = " \
 	function onInterrupt(count1, count2) { \
 		dump(\"interrupter: \" + count1 + \": \" + count2); \
@@ -40,8 +36,6 @@ const char* js = " \
 	}";
 
 int main(int argc, char** argv) {
-	_debug_func = debug;
-
 	vm_t vm;
 	vm_init(&vm);
 

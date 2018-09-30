@@ -8,10 +8,15 @@ extern "C" {
 
 #include "mario_js.h"
 #include <pthread.h>
+#include <stdio.h>
 
 void _free_none(void* p) { (void)p; }
 
-void (*_debug_func)(const char*) = NULL;
+void defaultDebug(const char* s) {
+	printf("%s", s);
+}
+
+void (*_debug_func)(const char*) = defaultDebug;
 
 void _debug(const char* s) {
 	if(_debug_func != NULL)

@@ -4,10 +4,6 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 
-void debug(const char* s) {
-	printf("%s", s);
-}
-
 bool load_js(vm_t* vm, const char* fname) {
 	int fd = open(fname, O_RDONLY);
 	if(fd < 0) {
@@ -30,14 +26,12 @@ bool load_js(vm_t* vm, const char* fname) {
 }
 
 int main(int argc, char** argv) {
-	_debug_func = debug;
 
 	if(argc < 2) {
 		printf("Usage: mario <js-filename>\n");
 		return 1;
 	}
 
-//	while(true) {
 	vm_t vm;
 	vm_init(&vm);
 
@@ -46,6 +40,5 @@ int main(int argc, char** argv) {
 	}
 	
 	vm_close(&vm);
-//	}
 	return 0;
 }
