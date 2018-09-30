@@ -3383,7 +3383,6 @@ bool interrupt(vm_t* vm, var_t* obj, const char* funcName, var_t* args) {
 			var_unref(args, true);
 		return false;
 	}
-	_debug("Interrupt function found.\n");
 
 	while(_interrupted) { } // can not interrupt another interrupter.
 
@@ -3454,6 +3453,10 @@ void tryInterrupter(vm_t* vm) {
 			vm_push(vm, v);
 		}
 	}
+
+	_debug("Interrupter : ");
+	_debug(sig->handleFuncNode->name);
+	_debug("\n");
 
 	func_call(vm, sig->obj, (func_t*)sig->handleFuncNode->var->value, argNum, true);
 
@@ -4233,6 +4236,14 @@ var_t* get_obj(var_t* var, const char* name) {
 	return n->var;
 }
 
+void var_dump(var_t* v) {
+	str_t* s = str_new("");
+	var_to_json_str(v, s, 0);
+	_debug(s->cstr);
+	str_free(s);
+	_debug("\n");
+}
+
 /**dump variable*/
 var_t* native_dump(vm_t* vm, var_t* env, void* data) {
 	(void)vm; (void)data;
@@ -4240,13 +4251,8 @@ var_t* native_dump(vm_t* vm, var_t* env, void* data) {
 	node_t* n = var_find(env, "var");
 	if(n == NULL)
 		return NULL;
-
-	str_t* s = str_new("");
-	var_to_json_str(n->var, s, 0);
-	_debug(s->cstr);
-	str_free(s);
-
-	_debug("\n");
+	
+	var_dump(n->var);
 	return NULL;
 }
 
