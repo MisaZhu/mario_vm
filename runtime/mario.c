@@ -27,10 +27,6 @@ bool load_js(vm_t* vm, const char* fname) {
 	return ret;
 }
 
-void dump(const char* s) {
-	printf("%s", s);
-}
-
 /**
 load extra native libs.
 */
@@ -74,7 +70,6 @@ void unloadExtra() {
 }
 
 int main(int argc, char** argv) {
-	_debug_func = dump;
 
 	if(argc < 2) {
 		printf("Usage: mario <js-filename> (.so native_files)\n");
