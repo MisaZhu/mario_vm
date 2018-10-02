@@ -1,7 +1,12 @@
 #include "mario_js.h"
 
+const char* js = " \
+	out(\"Hello, global native.\n\"); \
+	ClassHello.out(ClassHello.HELLO); \
+	";
+
 var_t* native_out(vm_t* vm, var_t* env, void* data) {
-	const char* s = get_str(env, "v");
+	const char* s = get_str(env, "str");
 	_debug(s);
 	return NULL;
 }
@@ -10,13 +15,24 @@ int main(int argc, char** argv) {
 	vm_t vm;
 	vm_init(&vm);
 
-	//demo: register a native function(mapped to js).
-	vm_reg_native(&vm, "", "out(v)", native_out, NULL);
+	/** Register a native function(mapped to js) in class 'ClassHello'.
+		Class name: ClassHello (doesn't exist, so will be created automaticly).
+		function name: out
+		argument: str
+	*/
+	vm_reg_native(&vm, "ClassHello", "out(str)", native_out, NULL);
 
-	//demo: register a const variable in class.
-	vm_reg_var(&vm, "ClassHello", "HELLO", var_new_str("Hello, native world!\n"), true);
+	/** Register a native global function(mapped to js).
+		Class name: none (global function).
+		function name: out
+		argument: str
+	*/
+	vm_reg_native(&vm, "", "out(str)", native_out, NULL);
 
-	if(vm_load(&vm, "out(ClassHello.HELLO);")) {
+	/** Register a const variable 'HELLO' in class 'ClassHello'. */
+	vm_reg_var(&vm, "ClassHello", "HELLO", var_new_str("Hello, class native.\n"), true);
+
+	if(vm_load(&vm, js)) {
 		vm_run(&vm);
 	}
 

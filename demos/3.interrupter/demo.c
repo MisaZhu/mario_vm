@@ -14,10 +14,11 @@ void* interrupterThread(void* arg) {
 	int32_t count2 = 0;
 
 	while(true) {
-		//find function name onInterrupt with 1 argument.
-		var_t* args = var_new();
+		var_t* args = var_new(); //interrupter function arguments.
 		var_add(args, "", var_new_int(count1)); //the first argment
 		var_add(args, "", var_new_int(count2)); //the second argment
+
+		//call interrupter 'onInterrupt' with 2 argument.
 		interrupt(vm, vm->root, "onInterrupt", args);
 
 		usleep(100);
