@@ -200,7 +200,8 @@ float get_float(var_t* obj, const char* name);
 
 
 #ifdef MARIO_THREAD
-bool interrupt(vm_t* vm, var_t* obj, const char* funcName, var_t* args);
+bool interrupt(vm_t* vm, var_t* obj, var_t* func, var_t* args);
+bool interruptByName(vm_t* vm, var_t* obj, const char* funcName, var_t* args);
 #endif
 
 #ifdef __cplusplus

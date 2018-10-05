@@ -3364,7 +3364,7 @@ static pthread_mutex_t _interrupt_lock;
 
 typedef struct st_isignal {
 	var_t* obj;
-	node_t* handleFuncNode;
+	var_t* handleFunc;
 	var_t* args;
 	struct st_isignal* next;
 } isignal_t;
@@ -3377,17 +3377,7 @@ bool _interrupted = false;
 
 #define MAX_ISIGNAL 128
 
-bool interrupt(vm_t* vm, var_t* obj, const char* funcName, var_t* args) {
-	node_t* func = find_member(obj, funcName);
-	if(func == NULL) {
-		_debug("Interrupt function '");
-		_debug(funcName);
-		_debug("' not defined!\n");
-		if(args != NULL)
-			var_unref(args, true);
-		return false;
-	}
-
+bool interrupt(vm_t* vm, var_t* obj, var_t* func, var_t* args) {
 	while(_interrupted) { } // can not interrupt another interrupter.
 
 	pthread_mutex_lock(&_interrupt_lock);
@@ -3410,7 +3400,7 @@ bool interrupt(vm_t* vm, var_t* obj, const char* funcName, var_t* args) {
 
 	is->next = NULL;
 	is->obj = var_ref(obj);
-	is->handleFuncNode = func;
+	is->handleFunc = var_ref(func);
 	if(args != NULL)
 		is->args = var_ref(args);
 	else
@@ -3428,6 +3418,20 @@ bool interrupt(vm_t* vm, var_t* obj, const char* funcName, var_t* args) {
 	_isignalNum++;
 	pthread_mutex_unlock(&_interrupt_lock);
 	return true;
+}
+
+bool interruptByName(vm_t* vm, var_t* obj, const char* funcName, var_t* args) {
+	node_t* func = find_member(obj, funcName);
+	if(func == NULL) {
+		_debug("Interrupt function '");
+		_debug(funcName);
+		_debug("' not defined!\n");
+		if(args != NULL)
+			var_unref(args, true);
+		return false;
+	}
+
+	return interrupt(vm, obj, func->var, args);
 }
 
 void tryInterrupter(vm_t* vm) {
@@ -3458,12 +3462,9 @@ void tryInterrupter(vm_t* vm) {
 		}
 	}
 
-	_debug("Interrupter : ");
-	_debug(sig->handleFuncNode->name);
-	_debug("\n");
+	func_call(vm, sig->obj, (func_t*)sig->handleFunc->value, argNum, true);
 
-	func_call(vm, sig->obj, (func_t*)sig->handleFuncNode->var->value, argNum, true);
-
+	var_unref(sig->handleFunc, true);
 	var_unref(sig->obj, true);
 	if(sig->args != NULL)
 		var_unref(sig->args, true);
