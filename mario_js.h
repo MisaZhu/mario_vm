@@ -92,19 +92,20 @@ typedef struct st_bytecode {
 #define V_INT    1
 #define V_FLOAT  2
 #define V_STRING 3
-#define V_FUNC   4
 #define V_OBJECT 5
-#define V_ARRAY  6
 
 #define THIS "this"
-#define PROTOTYPE "class"
+#define PROTOTYPE "prototype"
+#define FATHER "__proto__"
 #define SUPER "super"
 #define CONSTRUCTOR "constructor"
 
 typedef struct st_var {
-	int32_t magic: 8; //0 for var; 1 for node
-	int32_t refs:20;
-	int32_t type:4;
+	uint32_t magic: 8; //0 for var; 1 for node
+	uint32_t refs:18;
+	uint32_t type:4;
+	uint32_t isArray:1;
+	uint32_t isFunc:1;
 	uint32_t size;  // size for bytes type of value;
 
 	void* value;

@@ -2180,8 +2180,8 @@ inline var_t* var_new() {
 }
 
 inline var_t* var_new_array() {
-	var_t* var = var_new();
-	var->type = V_ARRAY;
+	var_t* var = var_new_obj(NULL, NULL);
+	var->isArray = 1;
 	return var;
 }
 
@@ -2282,7 +2282,6 @@ void var_to_str(var_t* var, str_t* ret) {
 	case V_STRING:
 		str_cpy(ret, var_get_str(var));
 		break;
-	case V_ARRAY:
 	case V_OBJECT:
 		var_to_json_str(var, ret, 0);
 		break;
@@ -2295,7 +2294,7 @@ void var_to_str(var_t* var, str_t* ret) {
 void get_parsable_str(var_t* var, str_t* ret) {
 	str_reset(ret);
 
-	if (var->type == V_FUNC) {
+	if (var->isFunc) {
 		str_append(ret, "function (");
 		// get list of parameters
 		int sz = 0;
@@ -2392,7 +2391,7 @@ void var_to_json_str(var_t* var, str_t* ret, int level) {
 		append_json_spaces(ret, level - 1);	
 		str_add(ret, '}');
 	} 
-	else if (var->type == V_ARRAY) {
+	else if (var->isArray) {
 		str_add(ret, '[');
 		int len = (int)var->children.size;
 		if (len>100) len=100; // we don't want to get stuck here!
@@ -2569,8 +2568,7 @@ var_t* json_parse_factor(lex_t *l) {
 	}
 	else if (l->tk=='[') {
 		/* JSON-style array */
-		var_t* arr = var_new();
-		arr->type = V_ARRAY;
+		var_t* arr = var_new_array();
 		lex_chkread(l, '[');
 		while (l->tk != ']') {
 			var_t* v = json_parse_factor(l);
@@ -2875,6 +2873,19 @@ static inline node_t* vm_load_node(vm_t* vm, const char* name, bool create) {
 }
 
 //for function.
+static var_t* _var_Object = NULL;
+
+void add_prototype(var_t* var, var_t* father) {
+	var_t* v = var_new_obj(NULL, NULL);
+	node_t* protoN = var_add(var, PROTOTYPE, v);
+
+	if(father != NULL) {
+		v = get_obj(father, PROTOTYPE);
+		if(v != NULL) {
+			var_add(protoN->var, FATHER, v);
+		}
+	}
+}
 
 func_t* func_new() {
 	func_t* func = (func_t*)_malloc(sizeof(func_t));
@@ -2897,10 +2908,12 @@ void func_free(void* p) {
 }
 
 var_t* var_new_func(func_t* func) {
-	var_t* var = var_new();
-	var->type = V_FUNC;
+	var_t* var = var_new_obj(NULL, NULL);
+	var->isFunc = 1;
 	var->freeFunc = func_free;
 	var->value = func;
+
+	add_prototype(var, _var_Object);
 	return var;
 }
 
@@ -2914,7 +2927,7 @@ var_t* find_func(vm_t* vm, var_t* obj, const char* fname) {
 		node = vm_find_in_scopes(vm, fname);
 	}
 
-	if(node != NULL && node->var != NULL && node->var->type == V_FUNC) {
+	if(node != NULL && node->var != NULL && node->var->isFunc) {
 		return node->var;
 	}
 	return NULL;
@@ -2933,8 +2946,7 @@ var_t* get_super(var_t* var) {
 void vm_run_code(vm_t* vm);
 bool func_call(vm_t* vm, var_t* obj, func_t* func, int argNum, bool isInterrupt) {
 	int32_t i;
-	var_t *env = var_new();
-	env->type = V_ARRAY;
+	var_t *env = var_new_array();
 
 	for(i=argNum; i>func->args.size; i--) {
 		vm_pop(vm);
@@ -3266,7 +3278,7 @@ void do_get(vm_t* vm, var_t* v, const char* name) {
 		vm_push(vm, var_new_int(len));
 		return;
 	}
-	else if(v->type == V_ARRAY && strcmp(name, "length") == 0) {
+	else if(v->isArray && strcmp(name, "length") == 0) {
 		int len = v->children.size;
 		vm_push(vm, var_new_int(len));
 		return;
@@ -3993,7 +4005,7 @@ void vm_run_code(vm_t* vm) {
 				if(v != NULL) {
 					var_t *var = vm_get_scope_var(vm, true);
 
-					if(v->type == V_FUNC) {
+					if(v->isArray) {
 						func_t* func = (func_t*)v->value;
 						func->owner = var;
 					}
@@ -4018,11 +4030,11 @@ void vm_run_code(vm_t* vm) {
 			case INSTR_OBJ:
 			case INSTR_ARRAY: 
 			{
-				var_t* obj = var_new();
+				var_t* obj;
 				if(instr == INSTR_OBJ)
-					obj->type =V_OBJECT;
+					obj = var_new_obj(NULL, NULL);
 				else
-					obj->type = V_ARRAY;
+					obj = var_new_array();
 				scope_t* sc = scope_new(obj, 0xFFFFFFFF);
 				vm_push_scope(vm, sc);
 				break;
@@ -4161,6 +4173,15 @@ void vm_close(vm_t* vm) {
 node_t* vm_new_class(vm_t* vm, const char* cls) {
 	node_t* clsNode = vm_load_node(vm, cls, true);
 	clsNode->var->type = V_OBJECT;
+
+	if(strcmp(cls, "Object") == 0) {
+		_var_Object = clsNode->var;
+		add_prototype(_var_Object, NULL);
+	}
+	else {
+		add_prototype(clsNode->var, _var_Object);
+	}
+
 	return clsNode;
 }
 
@@ -4299,6 +4320,8 @@ void vm_init(vm_t* vm) {
 
 	vm->root = var_new_obj(NULL, NULL);
 	var_ref(vm->root);
+
+	vm_new_class(vm, "Object");
 
 	vm_reg_native(vm, "console", "log(str)", native_print, NULL);
 	vm_reg_native(vm, "", "dump(var)", native_dump, NULL);

@@ -8,7 +8,7 @@ AR := $(CROSS_COMPILE)ar
 LD := $(CROSS_COMPILE)gcc
 
 mario_OBJS = ../../mario_js.o
-test_OBJS = jstest.o 
+test_OBJS = testjs.o 
 
 CFLAGS = -I../.. -g -Wall -DMARIO_CACHE -DMARIO_DEBUG
 LDFLAGS =
@@ -20,8 +20,8 @@ LDFLAGS += -lpthread
 endif
 
 all: $(test_OBJS) $(mario_OBJS)
-	$(LD) -o jstest $(test_OBJS) $(mario_OBJS) $(LDFLAGS)
+	$(LD) -o testjs $(test_OBJS) $(mario_OBJS) $(LDFLAGS)
 
 
 clean:
-	rm -fr jstest $(test_OBJS) $(mario_OBJS) *.dSYM
+	rm -fr testjs $(test_OBJS) $(mario_OBJS) *.dSYM
