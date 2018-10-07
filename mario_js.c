@@ -2082,14 +2082,20 @@ inline void var_remove_all(var_t* var) {
 }
 
 node_t* var_add(var_t* var, const char* name, var_t* add) {
-	node_t* node = node_new(name);
-	if(node != NULL) {
-		if(add != NULL)
-			node_replace(node, add);
-		else 
-			var_ref(node->var);
+	node_t* node = NULL;
+
+	if(name[0] != 0) 
+		node = var_find(var, name);
+
+	if(node == NULL) {
+		node = node_new(name);
+		var_ref(node->var);
 		array_add(&var->children, node);
 	}
+
+	if(add != NULL)
+		node_replace(node, add);
+
 	return node;
 }
 
@@ -2198,6 +2204,7 @@ inline var_t* var_new_obj(void*p, free_func_t fr) {
 	var->type = V_OBJECT;
 	var->value = p;
 	var->freeFunc = fr;
+	var_add(var, THIS, var);
 	return var;
 }
 
@@ -2875,7 +2882,7 @@ static inline node_t* vm_load_node(vm_t* vm, const char* name, bool create) {
 //for function.
 static var_t* _var_Object = NULL;
 
-void add_prototype(var_t* var, var_t* father) {
+var_t* add_prototype(var_t* var, var_t* father) {
 	var_t* v = var_new_obj(NULL, NULL);
 	node_t* protoN = var_add(var, PROTOTYPE, v);
 
@@ -2885,6 +2892,8 @@ void add_prototype(var_t* var, var_t* father) {
 			var_add(protoN->var, FATHER, v);
 		}
 	}
+
+	return protoN->var;
 }
 
 func_t* func_new() {
@@ -2913,7 +2922,8 @@ var_t* var_new_func(func_t* func) {
 	var->freeFunc = func_free;
 	var->value = func;
 
-	add_prototype(var, _var_Object);
+	var_t* protoV = add_prototype(var, _var_Object);
+	var_add(protoV, CONSTRUCTOR, var);
 	return var;
 }
 
@@ -2944,9 +2954,10 @@ var_t* get_super(var_t* var) {
 }
 
 void vm_run_code(vm_t* vm);
-bool func_call(vm_t* vm, var_t* obj, func_t* func, int argNum, bool isInterrupt) {
+bool func_call(vm_t* vm, var_t* obj, var_t* funcVar, int argNum, bool isInterrupt) {
 	int32_t i;
-	var_t *env = var_new_array();
+	func_t* func = var_get_func(funcVar);
+	var_t *env = funcVar; //var_new_array();
 
 	for(i=argNum; i>func->args.size; i--) {
 		vm_pop(vm);
@@ -2967,7 +2978,7 @@ bool func_call(vm_t* vm, var_t* obj, func_t* func, int argNum, bool isInterrupt)
 			var_unref(v, true);
 		}
 	}
-	var_add(env, THIS, obj);
+	//var_add(env, THIS, obj);
 
 	var_t* super = get_super(func->owner);
 	if(super != NULL)
@@ -3344,7 +3355,7 @@ var_t* new_obj(vm_t* vm, const char* clsName, int argNum) {
 	n = var_find(n->var, CONSTRUCTOR);
 
 	if(n != NULL) {
-		func_call(vm, obj, (func_t*)n->var->value, argNum, false);
+		func_call(vm, obj, n->var, argNum, false);
 		obj = vm_pop2(vm);
 		var_unref(obj, false);
 	}
@@ -3474,7 +3485,7 @@ void tryInterrupter(vm_t* vm) {
 		}
 	}
 
-	func_call(vm, sig->obj, (func_t*)sig->handleFunc->value, argNum, true);
+	func_call(vm, sig->obj, sig->handleFunc, argNum, true);
 
 	var_unref(sig->handleFunc, true);
 	var_unref(sig->obj, true);
@@ -3546,7 +3557,7 @@ void vm_run_code(vm_t* vm) {
 
 				if(!loaded) { //not cached.
 					if(offset == _thisStrIndex) {
-						if(sc_var->type == V_OBJECT) {
+						if(sc_var->type == V_OBJECT && sc_var->isArray == 0) {
 							vm_push(vm, sc_var);
 							loaded = true;
 						}
@@ -3975,7 +3986,7 @@ void vm_run_code(vm_t* vm) {
 				str_free(name);
 
 				if(func != NULL) {
-					func_call(vm, obj, (func_t*)func->value, argNum, false);
+					func_call(vm, obj, func, argNum, false);
 				}
 				else {
 					while(argNum > 0) {
