@@ -2156,7 +2156,7 @@ inline void var_free(void* p) {
 	_free(var);
 }
 
-/*inline var_t* var_ref(var_t* var) {
+inline var_t* var_ref(var_t* var) {
 //	if(var != NULL)
 		++var->refs;
 	return var;
@@ -2169,7 +2169,6 @@ inline void var_unref(var_t* var, bool del) {
 				var_free(var);
 //	}
 }
-*/
 
 inline var_t* var_new() {
 	var_t* var = (var_t*)_malloc(sizeof(var_t));
@@ -2182,6 +2181,12 @@ inline var_t* var_new() {
 	var->freeFunc = NULL;
 	var->onDestroy = NULL;
 	array_init(&var->children);
+	return var;
+}
+
+inline var_t* var_new_block() {
+	var_t* var = var_new();
+	var->type = V_BLOCK;
 	return var;
 }
 
@@ -2204,7 +2209,6 @@ inline var_t* var_new_obj(void*p, free_func_t fr) {
 	var->type = V_OBJECT;
 	var->value = p;
 	var->freeFunc = fr;
-	var_add(var, THIS, var);
 	return var;
 }
 
@@ -2725,8 +2729,7 @@ typedef struct st_scope {
 	struct st_scope* prev;
 	var_t* var;
 	PC pc; //stack pc
-	int32_t isBlock: 2;
-	int32_t isInterrupt: 2;
+	bool isInterrupt;
 
 	//continue and break anchor for loop(while/for)
 } scope_t;
@@ -2738,7 +2741,6 @@ scope_t* scope_new(var_t* var, PC pc) {
 	if(var != NULL)
 		sc->var = var_ref(var);
 	sc->pc = pc;
-	sc->isBlock = false;
 	sc->isInterrupt = false;
 	return sc;
 }
@@ -2756,7 +2758,7 @@ void scope_free(void* p) {
 
 #define vm_get_scope_var(vm, skipBlock) ({ \
 	scope_t* sc = (scope_t*)array_tail(&(vm)->scopes); \
-	if((skipBlock) && sc != NULL && sc->isBlock) \
+	if((skipBlock) && sc != NULL && sc->var->type == V_BLOCK) \
 		sc = sc->prev; \
 	var_t* ret; \
 	if(sc == NULL) \
@@ -2829,6 +2831,18 @@ node_t* find_member(var_t* obj, const char* name) {
 	return node;
 }
 
+static inline var_t* vm_this_in_scopes(vm_t* vm) {
+	scope_t* sc = vm_get_scope(vm);
+	while(sc != NULL) {
+		if(sc->var != NULL && 
+				sc->var->type == V_OBJECT) {
+			return sc->var;
+		}
+		sc = sc->prev;
+	}
+	return NULL;
+}
+
 static inline node_t* vm_find_in_scopes(vm_t* vm, const char* name) {
 	node_t* ret = NULL;
 	scope_t* sc = vm_get_scope(vm);
@@ -2838,7 +2852,7 @@ static inline node_t* vm_find_in_scopes(vm_t* vm, const char* name) {
 		if(ret != NULL)
 			return ret;
 
-		node_t* n = var_find(sc->var, THIS);//_thisStrIndex);
+		node_t* n = var_find(sc->var, THIS);
 		if(n != NULL)  {
 			ret = find_member(n->var, name);
 			if(ret != NULL)
@@ -2884,16 +2898,20 @@ static var_t* _var_Object = NULL;
 
 var_t* add_prototype(var_t* var, var_t* father) {
 	var_t* v = var_new_obj(NULL, NULL);
-	node_t* protoN = var_add(var, PROTOTYPE, v);
+	node_t* protoN = var_add(var, PROTOTYPE, v); //add prototype object
 
 	if(father != NULL) {
-		v = get_obj(father, PROTOTYPE);
+		v = get_obj(father, PROTOTYPE); //get father's prototype.
 		if(v != NULL) {
 			var_add(protoN->var, FATHER, v);
 		}
 	}
 
 	return protoN->var;
+}
+
+var_t* get_prototype(var_t* var) {
+	return get_obj(var, PROTOTYPE);
 }
 
 func_t* func_new() {
@@ -2927,6 +2945,18 @@ var_t* var_new_func(func_t* func) {
 	return var;
 }
 
+var_t* var_new_func_from(var_t* funcVar) {
+	var_t* var = var_new_obj(NULL, NULL);
+	var->isFunc = 1;
+	var->freeFunc = _free_none;
+	var->value = var_get_func(funcVar);
+
+	add_prototype(var, funcVar);
+	//var_t* protoV = add_prototype(var, funcVar);
+	//var_add(protoV, CONSTRUCTOR, var);
+	return var;
+}
+
 var_t* find_func(vm_t* vm, var_t* obj, const char* fname) {
 	//try full name with argNum
 	node_t* node;
@@ -2956,9 +2986,11 @@ var_t* get_super(var_t* var) {
 void vm_run_code(vm_t* vm);
 bool func_call(vm_t* vm, var_t* obj, var_t* funcVar, int argNum, bool isInterrupt) {
 	int32_t i;
-	func_t* func = var_get_func(funcVar);
-	var_t *env = funcVar; //var_new_array();
 
+	var_t *env = var_new_func_from(funcVar);
+	//var_ref(env);
+
+	func_t* func = var_get_func(funcVar);
 	for(i=argNum; i>func->args.size; i--) {
 		vm_pop(vm);
 	}
@@ -3350,9 +3382,9 @@ var_t* new_obj(vm_t* vm, const char* clsName, int argNum) {
 	}
 
 	obj = var_new_obj(NULL, NULL);
-	var_add(obj, PROTOTYPE, n->var);
+	var_t* protoV = add_prototype(obj, n->var);
 
-	n = var_find(n->var, CONSTRUCTOR);
+	n = var_find(protoV, CONSTRUCTOR);
 
 	if(n != NULL) {
 		func_call(vm, obj, n->var, argNum, false);
@@ -3555,26 +3587,27 @@ void vm_run_code(vm_t* vm) {
 				}
 				#endif
 
-				if(!loaded) { //not cached.
+				if(!loaded) {
 					if(offset == _thisStrIndex) {
-						if(sc_var->type == V_OBJECT && sc_var->isArray == 0) {
-							vm_push(vm, sc_var);
-							loaded = true;
+						var_t* thisV = vm_this_in_scopes(vm);
+						if(thisV != NULL) {
+							vm_push(vm, thisV);	
+							loaded = true;	
 						}
 					}
+				}
 
-					if(!loaded) {
-						const char* s = bc_getstr(&vm->bc, offset);
-						node_t* n = vm_load_node(vm, s, true); //load variable, create if not exist.
-						vm_push_node(vm, n);
+				if(!loaded) {
+					const char* s = bc_getstr(&vm->bc, offset);
+					node_t* n = vm_load_node(vm, s, true); //load variable, create if not exist.
+					vm_push_node(vm, n);
 
-						#ifdef MARIO_CACHE
-						int cache_id = node_cache(sc_var, n, offset);
-						if(cache_id >= 0) {
-							code[vm->pc-1] = INSTR_NEED_IMPROVE | ( INSTR_LOAD << 16 ) | cache_id;
-						}
-						#endif
+					#ifdef MARIO_CACHE
+					int cache_id = node_cache(sc_var, n, offset);
+					if(cache_id >= 0) {
+						code[vm->pc-1] = INSTR_NEED_IMPROVE | ( INSTR_LOAD << 16 ) | cache_id;
 					}
+					#endif
 				}
 				break;
 			}
@@ -3602,10 +3635,9 @@ void vm_run_code(vm_t* vm) {
 				scope_t* bl = vm_get_scope(vm);
 				scope_t* sc = NULL;
 				if(bl != NULL)
-					sc = scope_new(var_new_obj(NULL, NULL), bl->pc);
+					sc = scope_new(var_new_block(), bl->pc);
 				else
-					sc = scope_new(var_new_obj(NULL, NULL), 0xFFFFFFFF);
-				sc->isBlock = true;
+					sc = scope_new(var_new_block(), 0xFFFFFFFF);
 				vm_push_scope(vm, sc);
 				break;
 			}
@@ -3824,9 +3856,9 @@ void vm_run_code(vm_t* vm) {
 				scope_t* sc = vm_get_scope(vm);
 				if(sc != NULL) {
 					if(instr == INSTR_RETURN) {//return without value, push "this" to stack
-						node_t* n = vm_load_node(vm, THIS, false); //load variable.
-						if(n != NULL)
-							vm_push(vm, n->var);
+						var_t* thisV = vm_this_in_scopes(vm);
+						if(thisV != NULL)
+							vm_push(vm, thisV);
 						else
 							vm_push(vm, var_new());
 					}
@@ -4042,8 +4074,9 @@ void vm_run_code(vm_t* vm) {
 			case INSTR_ARRAY: 
 			{
 				var_t* obj;
-				if(instr == INSTR_OBJ)
+				if(instr == INSTR_OBJ) {
 					obj = var_new_obj(NULL, NULL);
+				}
 				else
 					obj = var_new_array();
 				scope_t* sc = scope_new(obj, 0xFFFFFFFF);
