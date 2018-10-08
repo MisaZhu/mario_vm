@@ -97,7 +97,6 @@ typedef struct st_bytecode {
 
 #define THIS "this"
 #define PROTOTYPE "prototype"
-#define FATHER "__proto__"
 #define SUPER "super"
 #define CONSTRUCTOR "constructor"
 
@@ -157,6 +156,7 @@ void var_dump(var_t* var);
 void var_remove_all(var_t* var);
 node_t* var_add(var_t* var, const char* name, var_t* add);
 node_t* var_find(var_t* var, const char*name);
+var_t* var_find_var(var_t* var, const char*name);
 node_t* var_find_create(var_t* var, const char*name);
 node_t* var_get(var_t* var, int32_t index);
 

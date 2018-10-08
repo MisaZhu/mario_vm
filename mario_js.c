@@ -2113,6 +2113,13 @@ inline node_t* var_find(var_t* var, const char*name) {
 	return NULL;
 }
 
+inline var_t* var_find_var(var_t* var, const char*name) {
+	node_t* node = var_find(var, name);
+	if(node == NULL)
+		return NULL;
+	return node->var;
+}
+
 inline node_t* var_find_create(var_t* var, const char*name) {
 	node_t* n = var_find(var, name);
 	if(n != NULL)
@@ -2840,13 +2847,14 @@ static inline var_t* vm_this_in_scopes(vm_t* vm) {
 		}
 		sc = sc->prev;
 	}
-	return NULL;
+	return vm->root;
 }
 
 static inline node_t* vm_find_in_scopes(vm_t* vm, const char* name) {
 	node_t* ret = NULL;
 	scope_t* sc = vm_get_scope(vm);
 	
+	/*
 	if(sc != NULL && sc->var != NULL) {
 		ret = var_find(sc->var, name);
 		if(ret != NULL)
@@ -2860,6 +2868,7 @@ static inline node_t* vm_find_in_scopes(vm_t* vm, const char* name) {
 		}
 		sc = sc->prev;
 	}
+	*/
 
 	while(sc != NULL) {
 		if(sc->var != NULL) {
@@ -2874,7 +2883,17 @@ static inline node_t* vm_find_in_scopes(vm_t* vm, const char* name) {
 }
 
 static inline node_t* vm_load_node(vm_t* vm, const char* name, bool create) {
-	node_t* n =  vm_find_in_scopes(vm, name);	
+	var_t* var = vm_get_scope_var(vm, true);
+
+	node_t* n;
+	if(var != NULL) {
+		n = find_member(var, name);
+	}
+	else {
+		n = vm_find_in_scopes(vm, name);
+	}
+
+	//node_t* n =  vm_find_in_scopes(vm, name);	
 	if(n != NULL)
 		return n;
 	/*
@@ -2885,7 +2904,6 @@ static inline node_t* vm_load_node(vm_t* vm, const char* name, bool create) {
 	if(!create)
 		return NULL;
 
-	var_t* var = vm_get_scope_var(vm, true);
 	if(var == NULL)
 		return NULL;
 
@@ -2903,7 +2921,7 @@ var_t* add_prototype(var_t* var, var_t* father) {
 	if(father != NULL) {
 		v = get_obj(father, PROTOTYPE); //get father's prototype.
 		if(v != NULL) {
-			var_add(protoN->var, FATHER, v);
+			var_add(protoN->var, SUPER, v);
 		}
 	}
 
@@ -2951,7 +2969,8 @@ var_t* var_new_func_from(var_t* funcVar) {
 	var->freeFunc = _free_none;
 	var->value = var_get_func(funcVar);
 
-	add_prototype(var, funcVar);
+	var_t* protoV = get_prototype(funcVar);
+	var_add(var, PROTOTYPE, protoV);
 	//var_t* protoV = add_prototype(var, funcVar);
 	//var_add(protoV, CONSTRUCTOR, var);
 	return var;
@@ -2967,30 +2986,24 @@ var_t* find_func(vm_t* vm, var_t* obj, const char* fname) {
 		node = vm_find_in_scopes(vm, fname);
 	}
 
-	if(node != NULL && node->var != NULL && node->var->isFunc) {
+	if(node != NULL && node->var != NULL && node->var->type == V_OBJECT) {
 		return node->var;
 	}
 	return NULL;
 }
 
-var_t* get_super(var_t* var) {
-	if(var == NULL)
-		return NULL;
-
-	node_t* n = var_find(var, SUPER);
-	if(n != NULL)
-		return n->var;
-	return NULL;
-}
-
 void vm_run_code(vm_t* vm);
 bool func_call(vm_t* vm, var_t* obj, var_t* funcVar, int argNum, bool isInterrupt) {
-	int32_t i;
+	var_t *env;
+	if(obj == NULL)  
+		env = var_new_func_from(funcVar);
+	else
+		env = obj;
 
-	var_t *env = var_new_func_from(funcVar);
 	//var_ref(env);
 
 	func_t* func = var_get_func(funcVar);
+	int32_t i;
 	for(i=argNum; i>func->args.size; i--) {
 		vm_pop(vm);
 	}
@@ -3010,11 +3023,12 @@ bool func_call(vm_t* vm, var_t* obj, var_t* funcVar, int argNum, bool isInterrup
 			var_unref(v, true);
 		}
 	}
-	//var_add(env, THIS, obj);
 
-	var_t* super = get_super(func->owner);
-	if(super != NULL)
-		var_add(env, SUPER, super);
+	if(func->owner != NULL) {
+		node_t* superN = var_find(func->owner, SUPER);
+		if(superN != NULL)
+			var_add(env, SUPER, superN->var);
+	}
 
 	scope_t* sc = scope_new(env, vm->pc);
 	sc->isInterrupt = isInterrupt;
@@ -3357,7 +3371,7 @@ void do_get(vm_t* vm, var_t* v, const char* name) {
 	vm_push_node(vm, n);
 }
 
-void doExtends(vm_t* vm, var_t* cls, const char* superName) {
+void doExtends(vm_t* vm, var_t* clsProto, const char* superName) {
 	node_t* n = vm_find_in_scopes(vm, superName);
 	if(n == NULL) {
 		_debug("Super Class '");
@@ -3365,7 +3379,10 @@ void doExtends(vm_t* vm, var_t* cls, const char* superName) {
 		_debug("' not found!\n");
 		return;
 	}
-	var_add(cls, SUPER, n->var);
+
+	var_t* protoV = get_prototype(n->var);
+	if(protoV != NULL)
+		var_add(clsProto, SUPER, protoV);
 }
 
 /** simple create object by classname(no constructor) */
@@ -3382,7 +3399,9 @@ var_t* new_obj(vm_t* vm, const char* clsName, int argNum) {
 	}
 
 	obj = var_new_obj(NULL, NULL);
-	var_t* protoV = add_prototype(obj, n->var);
+	//add_prototype(obj, n->var);
+	var_t* protoV = get_prototype(n->var);
+	var_add(obj, PROTOTYPE, protoV);
 
 	n = var_find(protoV, CONSTRUCTOR);
 
@@ -3403,10 +3422,7 @@ void do_new(vm_t* vm, const char* full) {
 	var_t* obj = new_obj(vm, name->cstr, argNum);
 	str_free(name);
 
-	if(obj == NULL)
-		vm_push(vm, var_new());
-	else
-		vm_push(vm, obj);
+	vm_push(vm, obj);
 }
 
 /**
@@ -3454,7 +3470,7 @@ bool interrupt(vm_t* vm, var_t* obj, var_t* func, var_t* args) {
 	}
 
 	is->next = NULL;
-	is->obj = var_ref(obj);
+	is->obj = obj;
 	is->handleFunc = var_ref(func);
 	if(args != NULL)
 		is->args = var_ref(args);
@@ -3476,6 +3492,7 @@ bool interrupt(vm_t* vm, var_t* obj, var_t* func, var_t* args) {
 }
 
 bool interruptByName(vm_t* vm, var_t* obj, const char* funcName, var_t* args) {
+	pthread_mutex_lock(&_interrupt_lock);
 	node_t* func = find_member(obj, funcName);
 	if(func == NULL) {
 		_debug("Interrupt function '");
@@ -3483,8 +3500,10 @@ bool interruptByName(vm_t* vm, var_t* obj, const char* funcName, var_t* args) {
 		_debug("' not defined!\n");
 		if(args != NULL)
 			var_unref(args, true);
+		pthread_mutex_unlock(&_interrupt_lock);
 		return false;
 	}
+	pthread_mutex_unlock(&_interrupt_lock);
 
 	return interrupt(vm, obj, func->var, args);
 }
@@ -3520,7 +3539,7 @@ void tryInterrupter(vm_t* vm) {
 	func_call(vm, sig->obj, sig->handleFunc, argNum, true);
 
 	var_unref(sig->handleFunc, true);
-	var_unref(sig->obj, true);
+	//var_unref(sig->obj, true);
 	if(sig->args != NULL)
 		var_unref(sig->args, true);
 	_free(sig);
@@ -3532,6 +3551,21 @@ void tryInterrupter(vm_t* vm) {
 #endif
 
 /*****************/
+
+node_t* vm_new_class(vm_t* vm, const char* cls) {
+	node_t* clsNode = vm_load_node(vm, cls, true);
+	clsNode->var->type = V_OBJECT;
+
+	if(strcmp(cls, "Object") == 0) {
+		_var_Object = clsNode->var;
+		add_prototype(_var_Object, NULL);
+	}
+	else {
+		add_prototype(clsNode->var, _var_Object);
+	}
+
+	return clsNode;
+}
 
 void vm_run_code(vm_t* vm) {
 	//int32_t scDeep = vm->scopes.size;
@@ -3987,35 +4021,46 @@ void vm_run_code(vm_t* vm) {
 				}
 				break;
 			}
+			case INSTR_NEW: 
+			{
+				const char* s = bc_getstr(&vm->bc, offset);
+				do_new(vm, s);
+				break;
+			}
 			case INSTR_CALL: 
 			case INSTR_CALLO: 
 			{
 				var_t* func = NULL;
 				var_t* obj = NULL;
+				bool unrefObj = false;
 				const char* s = bc_getstr(&vm->bc, offset);
 				str_t* name = str_new("");
 				int argNum = parse_func_name(s, name);
 				
 				if(instr == INSTR_CALLO) {
 					obj = vm_stack_pick(vm, argNum+1);
+					unrefObj = true;
 				}
 
-				if(obj == NULL && strcmp(SUPER, name->cstr) == 0) { //super constructor
-					str_cpy(name, CONSTRUCTOR);
-					var_t* v = vm_get_scope_var(vm, true);
-					if(v != NULL) {
-						node_t* n = var_find(v, THIS);
-						if(n != NULL)
-							obj = var_ref(n->var);
-						n = var_find(v, SUPER);
-						if(n != NULL)
-							func = find_func(vm, n->var, name->cstr);
+				func = find_func(vm, obj, name->cstr);
+
+				if(obj == NULL) {
+					obj = vm_this_in_scopes(vm);
+				}
+
+				if(func != NULL && !func->isFunc) { //constructor
+					var_t* constr = var_find_var(func, CONSTRUCTOR);	
+					if(constr == NULL) {
+						var_t* protoV = get_prototype(func);
+						if(protoV != NULL) 
+							func = var_find_var(protoV, CONSTRUCTOR);	
+						else
+							func = NULL;
+					}
+					else {
+						func = constr;
 					}
 				}
-				else {
-					func = find_func(vm, obj, name->cstr);
-				}
-				str_free(name);
 
 				if(func != NULL) {
 					func_call(vm, obj, func, argNum, false);
@@ -4030,7 +4075,9 @@ void vm_run_code(vm_t* vm) {
 					_debug(s);
 					_debug("'!\n");
 				}
-				if(obj != NULL)
+				str_free(name);
+
+				if(unrefObj && obj != NULL)
 					var_unref(obj, true);
 
 				//check and do interrupter.
@@ -4048,7 +4095,7 @@ void vm_run_code(vm_t* vm) {
 				if(v != NULL) {
 					var_t *var = vm_get_scope_var(vm, true);
 
-					if(v->isArray) {
+					if(v->isFunc) {
 						func_t* func = (func_t*)v->value;
 						func->owner = var;
 					}
@@ -4110,8 +4157,8 @@ void vm_run_code(vm_t* vm) {
 			case INSTR_CLASS: 
 			{
 				const char* s =  bc_getstr(&vm->bc, offset);
-				node_t* n = var_find_create(vm->root, s);
-				n->var->type = V_OBJECT;
+				node_t* n = vm_new_class(vm, s);
+				var_t* protoV = get_prototype(n->var);
 				//read extends
 				ins = code[vm->pc];
 				instr = ins >> 16;
@@ -4119,10 +4166,10 @@ void vm_run_code(vm_t* vm) {
 					vm->pc++;
 					offset = ins & 0x0000FFFF;
 					s =  bc_getstr(&vm->bc, offset);
-					doExtends(vm, n->var, s);
+					doExtends(vm, protoV, s);
 				}
 
-				scope_t* sc = scope_new(n->var, 0xFFFFFFFF);
+				scope_t* sc = scope_new(protoV, 0xFFFFFFFF);
 				vm_push_scope(vm, sc);
 				break;
 			}
@@ -4131,12 +4178,6 @@ void vm_run_code(vm_t* vm) {
 				var_t* var = vm_get_scope_var(vm, true);
 				vm_push(vm, var);
 				vm_pop_scope(vm);
-				break;
-			}
-			case INSTR_NEW: 
-			{
-				const char* s =  bc_getstr(&vm->bc, offset);
-				do_new(vm, s);
 				break;
 			}
 			/*
@@ -4213,21 +4254,6 @@ void vm_close(vm_t* vm) {
 }	
 
 /** native extended functions.-----------------------------*/
-
-node_t* vm_new_class(vm_t* vm, const char* cls) {
-	node_t* clsNode = vm_load_node(vm, cls, true);
-	clsNode->var->type = V_OBJECT;
-
-	if(strcmp(cls, "Object") == 0) {
-		_var_Object = clsNode->var;
-		add_prototype(_var_Object, NULL);
-	}
-	else {
-		add_prototype(clsNode->var, _var_Object);
-	}
-
-	return clsNode;
-}
 
 node_t* vm_reg_var(vm_t* vm, const char* cls, const char* name, var_t* var, bool beConst) {
 	var_t* clsvar = vm->root;
