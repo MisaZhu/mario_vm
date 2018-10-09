@@ -4330,6 +4330,9 @@ float get_float(var_t* var, const char* name) {
 }
 
 var_t* get_obj(var_t* var, const char* name) {
+	if(strcmp(name, THIS) == 0)
+		return var;
+
 	node_t* n = var_find(var, name);
 	if(n == NULL)
 		return NULL;
