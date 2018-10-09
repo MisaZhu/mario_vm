@@ -19,7 +19,7 @@ NATIVE_OBJS= $(NATIVE_PATH)/basic/native_basic.o  \
 OBJS = mario.o $(MARIO_JS)/mario_js.o \
 		$(NATIVE_OBJS)
 
-CFLAGS =  -I$(MARIO_JS) -Wall -fPIC -DMARIO_DEBUG -DMARIO_CACHE
+CFLAGS =  -g -I$(MARIO_JS) -Wall -fPIC -DMARIO_DEBUG -DMARIO_CACHE
 LDFLAGS =  -lm -ldl
 
 #ifeq ($(MARIO_THREAD), yes)

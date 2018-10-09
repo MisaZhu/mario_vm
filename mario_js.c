@@ -3556,12 +3556,14 @@ node_t* vm_new_class(vm_t* vm, const char* cls) {
 	node_t* clsNode = vm_load_node(vm, cls, true);
 	clsNode->var->type = V_OBJECT;
 
-	if(strcmp(cls, "Object") == 0) {
-		_var_Object = clsNode->var;
-		add_prototype(_var_Object, NULL);
-	}
-	else {
-		add_prototype(clsNode->var, _var_Object);
+	if(get_prototype(clsNode->var) == NULL) {
+		if(strcmp(cls, "Object") == 0) {
+			_var_Object = clsNode->var;
+			add_prototype(_var_Object, NULL);
+		}
+		else {
+			add_prototype(clsNode->var, _var_Object);
+		}
 	}
 
 	return clsNode;
@@ -4259,7 +4261,8 @@ node_t* vm_reg_var(vm_t* vm, const char* cls, const char* name, var_t* var, bool
 	var_t* clsvar = vm->root;
 	if(cls[0] != 0) {
 		node_t* clsnode = vm_new_class(vm, cls);
-		clsvar = clsnode->var;
+		clsvar = get_prototype(clsnode->var);
+		//clsvar = clsnode->var;
 	}
 
 	node_t* node = var_add(clsvar, name, var);
@@ -4271,7 +4274,8 @@ node_t* vm_reg_native(vm_t* vm, const char* cls, const char* decl, native_func_t
 	var_t* clsVar = vm->root;
 	if(cls[0] != 0) {
 		node_t* clsNode = vm_new_class(vm, cls);
-		clsVar = clsNode->var;
+		clsVar = get_prototype(clsNode->var);
+		//clsVar = clsNode->var;
 	}
 
 	str_t* name = str_new("");
