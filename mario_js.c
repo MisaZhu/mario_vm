@@ -2893,7 +2893,9 @@ static inline node_t* vm_load_node(vm_t* vm, const char* name, bool create) {
 		n = vm_find_in_scopes(vm, name);
 	}
 
-	//node_t* n =  vm_find_in_scopes(vm, name);	
+	if(n == NULL)
+		n =  vm_find_in_scopes(vm, name);	
+
 	if(n != NULL)
 		return n;
 	/*
