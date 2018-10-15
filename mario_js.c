@@ -2736,8 +2736,6 @@ typedef struct st_scope {
 	struct st_scope* prev;
 	var_t* var;
 	PC pc; //stack pc
-	bool isInterrupt;
-
 	//continue and break anchor for loop(while/for)
 } scope_t;
 
@@ -2748,7 +2746,6 @@ scope_t* scope_new(var_t* var, PC pc) {
 	if(var != NULL)
 		sc->var = var_ref(var);
 	sc->pc = pc;
-	sc->isInterrupt = false;
 	return sc;
 }
 
@@ -2995,7 +2992,7 @@ var_t* find_func(vm_t* vm, var_t* obj, const char* fname) {
 }
 
 void vm_run_code(vm_t* vm);
-bool func_call(vm_t* vm, var_t* obj, var_t* funcVar, int argNum, bool isInterrupt) {
+bool func_call(vm_t* vm, var_t* obj, var_t* funcVar, int argNum) {
 	var_t *env;
 	if(obj == NULL)  
 		env = var_new_func_from(funcVar);
@@ -3033,7 +3030,6 @@ bool func_call(vm_t* vm, var_t* obj, var_t* funcVar, int argNum, bool isInterrup
 	}
 
 	scope_t* sc = scope_new(env, vm->pc);
-	sc->isInterrupt = isInterrupt;
 	vm_push_scope(vm, sc);
 
 	//native function
@@ -3408,7 +3404,7 @@ var_t* new_obj(vm_t* vm, const char* clsName, int argNum) {
 	n = var_find(protoV, CONSTRUCTOR);
 
 	if(n != NULL) {
-		func_call(vm, obj, n->var, argNum, false);
+		func_call(vm, obj, n->var, argNum);
 		obj = vm_pop2(vm);
 		var_unref(obj, false);
 	}
@@ -3425,6 +3421,33 @@ void do_new(vm_t* vm, const char* full) {
 	str_free(name);
 
 	vm_push(vm, obj);
+}
+
+var_t* callJSFunc(vm_t* vm, var_t* obj, var_t* func, var_t* args) {
+	//push args to stack.
+	int argNum = 0;
+	if(args != NULL) {
+		argNum = args->children.size;
+		int i;
+		for(i=0; i<argNum; i++) {
+			var_t* v = ((node_t*)args->children.items[i])->var;
+			vm_push(vm, v);
+		}
+	}
+
+	func_call(vm, obj, func, argNum);
+	return vm_pop2(vm);
+}
+
+var_t* callJSFuncByName(vm_t* vm, var_t* obj, const char* funcName, var_t* args) {
+	node_t* func = find_member(obj, funcName);
+	if(func == NULL || func->var->isFunc == 0) {
+		_debug("Interrupt function '");
+		_debug(funcName);
+		_debug("' not defined!\n");
+		return NULL;
+	}
+	return callJSFunc(vm, obj, func->var, args);
 }
 
 /**
@@ -3496,7 +3519,7 @@ bool interrupt(vm_t* vm, var_t* obj, var_t* func, var_t* args) {
 bool interruptByName(vm_t* vm, var_t* obj, const char* funcName, var_t* args) {
 	pthread_mutex_lock(&_interrupt_lock);
 	node_t* func = find_member(obj, funcName);
-	if(func == NULL) {
+	if(func == NULL || func->var->isFunc == 0) {
 		_debug("Interrupt function '");
 		_debug(funcName);
 		_debug("' not defined!\n");
@@ -3527,18 +3550,9 @@ void tryInterrupter(vm_t* vm) {
 		_isignalTail = NULL;
 	pthread_mutex_unlock(&_interrupt_lock);
 
-	//push args to stack.
-	int argNum = 0;
-	if(sig->args != NULL) {
-		argNum = sig->args->children.size;
-		int i;
-		for(i=0; i<argNum; i++) {
-			var_t* v = ((node_t*)sig->args->children.items[i])->var;
-			vm_push(vm, v);
-		}
-	}
-
-	func_call(vm, sig->obj, sig->handleFunc, argNum, true);
+	var_t* ret = callJSFunc(vm, sig->obj, sig->handleFunc, sig->args);
+	if(ret != NULL)
+		var_unref(ret, true);
 
 	var_unref(sig->handleFunc, true);
 	//var_unref(sig->obj, true);
@@ -3902,9 +3916,6 @@ void vm_run_code(vm_t* vm) {
 					}
 
 					vm->pc = sc->pc;
-					if(sc->isInterrupt == true) {
-						vm_pop(vm);
-					}
 					vm_pop_scope(vm);
 				}
 				return;
@@ -4067,7 +4078,7 @@ void vm_run_code(vm_t* vm) {
 				}
 
 				if(func != NULL) {
-					func_call(vm, obj, func, argNum, false);
+					func_call(vm, obj, func, argNum);
 				}
 				else {
 					while(argNum > 0) {
