@@ -3455,31 +3455,16 @@ interrupter
 */
 
 #ifdef MARIO_THREAD
-#include <pthread.h>
-static pthread_mutex_t _interrupt_lock;
-
-typedef struct st_isignal {
-	var_t* obj;
-	var_t* handleFunc;
-	var_t* args;
-	struct st_isignal* next;
-} isignal_t;
-
-
-isignal_t* _isignalHead = NULL;
-isignal_t* _isignalTail = NULL;
-uint32_t _isignalNum = 0;
-bool _interrupted = false;
 
 #define MAX_ISIGNAL 128
 
 bool interrupt(vm_t* vm, var_t* obj, var_t* func, var_t* args) {
-	while(_interrupted) { } // can not interrupt another interrupter.
+	while(vm->interrupted) { } // can not interrupt another interrupter.
 
-	pthread_mutex_lock(&_interrupt_lock);
-	if(_isignalNum >= MAX_ISIGNAL) {
+	pthread_mutex_lock(&vm->interruptLock);
+	if(vm->isignalNum >= MAX_ISIGNAL) {
 		_debug("Too many interrupt signals!\n");
-		pthread_mutex_unlock(&_interrupt_lock);
+		pthread_mutex_unlock(&vm->interruptLock);
 		if(args != NULL)
 			var_unref(args, true);
 		return false;
@@ -3488,7 +3473,7 @@ bool interrupt(vm_t* vm, var_t* obj, var_t* func, var_t* args) {
 	isignal_t* is = (isignal_t*)_malloc(sizeof(isignal_t));
 	if(is == NULL) {
 		_debug("Interrupt signal input error!\n");
-		pthread_mutex_unlock(&_interrupt_lock);
+		pthread_mutex_unlock(&vm->interruptLock);
 		if(args != NULL)
 			var_unref(args, true);
 		return false;
@@ -3502,22 +3487,22 @@ bool interrupt(vm_t* vm, var_t* obj, var_t* func, var_t* args) {
 	else
 		is->args = NULL;
 
-	if(_isignalTail == NULL) {
-		_isignalHead = is;
-		_isignalTail = is;
+	if(vm->isignalTail == NULL) {
+		vm->isignalHead = is;
+		vm->isignalTail = is;
 	}
 	else {
-		_isignalTail->next = is;
-		_isignalTail = is;
+		vm->isignalTail->next = is;
+		vm->isignalTail = is;
 	}
 
-	_isignalNum++;
-	pthread_mutex_unlock(&_interrupt_lock);
+	vm->isignalNum++;
+	pthread_mutex_unlock(&vm->interruptLock);
 	return true;
 }
 
 bool interruptByName(vm_t* vm, var_t* obj, const char* funcName, var_t* args) {
-	pthread_mutex_lock(&_interrupt_lock);
+	pthread_mutex_lock(&vm->interruptLock);
 	node_t* func = find_member(obj, funcName);
 	if(func == NULL || func->var->isFunc == 0) {
 		_debug("Interrupt function '");
@@ -3525,43 +3510,42 @@ bool interruptByName(vm_t* vm, var_t* obj, const char* funcName, var_t* args) {
 		_debug("' not defined!\n");
 		if(args != NULL)
 			var_unref(args, true);
-		pthread_mutex_unlock(&_interrupt_lock);
+		pthread_mutex_unlock(&vm->interruptLock);
 		return false;
 	}
-	pthread_mutex_unlock(&_interrupt_lock);
+	pthread_mutex_unlock(&vm->interruptLock);
 
 	return interrupt(vm, obj, func->var, args);
 }
 
 void tryInterrupter(vm_t* vm) {
-	if(_isignalHead == NULL)
+	if(vm->isignalHead == NULL)
 		return;
 	
-	pthread_mutex_lock(&_interrupt_lock);
-	if(_interrupted) {
-		pthread_mutex_unlock(&_interrupt_lock);
+	pthread_mutex_lock(&vm->interruptLock);
+	if(vm->interrupted) {
+		pthread_mutex_unlock(&vm->interruptLock);
 		return;
 	}
-	_interrupted = true;
+	vm->interrupted = true;
 
-	isignal_t* sig = _isignalHead;
-	_isignalHead = _isignalHead->next;
-	if(_isignalHead == NULL)
-		_isignalTail = NULL;
-	pthread_mutex_unlock(&_interrupt_lock);
+	isignal_t* sig = vm->isignalHead;
+	vm->isignalHead = vm->isignalHead->next;
+	if(vm->isignalHead == NULL)
+		vm->isignalTail = NULL;
+	pthread_mutex_unlock(&vm->interruptLock);
 
 	var_t* ret = callJSFunc(vm, sig->obj, sig->handleFunc, sig->args);
 	if(ret != NULL)
 		var_unref(ret, true);
 
 	var_unref(sig->handleFunc, true);
-	//var_unref(sig->obj, true);
 	if(sig->args != NULL)
 		var_unref(sig->args, true);
 	_free(sig);
-	_isignalNum--;
+	vm->isignalNum--;
 
-	_interrupted = false;
+	vm->interrupted = false;
 }
 
 #endif
@@ -4245,6 +4229,7 @@ bool vm_load(vm_t* vm, const char* s) {
 
 bool vm_run(vm_t* vm) {
 	vm_run_code(vm);
+	vm->terminated = true;
 	return true;
 }
 
@@ -4255,7 +4240,7 @@ void vm_close(vm_t* vm) {
 
 
 	#ifdef MARIO_THREAD
-	pthread_mutex_destroy(&_interrupt_lock);
+	pthread_mutex_destroy(&vm->interruptLock);
 	#endif
 
 	#ifdef MARIO_CACHE
@@ -4388,6 +4373,7 @@ var_t* native_yield(vm_t* vm, var_t* env, void* data) {
 }
 
 void vm_init(vm_t* vm) {
+	vm->terminated = false;
 	vm->pc = 0;
 	vm->stackTop = 0;
 
@@ -4405,7 +4391,13 @@ void vm_init(vm_t* vm) {
 	#endif
 
 	#ifdef MARIO_THREAD
-	pthread_mutex_init(&_interrupt_lock, NULL);
+	pthread_mutex_init(&vm->interruptLock, NULL);
+
+	vm->isignalHead = NULL;
+	vm->isignalTail = NULL;
+	vm->isignalNum = 0;
+	vm->interrupted = false;
+
 	#endif
 
 	vm->root = var_new_obj(NULL, NULL);

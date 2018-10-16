@@ -135,6 +135,19 @@ typedef struct st_node {
 	var_t* var;
 } node_t;
 
+
+#ifdef MARIO_THREAD
+#include <pthread.h>
+
+typedef struct st_isignal {
+	var_t* obj;
+	var_t* handleFunc;
+	var_t* args;
+	struct st_isignal* next;
+} isignal_t;
+#endif
+
+
 #define VM_STACK_MAX 32
 
 typedef struct st_vm {
@@ -144,7 +157,16 @@ typedef struct st_vm {
 	int32_t stackTop;
 	PC pc;
 
+	bool terminated;
 	var_t* root;
+
+	#ifdef MARIO_THREAD
+	pthread_mutex_t interruptLock;
+	isignal_t* isignalHead;
+	isignal_t* isignalTail;
+	uint32_t isignalNum;
+	bool interrupted;
+	#endif
 } vm_t;
 
 
