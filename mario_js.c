@@ -2020,11 +2020,7 @@ bool compile(bytecode_t *bc, const char* input) {
 		}
 	}
 	bc_gen(bc, INSTR_END);
-
 	lex_release(&lex);
-#ifdef MARIO_DEBUG
-	bc_dump(bc);
-#endif
 	return true;
 }
 
@@ -4228,6 +4224,9 @@ bool vm_load(vm_t* vm, const char* s) {
 }
 
 bool vm_run(vm_t* vm) {
+#ifdef MARIO_DEBUG
+	bc_dump(&vm->bc);
+#endif
 	vm_run_code(vm);
 	vm->terminated = true;
 	return true;
