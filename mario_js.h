@@ -160,6 +160,9 @@ typedef struct st_vm {
 	bool terminated;
 	var_t* root;
 
+	m_array_t initNatives;
+	m_array_t closeNatives;
+
 	#ifdef MARIO_THREAD
 	pthread_mutex_t interruptLock;
 	isignal_t* isignalHead;
@@ -214,8 +217,9 @@ var_t* new_obj(vm_t* vm, const char* clsName, int argNum);
 node_t* vm_find(vm_t* vm, const char* name);
 node_t* vm_find_in_class(var_t* var, const char* name);
 node_t* vm_reg_var(vm_t* vm, const char* cls, const char* name, var_t* var, bool beConst);
-//node_t* vm_reg_const(vm_t* vm, const char* cls, const char* name, var_t* var);
 node_t* vm_reg_native(vm_t* vm, const char* cls, const char* decl, native_func_t native, void* data);
+void vm_reg_init(vm_t* vm, void (*func)(void*), void* data);
+void vm_reg_close(vm_t* vm, void (*func)(void*), void* data);
 
 node_t* find_member(var_t* obj, const char* name);
 var_t* get_obj(var_t* obj, const char* name);

@@ -4223,7 +4223,18 @@ bool vm_load(vm_t* vm, const char* s) {
 	return compile(&vm->bc, s);
 }
 
+typedef struct st_native_init {
+	void (*func)(void*);
+	void *data;
+} native_init_t;
+
 bool vm_run(vm_t* vm) {
+	int i;
+	for(i=0; i<vm->initNatives.size; i++) {
+		native_init_t* it = (native_init_t*)array_get(&vm->initNatives, i);
+		it->func(it->data);
+	}
+
 #ifdef MARIO_DEBUG
 	bc_dump(&vm->bc);
 #endif
@@ -4247,12 +4258,35 @@ void vm_close(vm_t* vm) {
 	#endif
 
 	array_clean(&vm->scopes, NULL);	
+	array_clean(&vm->initNatives, NULL);	
+
+	int i;
+	for(i=0; i<vm->closeNatives.size; i++) {
+		native_init_t* it = (native_init_t*)array_get(&vm->closeNatives, i);
+		it->func(it->data);
+	}
+	array_clean(&vm->closeNatives, NULL);	
+
 
 	bc_release(&vm->bc);
 	vm->stackTop = 0;
 }	
 
 /** native extended functions.-----------------------------*/
+
+void vm_reg_init(vm_t* vm, void (*func)(void*), void* data) {
+	native_init_t* it = (native_init_t*)_malloc(sizeof(native_init_t));
+	it->func = func;
+	it->data = data;
+	array_add(&vm->initNatives, it);
+}
+
+void vm_reg_close(vm_t* vm, void (*func)(void*), void* data) {
+	native_init_t* it = (native_init_t*)_malloc(sizeof(native_init_t));
+	it->func = func;
+	it->data = data;
+	array_add(&vm->closeNatives, it);
+}
 
 node_t* vm_reg_var(vm_t* vm, const char* cls, const char* name, var_t* var, bool beConst) {
 	var_t* clsvar = vm->root;
@@ -4399,6 +4433,9 @@ void vm_init(vm_t* vm) {
 
 	#endif
 
+	array_init(&vm->closeNatives);	
+	array_init(&vm->initNatives);	
+	
 	vm->root = var_new_obj(NULL, NULL);
 	var_ref(vm->root);
 
