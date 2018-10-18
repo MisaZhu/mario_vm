@@ -1,13 +1,13 @@
-let promise = new Promise(function(resolv, reject) {
+let promise = new Promise(function(resolve, reject) {
 	setTimeout(function() { 
-		resolv("ok.\n"); 
+		resolve("ok.\n"); 
 		//reject("error!\n"); 
 	}, 1000);
 });
 
 
 promise.then(function(value) {
-		console.log("resolv: " + value);
+		console.log("resolve: " + value);
 		marioQuit();
 	}, 
 	function(value) {

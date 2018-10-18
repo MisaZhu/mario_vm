@@ -6,10 +6,10 @@ class Promise {
 	then(resolved, error) {
 		this.doResolved = resolved;
 		this.doError = error;
-		doStart(doResolv, doReject);
+		doStart(doResolve, doReject);
 	}
 
-	doResolv(msg) {
+	doResolve(msg) {
 		this.doResolved(msg);
 	}
 
