@@ -5,6 +5,4 @@ function f(s) {
 
 f("timer count: ");
 
-while(true) {
-	yield();
-}
+marioLoop();
