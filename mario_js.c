@@ -4244,7 +4244,6 @@ bool vm_run(vm_t* vm) {
 		it->func(it->data);
 	}
 
-	vm_dump(vm);
 	vm_run_code(vm);
 	vm->terminated = true;
 	return true;
