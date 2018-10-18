@@ -76,8 +76,8 @@ bool load_natives(vm_t* vm) {
 	const char* path = getenv("MARIO_LIBS");
 	DIR* dir = opendir(path);
 	if(dir == NULL) {
-		printf("Error: MARIO_LIBS not defined!\n");
-		return false;
+		printf("Warning: MARIO_LIBS not defined, skip loading extra natives!\n");
+		return true;
 	}
 
 	bool ret = true;
@@ -112,8 +112,8 @@ bool load_js_libs(vm_t* vm) {
 	const char* path = getenv("MARIO_LIBS");
 	DIR* dir = opendir(path);
 	if(dir == NULL) {
-		printf("Error: MARIO_LIBS not defined!\n");
-		return false;
+		printf("Warning: MARIO_LIBS not defined, skip loading extra js libs!\n");
+		return true;
 	}
 
 	bool ret = true;
