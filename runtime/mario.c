@@ -5,6 +5,9 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <dlfcn.h>
+#include <dirent.h>
+
+
 
 bool load_js(vm_t* vm, const char* fname) {
 	int fd = open(fname, O_RDONLY);
@@ -36,7 +39,7 @@ typedef void (*reg_natives_t)(vm_t* vm);
 void* libs[MAX_EXTRA];
 int libsNum = 0;
 
-bool loadExtra(const char* n, vm_t* vm) {
+bool loadExtra(vm_t* vm, const char* n) {
 	if(libsNum >= MAX_EXTRA) {
 		printf("Too many extended module loaded!\n");
 		return false;
@@ -69,6 +72,78 @@ void unloadExtra() {
 	}
 }
 
+bool load_natives(vm_t* vm) {
+	const char* path = getenv("MARIO_LIBS");
+	DIR* dir = opendir(path);
+	if(dir == NULL) {
+		printf("Error: MARIO_LIBS not defined!\n");
+		return false;
+	}
+
+	bool ret = true;
+	str_t* fname = str_new("");
+	while(true) {
+		struct dirent* dp = readdir(dir);
+		if(dp == NULL)
+			break;
+		
+		if(strstr(dp->d_name, ".so") == NULL)
+			continue;
+	
+		str_cpy(fname, path);
+		str_add(fname, '/');
+		str_append(fname, dp->d_name);
+		
+		printf("Loading native lib %s ......", fname->cstr);
+		if(!loadExtra(vm, fname->cstr)) {
+			printf(" failed!\n");
+			ret = false;
+			break;
+		}
+		printf(" ok.\n");
+	}
+	
+	str_free(fname);
+	closedir(dir);
+	return ret;
+}
+
+bool load_js_libs(vm_t* vm) {
+	const char* path = getenv("MARIO_LIBS");
+	DIR* dir = opendir(path);
+	if(dir == NULL) {
+		printf("Error: MARIO_LIBS not defined!\n");
+		return false;
+	}
+
+	bool ret = true;
+	str_t* fname = str_new("");
+	while(true) {
+		struct dirent* dp = readdir(dir);
+		if(dp == NULL)
+			break;
+		
+		if(strstr(dp->d_name, ".js") == NULL)
+			continue;
+	
+		str_cpy(fname, path);
+		str_add(fname, '/');
+		str_append(fname, dp->d_name);
+		
+		printf("Loading js lib %s ......", fname->cstr);
+		if(!load_js(vm, fname->cstr)) {
+			printf(" failed!\n");
+			ret = false;
+			break;
+		}
+		printf(" ok.\n");
+	}
+	
+	str_free(fname);
+	closedir(dir);
+	return ret;
+}
+
 int main(int argc, char** argv) {
 
 	if(argc < 2) {
@@ -78,18 +153,15 @@ int main(int argc, char** argv) {
 
 	bool verify = false;
 	const char* fname;
-	int soindex;
 
 	if(strcmp(argv[1], "-v") == 0) {
 		if(argc != 3)
 			return 1;
 		verify = true;
 		fname = argv[2];
-		soindex = 3;
 	}
 	else {
 		fname = argv[1];
-		soindex = 2;
 	}
 	
 	vm_t vm;
@@ -99,16 +171,22 @@ int main(int argc, char** argv) {
 	
 	//load extra native so files.
 	bool loaded = true;
-	for(; soindex < argc; soindex++) {
-		if(!loadExtra(argv[soindex], &vm)) {
-			loaded = false;
-			break;
-		}
+
+	if(!load_natives(&vm)) {
+		loaded = false;
 	}
 
 	if(loaded) {
-		if(load_js(&vm, fname) && !verify) {
-			vm_run(&vm);
+		if(!load_js_libs(&vm))
+			loaded = false;
+	}
+
+	if(loaded) {
+		if(load_js(&vm, fname)) {
+			if(verify)
+				vm_dump(&vm);
+			else
+				vm_run(&vm);
 		}
 	}
 	

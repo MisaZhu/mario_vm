@@ -210,6 +210,7 @@ var_t* json_parse(const char* str);
 
 void vm_init(vm_t* vm);
 bool vm_load(vm_t* vm, const char* s);
+void vm_dump(vm_t* vm);
 bool vm_run(vm_t* vm);
 void vm_close(vm_t* vm);
 

@@ -4220,6 +4220,8 @@ void vm_run_code(vm_t* vm) {
 }
 
 bool vm_load(vm_t* vm, const char* s) {
+	if(vm->bc.cindex > 0)
+		vm->bc.cindex--;
 	return compile(&vm->bc, s);
 }
 
@@ -4228,6 +4230,13 @@ typedef struct st_native_init {
 	void *data;
 } native_init_t;
 
+
+void vm_dump(vm_t* vm) {
+#ifdef MARIO_DEBUG
+	bc_dump(&vm->bc);
+#endif
+}
+
 bool vm_run(vm_t* vm) {
 	int i;
 	for(i=0; i<vm->initNatives.size; i++) {
@@ -4235,9 +4244,7 @@ bool vm_run(vm_t* vm) {
 		it->func(it->data);
 	}
 
-#ifdef MARIO_DEBUG
-	bc_dump(&vm->bc);
-#endif
+	vm_dump(vm);
 	vm_run_code(vm);
 	vm->terminated = true;
 	return true;
