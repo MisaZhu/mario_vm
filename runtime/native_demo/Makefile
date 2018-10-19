@@ -19,7 +19,7 @@ CFLAGS =  -I$(MARIO_JS) -g -Wall -DMARIO_DEBUG -DMARIO_CACHE -DMARIO_THREAD -fPI
 LDFLAGS =  -lm -lpthread
 
 TARGET=native_demo.so
-INST_DST=/usr/local/mario/libs
+INST_DST=/usr/local/mario
 
 all: $(OBJS)
 	$(LD) -shared -o $(TARGET) $(OBJS) $(LDFLAGS)
@@ -28,5 +28,7 @@ clean:
 	rm -fr $(TARGET) $(OBJS) *.dSYM
 
 install:
-	mkdir -p $(INST_DST)
-	cp $(TARGET) $(INST_DST)
+	mkdir -p $(INST_DST)/libs
+	cp $(TARGET) $(INST_DST)/libs
+	mkdir -p $(INST_DST)/test.js
+	cp test.js/* $(INST_DST)/test.js
