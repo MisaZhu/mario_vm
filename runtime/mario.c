@@ -202,6 +202,7 @@ int main(int argc, char** argv) {
 	}
 
 	if(loaded) {
+		printf("-------- run js --------\n");
 		if(load_js(&vm, fname)) {
 			if(verify)
 				vm_dump(&vm);

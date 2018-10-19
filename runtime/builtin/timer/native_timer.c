@@ -113,7 +113,6 @@ var_t* native_timer_cancel(vm_t* vm, var_t* env, void* data) {
 }
 
 void native_timer_init(void* data) {
-	_debug("Start timer thread.\n");
 	vm_t* vm = (vm_t*)data;
 	pthread_mutex_init(&_timerLocker, NULL);
 	pthread_t pid;
