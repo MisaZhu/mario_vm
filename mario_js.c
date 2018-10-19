@@ -2319,6 +2319,10 @@ void get_js_str(const char* str, str_t* ret) {
 
 void var_to_str(var_t* var, str_t* ret) {
 	str_reset(ret);
+	if(var == NULL) {
+		str_cpy(ret, "undefined");
+		return;
+	}
 
 	switch(var->type) {
 	case V_INT:
@@ -4443,16 +4447,22 @@ var_t* native_dump(vm_t* vm, var_t* env, void* data) {
 var_t* native_print(vm_t* vm, var_t* env, void* data) {
 	(void)vm; (void)data;
 
-	const char* s = get_str(env, "str");
-	_debug(s);
+	var_t* v = var_find_var(env, "str");
+	str_t* s = str_new("");
+	var_to_str(v, s);
+	_debug(s->cstr);
+	str_free(s);
 	return NULL;
 }
 
 var_t* native_println(vm_t* vm, var_t* env, void* data) {
 	(void)vm; (void)data;
 
-	const char* s = get_str(env, "str");
-	_debug(s);
+	var_t* v = var_find_var(env, "str");
+	str_t* s = str_new("");
+	var_to_str(v, s);
+	_debug(s->cstr);
+	str_free(s);
 	_debug("\n");
 	return NULL;
 }
