@@ -37,5 +37,5 @@ install:
 	cp $(TARGET) $(INST_DST)/bin
 	mkdir -p $(INST_DST)/libs
 	cp libs/* $(INST_DST)/libs
-	mkdir -p $(INST_DST)/test.js
-	cp test.js/* $(INST_DST)/test.js
+	mkdir -p $(INST_DST)/test.js/basic
+	cp test.js/* $(INST_DST)/test.js/basic
