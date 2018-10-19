@@ -3003,7 +3003,6 @@ var_t* var_new_func(func_t* func) {
 
 var_t* var_new_func_from(var_t* funcVar) {
 	var_t* var = var_new_obj(NULL, NULL);
-	var->isFunc = 1;
 	var->freeFunc = _free_none;
 	var->value = var_get_func(funcVar);
 
@@ -3033,7 +3032,7 @@ var_t* find_func(vm_t* vm, var_t* obj, const char* fname) {
 void vm_run_code(vm_t* vm);
 bool func_call(vm_t* vm, var_t* obj, var_t* funcVar, int argNum) {
 	var_t *env;
-	if(obj == NULL)  
+	if(obj == NULL || obj == vm->root)
 		env = var_new_func_from(funcVar);
 	else
 		env = obj;
