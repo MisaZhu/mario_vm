@@ -13,12 +13,12 @@ typedef struct st_timer {
 	bool repeat;
 	var_t* env;
 	var_t* callback;
-} timer_t;
+} m_timer_t;
 
 #define TIMER_MAX 32
 #define TIMER_STEP 100 
 
-static timer_t _timers[TIMER_MAX] = { };
+static m_timer_t _timers[TIMER_MAX] = { };
 static pthread_mutex_t _timerLocker;
 
 extern uint32_t _isignalNum;
