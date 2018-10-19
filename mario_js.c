@@ -226,6 +226,10 @@ const char* str_from_int(int i) {
 	return _s;
 }
 
+const char* str_from_bool(bool b) {
+	return b ? "true":"false";
+}
+
 const char* str_from_float(float i) {
 	snprintf(_s, 31, "%f", i);
 	return _s;
@@ -2173,6 +2177,21 @@ inline void var_unref(var_t* var, bool del) {
 //	}
 }
 
+const char* get_typeof(var_t* var) {
+	switch(var->type) {
+		case V_UNDEF:
+			return "undefined";
+		case V_INT:
+		case V_FLOAT:
+			return "number";
+		case V_BOOL: 
+			return "boolean";
+		case V_OBJECT: 
+			return var->isFunc ? "function": "object";
+	}
+	return "undefined";
+}
+
 inline var_t* var_new() {
 	var_t* var = (var_t*)_malloc(sizeof(var_t));
 	var->magic = 0;
@@ -2207,6 +2226,14 @@ inline var_t* var_new_int(int i) {
 	return var;
 }
 
+inline var_t* var_new_bool(bool b) {
+	var_t* var = var_new();
+	var->type = V_BOOL;
+	var->value = _malloc(sizeof(int));
+	*((int*)var->value) = b;
+	return var;
+}
+
 inline var_t* var_new_obj(void*p, free_func_t fr) {
 	var_t* var = var_new();
 	var->type = V_OBJECT;
@@ -2237,6 +2264,13 @@ inline const char* var_get_str(var_t* var) {
 		return "";
 	
 	return (const char*)var->value;
+}
+
+inline bool var_get_bool(var_t* var) {
+	if(var == NULL || var->value == NULL)
+		return false;
+	int i = (int)(*(float*)var->value);
+	return i==0 ? false:true;
 }
 
 inline int var_get_int(var_t* var) {
@@ -2298,6 +2332,9 @@ void var_to_str(var_t* var, str_t* ret) {
 		break;
 	case V_OBJECT:
 		var_to_json_str(var, ret, 0);
+		break;
+	case V_BOOL:
+		str_cpy(ret, var_get_int(var) == 1 ? "true":"false");
 		break;
 	default:
 		str_cpy(ret, "undefined");
@@ -3186,13 +3223,16 @@ static inline void math_op(vm_t* vm, OprCode op, var_t* v1, var_t* v2) {
 		str_t* s = str_new((const char*)v1->value);
 		switch(v2->type) {
 			case V_STRING: 
-				str_append(s, (const char*)v2->value);
+				str_append(s, var_get_str(v2));
 				break;
 			case V_INT: 
-				str_append(s, str_from_int(*(int*)v2->value));
+				str_append(s, str_from_int(var_get_int(v2)));
 				break;
 			case V_FLOAT: 
-				str_append(s, str_from_float(*(float*)v2->value));
+				str_append(s, str_from_float(var_get_float(v2)));
+				break;
+			case V_BOOL: 
+				str_append(s, str_from_bool(var_get_bool(v2)));
 				break;
 			/*
 			case BCVar::ARRAY: 
@@ -3389,7 +3429,7 @@ var_t* new_obj(vm_t* vm, const char* clsName, int argNum) {
 		_debug("Error: There is no class: '");
 		_debug(clsName);
 		_debug("'!\n");
-		return NULL;
+		return var_new();
 	}
 
 	obj = var_new_obj(NULL, NULL);
@@ -4175,15 +4215,14 @@ void vm_run_code(vm_t* vm) {
 				vm_pop_scope(vm);
 				break;
 			}
+			case INSTR_TYPEOF: 
+			{
+				var_t* var = vm_pop2(vm);
+				var_t* v = var_new_str(get_typeof(var));
+				vm_push(vm, v);
+				break;
+			}
 			/*
-			case INSTR_TYPEOF: {
-												StackItem* i = pop2();
-												BCVar* var = VAR(i);
-												string tp = var ? var->getTypeString() : "null" ;
-												BCVar *type = new BCVar(tp);
-												push(type->ref());
-												break;
-											}
 			case INSTR_THROW: {
 				BCVar *var = reinterpret_cast<BCVar*>(pop2());
 				exception = var->ref();
@@ -4419,9 +4458,9 @@ void vm_init(vm_t* vm) {
 	bc_init(&vm->bc);
 	array_init(&vm->scopes);	
 
-	_var_true = var_new_int(true);
+	_var_true = var_new_bool(true);
 	var_ref(_var_true);
-	_var_false = var_new_int(false);
+	_var_false = var_new_bool(false);
 	var_ref(_var_false);
 
 	#ifdef MARIO_CACHE

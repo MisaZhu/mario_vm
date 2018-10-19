@@ -94,6 +94,7 @@ typedef struct st_bytecode {
 #define V_STRING 3
 #define V_OBJECT 4
 #define V_BLOCK  5
+#define V_BOOL   6 
 
 #define THIS "this"
 #define PROTOTYPE "prototype"
@@ -197,11 +198,13 @@ var_t* var_new();
 var_t* var_new_block();
 var_t* var_new_array();
 var_t* var_new_int(int i);
+var_t* var_new_bool(bool b);
 var_t* var_new_obj(void*p, free_func_t fr);
 var_t* var_new_float(float i);
 var_t* var_new_str(const char* s);
 const char* var_get_str(var_t* var);
 int var_get_int(var_t* var);
+bool var_get_bool(var_t* var);
 float var_get_float(var_t* var);
 func_t* var_get_func(var_t* var);
 
