@@ -1,3 +1,3 @@
 # Mario Runtime.
 
-Mario javascript runtime engine, can load .so extra native libs, related to mario_natives project.
+Mario javascript runtime engine, will automaticly load .so extra native libs and javascript libs from the path which defined by MARIO_LIBS.

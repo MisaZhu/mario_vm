@@ -1,5 +1,5 @@
 #include "mario_js.h"
-#include "natives/native_builtin.h"
+#include "builtin/native_builtin.h"
 
 #include <unistd.h>
 #include <sys/stat.h>
