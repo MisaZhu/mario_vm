@@ -155,7 +155,7 @@ bool load_js_libs(vm_t* vm) {
 int main(int argc, char** argv) {
 
 	if(argc < 2) {
-		printf("Usage: mario <js-filename> (.so native_files)\n");
+		printf("Usage: mario (-v) <js-filename>\n");
 		return 1;
 	}
 
