@@ -30,7 +30,7 @@ void* interrupterThread(void* arg) {
 
 const char* js = " \
 	function onInterrupt(count1, count2) { \
-		dump(\"interrupter: \" + count1 + \": \" + count2); \
+		console.ln(\"interrupter: \" + count1 + \": \" + count2); \
 	} \
 	while(true) { \
 		yield(); \

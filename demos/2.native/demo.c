@@ -7,7 +7,7 @@ const char* js = " \
 
 var_t* native_out(vm_t* vm, var_t* env, void* data) {
 	const char* s = get_str(env, "str");
-	_debug(s);
+	_out_func(s);
 	return NULL;
 }
 

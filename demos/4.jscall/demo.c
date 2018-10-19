@@ -16,7 +16,7 @@ int main(int argc, char** argv) {
 		var_t* ret = callJSFuncByName(&vm, vm.root, "jsFunc", NULL);
 		if(ret != NULL) {
 			const char* s = var_get_str(ret);
-			printf("%s", s);
+			_out_func(s);
 			var_unref(ret, true);
 		}
 	}
