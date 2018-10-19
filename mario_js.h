@@ -230,6 +230,7 @@ var_t* get_obj(var_t* obj, const char* name);
 const char* get_str(var_t* obj, const char* name);
 int get_int(var_t* obj, const char* name);
 float get_float(var_t* obj, const char* name);
+bool get_bool(var_t* obj, const char* name);
 
 var_t* callJSFunc(vm_t* vm, var_t* obj, var_t* func, var_t* args);
 var_t* callJSFuncByName(vm_t* vm, var_t* obj, const char* funcName, var_t* args);

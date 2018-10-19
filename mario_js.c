@@ -2269,7 +2269,7 @@ inline const char* var_get_str(var_t* var) {
 inline bool var_get_bool(var_t* var) {
 	if(var == NULL || var->value == NULL)
 		return false;
-	int i = (int)(*(float*)var->value);
+	int i = (int)(*(int*)var->value);
 	return i==0 ? false:true;
 }
 
@@ -4399,6 +4399,11 @@ int get_int(var_t* var, const char* name) {
 	return n == NULL ? 0 : var_get_int(n->var);
 }
 
+bool get_bool(var_t* var, const char* name) {
+	node_t* n = var_find(var, name);
+	return n == NULL ? false : var_get_bool(n->var);
+}
+
 float get_float(var_t* var, const char* name) {
 	node_t* n = var_find(var, name);
 	return n == NULL ? 0.0 : var_get_float(n->var);
@@ -4440,6 +4445,15 @@ var_t* native_print(vm_t* vm, var_t* env, void* data) {
 
 	const char* s = get_str(env, "str");
 	_debug(s);
+	return NULL;
+}
+
+var_t* native_println(vm_t* vm, var_t* env, void* data) {
+	(void)vm; (void)data;
+
+	const char* s = get_str(env, "str");
+	_debug(s);
+	_debug("\n");
 	return NULL;
 }
 
@@ -4486,6 +4500,7 @@ void vm_init(vm_t* vm) {
 	vm_new_class(vm, "Object");
 
 	vm_reg_native(vm, "console", "log(str)", native_print, NULL);
+	vm_reg_native(vm, "console", "ln(str)", native_println, NULL);
 	vm_reg_native(vm, "", "dump(var)", native_dump, NULL);
 	vm_reg_native(vm, "", "yield()", native_yield, NULL);
 }
