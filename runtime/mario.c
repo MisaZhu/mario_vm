@@ -72,11 +72,16 @@ void unloadExtra() {
 	}
 }
 
+#define DEF_LIBS "/usr/local/mario/libs"
+
 bool load_natives(vm_t* vm) {
 	const char* path = getenv("MARIO_LIBS");
+	if(path == NULL)
+		path = DEF_LIBS;
+
 	DIR* dir = opendir(path);
 	if(dir == NULL) {
-		printf("Warning: MARIO_LIBS not defined, skip loading extra natives!\n");
+		printf("Warning: MARIO_LIBS does't exist('%s'), skip loading extra natives!\n", path);
 		return true;
 	}
 
@@ -110,9 +115,12 @@ bool load_natives(vm_t* vm) {
 
 bool load_js_libs(vm_t* vm) {
 	const char* path = getenv("MARIO_LIBS");
+	if(path == NULL)
+		path = DEF_LIBS;
+
 	DIR* dir = opendir(path);
 	if(dir == NULL) {
-		printf("Warning: MARIO_LIBS not defined, skip loading extra js libs!\n");
+		printf("Warning: MARIO_LIBS does't exist('%s'), skip loading extra natives!\n", path);
 		return true;
 	}
 

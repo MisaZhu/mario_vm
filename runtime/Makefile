@@ -20,18 +20,20 @@ NATIVE_OBJS= $(NATIVE_PATH)/basic/native_basic.o  \
 OBJS = mario.o $(MARIO_JS)/mario_js.o \
 		$(NATIVE_OBJS)
 
-CFLAGS =  -g -I$(MARIO_JS) -Wall -fPIC -DMARIO_DEBUG -DMARIO_CACHE
-LDFLAGS =  -lm -ldl
+CFLAGS =  -g -I$(MARIO_JS) -Wall -fPIC -DMARIO_DEBUG -DMARIO_CACHE -DMARIO_THREAD
+LDFLAGS =  -lm -ldl -lpthread
 
-#ifeq ($(MARIO_THREAD), yes)
-CFLAGS +=  -DMARIO_THREAD
-LDFLAGS += -lpthread
-#endif
-
-
+TARGET=mario
+INST_DST=/usr/local/mario
 
 all: $(OBJS)
-	$(LD) -o mario $(OBJS) $(LDFLAGS)
+	$(LD) -o $(TARGET) $(OBJS) $(LDFLAGS)
 
 clean:
-	rm -fr mario $(OBJS) *.dSYM
+	rm -fr $(TARGET) $(OBJS) *.dSYM
+
+install:
+	mkdir -p $(INST_DST)/bin
+	cp $(TARGET) $(INST_DST)/bin
+	mkdir -p $(INST_DST)/libs
+	cp libs/* $(INST_DST)/libs

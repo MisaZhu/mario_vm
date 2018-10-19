@@ -12,7 +12,7 @@ var_t* native_demo_test(vm_t* vm, var_t* env, void* data) {
 	return NULL;
 }
 
-void reg_native_demo(vm_t* vm) {
+void reg_natives(vm_t* vm) {
 	vm_reg_native(vm, "Demo", "test(str)", native_demo_test, NULL);
 }
 
