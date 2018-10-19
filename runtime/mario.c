@@ -15,7 +15,7 @@ bool load_js(vm_t* vm, const char* fname) {
 	int fd = open(fname, O_RDONLY);
 	if(fd < 0) {
 		snprintf(_errInfo, ERR_MAX, "Can not open file '%s'\n", fname);
-		_debug(_errInfo);
+		_err(_errInfo);
 		return false;
 	}
 
@@ -44,7 +44,7 @@ int libsNum = 0;
 
 bool loadExtra(vm_t* vm, const char* n) {
 	if(libsNum >= MAX_EXTRA) {
-		_debug("Too many extended module loaded!\n");
+		_err("Too many extended module loaded!\n");
 		return false;
 	}
 
@@ -52,7 +52,7 @@ bool loadExtra(vm_t* vm, const char* n) {
 	if(h == NULL) {
 		const char* e = dlerror();
 		snprintf(_errInfo, ERR_MAX, "Extended module load error(%s)!%s\n", n, e != NULL? e:"");
-		_debug(_errInfo);
+		_err(_errInfo);
 		return false;
 	}
 
@@ -60,7 +60,7 @@ bool loadExtra(vm_t* vm, const char* n) {
 	if(loader == NULL) {
 		const char* e = dlerror();
 		snprintf(_errInfo, ERR_MAX, "Extended module load-function dosen't exist(%s)!%s\n", n, e != NULL? e:"");
-		_debug(_errInfo);
+		_err(_errInfo);
 		dlclose(h);
 		return false;
 	}
@@ -87,7 +87,7 @@ bool load_natives(vm_t* vm) {
 	DIR* dir = opendir(path);
 	if(dir == NULL) {
 		snprintf(_errInfo, ERR_MAX, "Warning: MARIO_LIBS does't exist('%s'), skip loading extra natives!\n", path);
-		_debug(_errInfo);
+		_err(_errInfo);
 		return true;
 	}
 
@@ -106,12 +106,14 @@ bool load_natives(vm_t* vm) {
 		str_append(fname, dp->d_name);
 		
 		snprintf(_errInfo, ERR_MAX, "Loading native lib %s ......", fname->cstr);
-		_debug(_errInfo);
 		if(!loadExtra(vm, fname->cstr)) {
-			_debug(" failed!\n");
+			_err(_errInfo);
+			_err(" failed!\n");
 			ret = false;
 			break;
 		}
+
+		_debug(_errInfo);
 		_debug(" ok.\n");
 	}
 	
@@ -128,7 +130,7 @@ bool load_js_libs(vm_t* vm) {
 	DIR* dir = opendir(path);
 	if(dir == NULL) {
 		snprintf(_errInfo, ERR_MAX, "Warning: MARIO_LIBS does't exist('%s'), skip loading extra natives!\n", path);
-		_debug(_errInfo);
+		_err(_errInfo);
 		return true;
 	}
 
@@ -147,12 +149,13 @@ bool load_js_libs(vm_t* vm) {
 		str_append(fname, dp->d_name);
 		
 		snprintf(_errInfo, ERR_MAX, "Loading js lib %s ......", fname->cstr);
-		_debug(_errInfo);
 		if(!load_js(vm, fname->cstr)) {
-			_debug(" failed!\n");
+			_err(_errInfo);
+			_err(" failed!\n");
 			ret = false;
 			break;
 		}
+		_debug(_errInfo);
 		_debug(" ok.\n");
 	}
 	
@@ -174,7 +177,7 @@ void init_args(vm_t* vm, int argc, char** argv) {
 int main(int argc, char** argv) {
 
 	if(argc < 2) {
-		printf("Usage: mario (-v) <js-filename>\n");
+		_err("Usage: mario (-v) <js-filename>\n");
 		return 1;
 	}
 

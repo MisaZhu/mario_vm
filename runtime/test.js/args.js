@@ -1,1 +1,1 @@
-dump(_args);
+console.ln(_args);

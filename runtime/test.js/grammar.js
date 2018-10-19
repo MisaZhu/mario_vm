@@ -5,13 +5,13 @@ while(true) {
 		break;
 	}
 	else {
-		dump("while loop: " + i);
+		console.ln("while loop: " + i);
 	}
 	i++;
 }
 
 for(i=0;i<10;i++) {
-	dump("for loop: " + i);
+	console.ln("for loop: " + i);
 }
 
 //Object.
@@ -24,14 +24,14 @@ var a = {
 
 a.name = "xx";
 a.age = 24;
-dump(a);
+console.ln(a);
 
 arr = [1];
 arr[10] = "hhh";
 arr[11] = {
   foobar: 10
 };
-dump(arr);
+console.ln(arr);
 
 //var and let
 cc1 = "cc1";
@@ -39,17 +39,17 @@ cc2 = "cc2";
 {
 	let cc1 = 1;
 	var cc2 = 2;
-	dump(cc1);
-	dump(cc2);
+	console.ln(cc1);
+	console.ln(cc2);
 }
-dump(cc1);
-dump(cc2);
+console.ln(cc1);
+console.ln(cc2);
 
 //callback
 function f(callback, s) {
 	callback(s);
 }
-f(function(x) { dump(x); }, "callback test");
+f(function(x) { console.ln(x); }, "callback test");
 
 const x = "aaa";
 x = "bbb";

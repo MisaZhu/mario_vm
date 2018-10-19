@@ -41,6 +41,7 @@ extern void _free_none(void*p);
 extern void (*_out_func)(const char*);
 extern bool _debugMode;
 void _debug(const char* s);
+void _err(const char* s);
 
 typedef struct st_array {
 	void** items;

@@ -23,6 +23,10 @@ void _debug(const char* s) {
 		_out_func(s);
 }
 
+void _err(const char* s) {
+	_out_func(s);
+}
+
 /** array functions.-----------------------------*/
 
 #define ARRAY_BUF 16
@@ -786,16 +790,16 @@ void lex_get_pos_str(lex_t* l, int pos, str_t* ret) {
 bool lex_chkread(lex_t* lex, uint32_t expected_tk) {
 	if (lex->tk != expected_tk) {
 #ifdef MARIO_DEBUG
-		_debug("Got ");
-		_debug(lex_get_token_str(lex->tk));
-		_debug(" expected ");
-		_debug(lex_get_token_str(expected_tk));
+		_err("Got ");
+		_err(lex_get_token_str(lex->tk));
+		_err(" expected ");
+		_err(lex_get_token_str(expected_tk));
 #endif
 		str_t* s = str_new("");
 		lex_get_pos_str(lex, -1, s);
-		_debug(s->cstr);
+		_err(s->cstr);
 		str_free(s);
-		_debug("!\n");
+		_err("!\n");
 		return false;
 	}
 	lex_get_next_token(lex);
@@ -1196,26 +1200,26 @@ void bc_dump(bytecode_t* bc) {
 	char index[8];
 	PC sz = bc->strTable.size;
 
-	_debug("-------string table--------------------\n");
+	_out_func("-------string table--------------------\n");
 	for(i=0; i<sz; ++i) {
 		sprintf(index, "%04X: ", i);
-		_debug(index);
-		_debug((const char*)bc->strTable.items[i]);
-		_debug("\n");
+		_out_func(index);
+		_out_func((const char*)bc->strTable.items[i]);
+		_out_func("\n");
 	}
-	_debug("---------------------------------------\n");
+	_out_func("---------------------------------------\n");
 
 	str_t* s = str_new("");
 
 	i = 0;
 	while(i < bc->cindex) {
 		i = bc_get_instr_str(bc, i, s);
-		_debug(s->cstr);
-		_debug("\n");
+		_out_func(s->cstr);
+		_out_func("\n");
 		i++;
 	}
 	str_free(s);
-	_debug("---------------------------------------\n");
+	_out_func("---------------------------------------\n");
 }
 
 #endif
@@ -1981,7 +1985,7 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 		if(!lex_chkread(l, LEX_R_BREAK)) return false;
 		if(!lex_chkread(l, ';')) return false;
 		if(loop == NULL) {
-			_debug("Error: There is no loop for 'break' here!\n");
+			_err("Error: There is no loop for 'break' here!\n");
 			return false;
 		}
 
@@ -1993,7 +1997,7 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 		if(!lex_chkread(l, LEX_R_CONTINUE)) return false;
 		if(!lex_chkread(l, ';')) return false;
 		if(loop == NULL) {
-			_debug("Error: There is no loop for 'continue' here!\n");
+			_err("Error: There is no loop for 'continue' here!\n");
 			return false;
 		}
 
@@ -2002,9 +2006,9 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 		pop = false;
 	}
 	else {
-			_debug("Error: don't understand '");
-			_debug(l->tkStr->cstr);
-			_debug("'!\n");
+			_err("Error: don't understand '");
+			_err(l->tkStr->cstr);
+			_err("'!\n");
 			return false;
 	}
 
@@ -2617,7 +2621,7 @@ var_t* json_parse_factor(lex_t *l) {
 	else if(l->tk==LEX_R_FUNCTION) {
 		lex_chkread(l, LEX_R_FUNCTION);
 		//TODO
-		_debug("Error: Can not parse json function item!\n");
+		_err("Error: Can not parse json function item!\n");
 		return var_new();
 	}
 	else if (l->tk=='[') {
@@ -2932,9 +2936,9 @@ static inline node_t* vm_load_node(vm_t* vm, const char* name, bool create) {
 	if(n != NULL)
 		return n;
 	/*
-	_debug("Warning: '");	
-	_debug(name);
-	_debug("' undefined!\n");	
+	_err("Warning: '");	
+	_err(name);
+	_err("' undefined!\n");	
 	*/
 	if(!create)
 		return NULL;
@@ -3396,9 +3400,9 @@ void do_get(vm_t* vm, var_t* v, const char* name) {
 		if(v->type == V_OBJECT)
 			n = var_add(v, name, NULL);
 		else {
-			_debug("Can not get member '");
-			_debug(name);
-			_debug("'!\n");
+			_err("Can not get member '");
+			_err(name);
+			_err("'!\n");
 			n = node_new(name);
 			vm_push(vm, var_new());
 			return;
@@ -3411,9 +3415,9 @@ void do_get(vm_t* vm, var_t* v, const char* name) {
 void doExtends(vm_t* vm, var_t* clsProto, const char* superName) {
 	node_t* n = vm_find_in_scopes(vm, superName);
 	if(n == NULL) {
-		_debug("Super Class '");
-		_debug(superName);
-		_debug("' not found!\n");
+		_err("Super Class '");
+		_err(superName);
+		_err("' not found!\n");
 		return;
 	}
 
@@ -3429,9 +3433,9 @@ var_t* new_obj(vm_t* vm, const char* clsName, int argNum) {
 	node_t* n = vm_load_node(vm, clsName, false); //load class;
 
 	if(n == NULL || n->var->type != V_OBJECT) {
-		_debug("Error: There is no class: '");
-		_debug(clsName);
-		_debug("'!\n");
+		_err("Error: There is no class: '");
+		_err(clsName);
+		_err("'!\n");
 		return var_new();
 	}
 
@@ -3481,9 +3485,9 @@ var_t* callJSFunc(vm_t* vm, var_t* obj, var_t* func, var_t* args) {
 var_t* callJSFuncByName(vm_t* vm, var_t* obj, const char* funcName, var_t* args) {
 	node_t* func = find_member(obj, funcName);
 	if(func == NULL || func->var->isFunc == 0) {
-		_debug("Interrupt function '");
-		_debug(funcName);
-		_debug("' not defined!\n");
+		_err("Interrupt function '");
+		_err(funcName);
+		_err("' not defined!\n");
 		return NULL;
 	}
 	return callJSFunc(vm, obj, func->var, args);
@@ -3502,7 +3506,7 @@ bool interrupt(vm_t* vm, var_t* obj, var_t* func, var_t* args) {
 
 	pthread_mutex_lock(&vm->interruptLock);
 	if(vm->isignalNum >= MAX_ISIGNAL) {
-		_debug("Too many interrupt signals!\n");
+		_err("Too many interrupt signals!\n");
 		pthread_mutex_unlock(&vm->interruptLock);
 		if(args != NULL)
 			var_unref(args, true);
@@ -3511,7 +3515,7 @@ bool interrupt(vm_t* vm, var_t* obj, var_t* func, var_t* args) {
 
 	isignal_t* is = (isignal_t*)_malloc(sizeof(isignal_t));
 	if(is == NULL) {
-		_debug("Interrupt signal input error!\n");
+		_err("Interrupt signal input error!\n");
 		pthread_mutex_unlock(&vm->interruptLock);
 		if(args != NULL)
 			var_unref(args, true);
@@ -3544,9 +3548,9 @@ bool interruptByName(vm_t* vm, var_t* obj, const char* funcName, var_t* args) {
 	pthread_mutex_lock(&vm->interruptLock);
 	node_t* func = find_member(obj, funcName);
 	if(func == NULL || func->var->isFunc == 0) {
-		_debug("Interrupt function '");
-		_debug(funcName);
-		_debug("' not defined!\n");
+		_err("Interrupt function '");
+		_err(funcName);
+		_err("' not defined!\n");
 		if(args != NULL)
 			var_unref(args, true);
 		pthread_mutex_unlock(&vm->interruptLock);
@@ -3948,9 +3952,9 @@ void vm_run_code(vm_t* vm) {
 				const char* s = bc_getstr(&vm->bc, offset);
 				node_t *node = vm_find(vm, s);
 				if(node != NULL) { //find just in current scope
-					_debug("Warning: '");
-					_debug(s);
-					_debug("' has already existed!\n");
+					_err("Warning: '");
+					_err(s);
+					_err("' has already existed!\n");
 				}
 				else {
 					var_t* v = vm_get_scope_var(vm, true);
@@ -3967,9 +3971,9 @@ void vm_run_code(vm_t* vm) {
 				var_t* v = vm_get_scope_var(vm, false);
 				node_t *node = var_find(v, s);
 				if(node != NULL) { //find just in current scope
-					_debug("Error: let '");
-					_debug(s);
-					_debug("' has already existed!\n");
+					_err("Error: let '");
+					_err(s);
+					_err("' has already existed!\n");
 					vm->pc = codeSize; //exit.
 				}
 				else {
@@ -4028,9 +4032,9 @@ void vm_run_code(vm_t* vm) {
 					if(modi) 
 						node_replace(n, v);
 					else {
-						_debug("Can not change a const variable: '");
-						_debug(n->name);
-						_debug("'!\n");
+						_err("Can not change a const variable: '");
+						_err(n->name);
+						_err("'!\n");
 					}
 					var_unref(v, true);
 
@@ -4053,9 +4057,9 @@ void vm_run_code(vm_t* vm) {
 				}
 				else {
 					vm_push(vm, var_new());
-					_debug("Error: can not find member '");
-					_debug(s);
-					_debug("'!\n");
+					_err("Error: can not find member '");
+					_err(s);
+					_err("'!\n");
 				}
 				break;
 			}
@@ -4109,9 +4113,9 @@ void vm_run_code(vm_t* vm) {
 						argNum--;
 					}
 					vm_push(vm, var_new());
-					_debug("Error: can not find function '");
-					_debug(s);
-					_debug("'!\n");
+					_err("Error: can not find function '");
+					_err(s);
+					_err("'!\n");
 				}
 				str_free(name);
 
@@ -4423,26 +4427,6 @@ var_t* get_obj(var_t* var, const char* name) {
 	return n->var;
 }
 
-void var_dump(var_t* v) {
-	str_t* s = str_new("");
-	var_to_json_str(v, s, 0);
-	_debug(s->cstr);
-	str_free(s);
-	_debug("\n");
-}
-
-/**dump variable*/
-var_t* native_dump(vm_t* vm, var_t* env, void* data) {
-	(void)vm; (void)data;
-
-	node_t* n = var_find(env, "var");
-	if(n == NULL)
-		return NULL;
-	
-	var_dump(n->var);
-	return NULL;
-}
-
 /**print string*/
 var_t* native_print(vm_t* vm, var_t* env, void* data) {
 	(void)vm; (void)data;
@@ -4511,7 +4495,6 @@ void vm_init(vm_t* vm) {
 
 	vm_reg_native(vm, "console", "log(str)", native_print, NULL);
 	vm_reg_native(vm, "console", "ln(str)", native_println, NULL);
-	vm_reg_native(vm, "", "dump(var)", native_dump, NULL);
 	vm_reg_native(vm, "", "yield()", native_yield, NULL);
 }
 
