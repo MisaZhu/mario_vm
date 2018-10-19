@@ -152,6 +152,16 @@ bool load_js_libs(vm_t* vm) {
 	return ret;
 }
 
+void init_args(vm_t* vm, int argc, char** argv) {
+	var_t* args = var_new_array();
+	int i;
+	for(i=0; i<argc; i++) {
+		var_add(args, "", var_new_str(argv[i]));
+	}
+
+	var_add(vm->root, "_args", args);
+}
+
 int main(int argc, char** argv) {
 
 	if(argc < 2) {
@@ -174,6 +184,8 @@ int main(int argc, char** argv) {
 	
 	vm_t vm;
 	vm_init(&vm);
+
+	init_args(&vm, argc, argv);
 
 	reg_basic_natives(&vm);
 	

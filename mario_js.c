@@ -2408,7 +2408,26 @@ void var_to_json_str(var_t* var, str_t* ret, int level) {
 	}
 	array_add(&done, var);
 
-	if (var->type == V_OBJECT) {
+	if (var->isArray) {
+		str_add(ret, '[');
+		int len = (int)var->children.size;
+		if (len>100) len=100; // we don't want to get stuck here!
+
+		int i;
+		for (i=0;i<len;i++) {
+			node_t* n = var_get(var, i);
+
+			str_t* s = str_new("");
+			var_to_json_str(n->var, s, level);
+			str_append(ret, s->cstr);
+			str_free(s);
+
+			if (i<len-1) 
+				str_append(ret, ", ");
+		}
+		str_add(ret, ']');
+	}
+	else if (var->type == V_OBJECT) {
 		// children - handle with bracketed list
 		int sz = (int)var->children.size;
 		if(sz > 0)
@@ -2434,7 +2453,6 @@ void var_to_json_str(var_t* var, str_t* ret, int level) {
 				str_append(ret, ",\n");
 			}
 		}
-
 		if(sz > 0) {
 			str_add(ret, '\n');
 		}
@@ -2442,25 +2460,6 @@ void var_to_json_str(var_t* var, str_t* ret, int level) {
 		append_json_spaces(ret, level - 1);	
 		str_add(ret, '}');
 	} 
-	else if (var->isArray) {
-		str_add(ret, '[');
-		int len = (int)var->children.size;
-		if (len>100) len=100; // we don't want to get stuck here!
-
-		int i;
-		for (i=0;i<len;i++) {
-			node_t* n = var_get(var, i);
-
-			str_t* s = str_new("");
-			var_to_json_str(n->var, s, level);
-			str_append(ret, s->cstr);
-			str_free(s);
-
-			if (i<len-1) 
-				str_append(ret, ", ");
-		}
-		str_add(ret, ']');
-	}
 	else {
 		// no children or a function... just write value directly
 		str_t* s = str_new("");
