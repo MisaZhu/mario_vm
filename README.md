@@ -7,7 +7,7 @@ very tiny simple js engine in one single c  and one single head file "mario_js.c
 
 	var_t* native_out(vm_t* vm, var_t* env, void* data) {
 		const char* s = get_str(env, "v");
-		_debug(s);
+		_out_func(s);
 		return NULL;
 	}
 
