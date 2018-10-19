@@ -2353,26 +2353,6 @@ void var_to_str(var_t* var, str_t* ret) {
 void get_parsable_str(var_t* var, str_t* ret) {
 	str_reset(ret);
 
-	if (var->isFunc) {
-		str_append(ret, "function (");
-		// get list of parameters
-		int sz = 0;
-		if(var->value != NULL) {
-			func_t* func = var_get_func(var);
-			sz = func->args.size;
-			int i=0;
-			for(i=0; i<sz; ++i) {
-				str_append(ret, (const char*)func->args.items[i]);
-				if ((i+1) < sz) {
-					str_append(ret, ", ");
-				}
-			}
-		}
-		// add function body
-		str_append(ret, ") {}");
-		return;
-	}
-
 	str_t* s = str_new("");
 	var_to_str(var, s);
 	if(var->type == V_STRING)
@@ -2434,6 +2414,25 @@ void var_to_json_str(var_t* var, str_t* ret, int level) {
 				str_append(ret, ", ");
 		}
 		str_add(ret, ']');
+	}
+	else if (var->isFunc) {
+		str_append(ret, "function (");
+		// get list of parameters
+		int sz = 0;
+		if(var->value != NULL) {
+			func_t* func = var_get_func(var);
+			sz = func->args.size;
+			int i=0;
+			for(i=0; i<sz; ++i) {
+				str_append(ret, (const char*)func->args.items[i]);
+				if ((i+1) < sz) {
+					str_append(ret, ", ");
+				}
+			}
+		}
+		// add function body
+		str_append(ret, ") {}");
+		return;
 	}
 	else if (var->type == V_OBJECT) {
 		// children - handle with bracketed list
