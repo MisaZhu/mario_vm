@@ -6,13 +6,16 @@
 #include <fcntl.h>
 #include <dlfcn.h>
 #include <dirent.h>
+#include <stdio.h>
 
-
+#define ERR_MAX 1023
+char _errInfo[ERR_MAX+1];
 
 bool load_js(vm_t* vm, const char* fname) {
 	int fd = open(fname, O_RDONLY);
 	if(fd < 0) {
-		printf("Can not open file '%s'\n", fname);
+		snprintf(_errInfo, ERR_MAX, "Can not open file '%s'\n", fname);
+		_debug(_errInfo);
 		return false;
 	}
 
@@ -41,21 +44,23 @@ int libsNum = 0;
 
 bool loadExtra(vm_t* vm, const char* n) {
 	if(libsNum >= MAX_EXTRA) {
-		printf("Too many extended module loaded!\n");
+		_debug("Too many extended module loaded!\n");
 		return false;
 	}
 
 	void* h = dlopen(n, RTLD_LAZY);
 	if(h == NULL) {
 		const char* e = dlerror();
-		printf("Extended module load error(%s)!%s\n", n, e != NULL? e:"");
+		snprintf(_errInfo, ERR_MAX, "Extended module load error(%s)!%s\n", n, e != NULL? e:"");
+		_debug(_errInfo);
 		return false;
 	}
 
 	reg_natives_t loader = (reg_natives_t)dlsym(h, "reg_natives");
 	if(loader == NULL) {
 		const char* e = dlerror();
-		printf("Extended module load-function dosen't exist(%s)!%s\n", n, e != NULL? e:"");
+		snprintf(_errInfo, ERR_MAX, "Extended module load-function dosen't exist(%s)!%s\n", n, e != NULL? e:"");
+		_debug(_errInfo);
 		dlclose(h);
 		return false;
 	}
@@ -81,7 +86,8 @@ bool load_natives(vm_t* vm) {
 
 	DIR* dir = opendir(path);
 	if(dir == NULL) {
-		printf("Warning: MARIO_LIBS does't exist('%s'), skip loading extra natives!\n", path);
+		snprintf(_errInfo, ERR_MAX, "Warning: MARIO_LIBS does't exist('%s'), skip loading extra natives!\n", path);
+		_debug(_errInfo);
 		return true;
 	}
 
@@ -99,13 +105,14 @@ bool load_natives(vm_t* vm) {
 		str_add(fname, '/');
 		str_append(fname, dp->d_name);
 		
-		printf("Loading native lib %s ......", fname->cstr);
+		snprintf(_errInfo, ERR_MAX, "Loading native lib %s ......", fname->cstr);
+		_debug(_errInfo);
 		if(!loadExtra(vm, fname->cstr)) {
-			printf(" failed!\n");
+			_debug(" failed!\n");
 			ret = false;
 			break;
 		}
-		printf(" ok.\n");
+		_debug(" ok.\n");
 	}
 	
 	str_free(fname);
@@ -120,7 +127,8 @@ bool load_js_libs(vm_t* vm) {
 
 	DIR* dir = opendir(path);
 	if(dir == NULL) {
-		printf("Warning: MARIO_LIBS does't exist('%s'), skip loading extra natives!\n", path);
+		snprintf(_errInfo, ERR_MAX, "Warning: MARIO_LIBS does't exist('%s'), skip loading extra natives!\n", path);
+		_debug(_errInfo);
 		return true;
 	}
 
@@ -138,13 +146,14 @@ bool load_js_libs(vm_t* vm) {
 		str_add(fname, '/');
 		str_append(fname, dp->d_name);
 		
-		printf("Loading js lib %s ......", fname->cstr);
+		snprintf(_errInfo, ERR_MAX, "Loading js lib %s ......", fname->cstr);
+		_debug(_errInfo);
 		if(!load_js(vm, fname->cstr)) {
-			printf(" failed!\n");
+			_debug(" failed!\n");
 			ret = false;
 			break;
 		}
-		printf(" ok.\n");
+		_debug(" ok.\n");
 	}
 	
 	str_free(fname);
@@ -178,6 +187,12 @@ int main(int argc, char** argv) {
 		verify = true;
 		fname = argv[2];
 	}
+	else if(strcmp(argv[1], "-d") == 0) {
+		if(argc != 3)
+			return 1;
+		_debugMode = true;
+		fname = argv[2];
+	}
 	else {
 		fname = argv[1];
 	}
@@ -202,7 +217,7 @@ int main(int argc, char** argv) {
 	}
 
 	if(loaded) {
-		printf("-------- run js --------\n");
+		_debug("-------- run js --------\n");
 		if(load_js(&vm, fname)) {
 			if(verify)
 				vm_dump(&vm);

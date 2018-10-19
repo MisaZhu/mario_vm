@@ -38,7 +38,8 @@ typedef void (*free_func_t)(void* p);
 
 extern void _free_none(void*p);
 
-extern void (*_debug_func)(const char*);
+extern void (*_out_func)(const char*);
+extern bool _debugMode;
 void _debug(const char* s);
 
 typedef struct st_array {

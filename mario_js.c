@@ -11,17 +11,17 @@ extern "C" {
 
 void _free_none(void* p) { (void)p; }
 
-void defaultDebug(const char* s) {
+void defaultOut(const char* s) {
 	printf("%s", s);
 }
 
-void (*_debug_func)(const char*) = defaultDebug;
+void (*_out_func)(const char*) = defaultOut;
+bool _debugMode = false;
 
 void _debug(const char* s) {
-	if(_debug_func != NULL)
-		_debug_func(s);
+	if(_debugMode)
+		_out_func(s);
 }
-
 
 /** array functions.-----------------------------*/
 
@@ -4450,7 +4450,7 @@ var_t* native_print(vm_t* vm, var_t* env, void* data) {
 	var_t* v = var_find_var(env, "str");
 	str_t* s = str_new("");
 	var_to_str(v, s);
-	_debug(s->cstr);
+	_out_func(s->cstr);
 	str_free(s);
 	return NULL;
 }
@@ -4461,9 +4461,9 @@ var_t* native_println(vm_t* vm, var_t* env, void* data) {
 	var_t* v = var_find_var(env, "str");
 	str_t* s = str_new("");
 	var_to_str(v, s);
-	_debug(s->cstr);
+	_out_func(s->cstr);
 	str_free(s);
-	_debug("\n");
+	_out_func("\n");
 	return NULL;
 }
 
