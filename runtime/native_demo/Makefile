@@ -18,7 +18,8 @@ OBJS= $(MARIO_JS)/mario_js.o \
 CFLAGS =  -I$(MARIO_JS) -g -Wall -DMARIO_DEBUG -DMARIO_CACHE -DMARIO_THREAD -fPIC
 LDFLAGS =  -lm -lpthread
 
-TARGET=native_demo.so
+NAME=demo
+TARGET=native_$(NAME).so
 INST_DST=/usr/local/mario
 
 all: $(OBJS)
@@ -30,5 +31,5 @@ clean:
 install:
 	mkdir -p $(INST_DST)/libs
 	cp $(TARGET) $(INST_DST)/libs
-	mkdir -p $(INST_DST)/test.js
-	cp test.js/* $(INST_DST)/test.js
+	mkdir -p $(INST_DST)/test.js/$(NAME)
+	cp test.js/* $(INST_DST)/test.js/$(NAME)
