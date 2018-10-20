@@ -2168,17 +2168,19 @@ inline void var_free(void* p) {
 }
 
 inline var_t* var_ref(var_t* var) {
-//	if(var != NULL)
-		++var->refs;
+	//	if(var != NULL)
+	++var->refs;
 	return var;
 }
 
 inline void var_unref(var_t* var, bool del) {
-//	if(var != NULL) {
+	//	if(var != NULL) {
+	if(var->refs > 0)
 		--var->refs;
-			if(var->refs <= 0 && del)
-				var_free(var);
-//	}
+
+	if(var->refs == 0 && del)
+		var_free(var);
+	//	}
 }
 
 const char* get_typeof(var_t* var) {
@@ -2670,18 +2672,18 @@ var_t* json_parse(const char* str) {
 
 /** Interpreter-----------------------------*/
 
-#define vm_push(vm, var) ({  \
-	var_ref((var)); \
-	if((vm)->stackTop < VM_STACK_MAX) { \
-		(vm)->stack[(vm)->stackTop++] = (var); \
-	} \
-})
+inline void vm_push(vm_t* vm, var_t* var) {  
+	var_ref(var);
+	if(vm->stackTop < VM_STACK_MAX) {
+		vm->stack[vm->stackTop++] = var; 
+	} 
+}
 
-#define vm_push_node(vm, node) ({ \
-	var_ref((node)->var); \
-	if((vm)->stackTop < VM_STACK_MAX) \
-		(vm)->stack[(vm)->stackTop++] = (node); \
-})
+inline void vm_push_node(vm_t* vm, node_t* node) {
+	var_ref(node->var); 
+	if(vm->stackTop < VM_STACK_MAX)
+		vm->stack[vm->stackTop++] = node;
+}
 
 /*
 static inline var_t* vm_pop2(vm_t* vm) {
@@ -2996,8 +2998,9 @@ var_t* var_new_func(func_t* func) {
 	var->freeFunc = func_free;
 	var->value = func;
 
-	var_t* protoV = add_prototype(var, _var_Object);
-	var_add(protoV, CONSTRUCTOR, var);
+	add_prototype(var, _var_Object);
+	//var_t* protoV = add_prototype(var, _var_Object);
+	//var_add(protoV, CONSTRUCTOR, var);
 	return var;
 }
 
@@ -3008,6 +3011,7 @@ var_t* var_new_func_from(var_t* funcVar) {
 
 	var_t* protoV = get_prototype(funcVar);
 	var_add(var, PROTOTYPE, protoV);
+
 	//var_t* protoV = add_prototype(var, funcVar);
 	//var_add(protoV, CONSTRUCTOR, var);
 	return var;
@@ -3032,12 +3036,11 @@ var_t* find_func(vm_t* vm, var_t* obj, const char* fname) {
 void vm_run_code(vm_t* vm);
 bool func_call(vm_t* vm, var_t* obj, var_t* funcVar, int argNum) {
 	var_t *env;
-	if(obj == NULL || obj == vm->root)
+	if(obj == NULL || obj == vm->root) {
 		env = var_new_func_from(funcVar);
+	}
 	else
 		env = obj;
-
-	//var_ref(env);
 
 	func_t* func = var_get_func(funcVar);
 	int32_t i;
@@ -3521,7 +3524,7 @@ bool interrupt(vm_t* vm, var_t* obj, var_t* func, var_t* args) {
 	}
 
 	is->next = NULL;
-	is->obj = obj;
+	is->obj = var_ref(obj);
 	is->handleFunc = var_ref(func);
 	if(args != NULL)
 		is->args = var_ref(args);
@@ -3577,9 +3580,10 @@ void tryInterrupter(vm_t* vm) {
 	pthread_mutex_unlock(&vm->interruptLock);
 
 	var_t* ret = callJSFunc(vm, sig->obj, sig->handleFunc, sig->args);
-	if(ret != NULL)
+	if(ret != NULL && ret != sig->obj)
 		var_unref(ret, true);
 
+	var_unref(sig->obj, true);
 	var_unref(sig->handleFunc, true);
 	if(sig->args != NULL)
 		var_unref(sig->args, true);
@@ -3777,11 +3781,11 @@ void vm_run_code(vm_t* vm) {
 			{
 				var_t* v = vm_pop2(vm);
 				if(v != NULL) {
-					int i = 0;
+					bool i = false;
 					if(v->type == V_UNDEF || *(int*)v->value == 0)
-						i = 1;
+						i = true;
 					var_unref(v, true);
-					vm_push(vm, var_new_int(i));
+					vm_push(vm, i ? _var_true:_var_false);
 				}
 				break;
 			}
@@ -3791,7 +3795,7 @@ void vm_run_code(vm_t* vm) {
 				var_t* v2 = vm_pop2(vm);
 				var_t* v1 = vm_pop2(vm);
 				if(v1 != NULL && v2 != NULL) {
-					int r = 0;
+					bool r = false;
 					int i1 = *(int*)v1->value;
 					int i2 = *(int*)v2->value;
 
@@ -3799,7 +3803,7 @@ void vm_run_code(vm_t* vm) {
 						r = (i1 != 0) && (i2 != 0);
 					else
 						r = (i1 != 0) || (i2 != 0);
-					vm_push(vm, var_new_int(r));
+					vm_push(vm, r ? _var_true:_var_false);
 
 					var_unref(v1, true);
 					var_unref(v2, true);
