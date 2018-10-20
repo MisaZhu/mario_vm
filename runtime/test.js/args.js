@@ -1,1 +1,0 @@
-console.ln(_args);
