@@ -3440,15 +3440,19 @@ var_t* new_obj(vm_t* vm, const char* clsName, int argNum) {
 		return var_new();
 	}
 
-	obj = var_new_obj(NULL, NULL);
-	//add_prototype(obj, n->var);
-	var_t* protoV = get_prototype(n->var);
-	var_add(obj, PROTOTYPE, protoV);
+	var_t* constructor = NULL;
+	if(n->var->isFunc) {
+		constructor = n->var;
+	}
+	else {
+		var_t* protoV = get_prototype(n->var);
+		obj = var_new_obj(NULL, NULL);
+		var_add(obj, PROTOTYPE, protoV);
+		constructor = var_find_var(protoV, CONSTRUCTOR);
+	}
 
-	n = var_find(protoV, CONSTRUCTOR);
-
-	if(n != NULL) {
-		func_call(vm, obj, n->var, argNum);
+	if(constructor != NULL) {
+		func_call(vm, obj, constructor, argNum);
 		obj = vm_pop2(vm);
 		var_unref(obj, false);
 	}
