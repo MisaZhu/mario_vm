@@ -3049,11 +3049,11 @@ bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 	var_t *env;
 	func_t* func = var_get_func(func_var);
 	if(obj == NULL || func->is_static) {
-		env = vm_this_in_scopes(vm);
+		obj = vm_this_in_scopes(vm);
+		if(obj == vm->root) 
+			obj = var_new_func_from(func_var);
 	}
-	else {
-		env = obj;
-	}
+	env = obj;
 
 	int32_t i;
 	for(i=arg_num; i>func->args.size; i--) {
