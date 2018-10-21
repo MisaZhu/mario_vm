@@ -13,7 +13,7 @@ int main(int argc, char** argv) {
 	if(vm_load(&vm, js)) { // load JS script (and compile to bytecode). 
 		vm_run(&vm);
 
-		var_t* ret = callJSFuncByName(&vm, vm.root, "jsFunc", NULL);
+		var_t* ret = call_js_func_by_name(&vm, vm.root, "jsFunc", NULL);
 		if(ret != NULL) {
 			const char* s = var_get_str(ret);
 			_out_func(s);

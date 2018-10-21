@@ -19,7 +19,7 @@ void* interrupterThread(void* arg) {
 		var_add(args, "", var_new_int(count2)); //the second argment
 
 		//call interrupter 'onInterrupt' with 2 argument.
-		interruptByName(vm, vm->root, "onInterrupt", args);
+		interrupt_by_name(vm, vm->root, "onInterrupt", args);
 
 		usleep(100);
 		count1++;

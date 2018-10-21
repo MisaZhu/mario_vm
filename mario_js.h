@@ -39,7 +39,7 @@ typedef void (*free_func_t)(void* p);
 extern void _free_none(void*p);
 
 extern void (*_out_func)(const char*);
-extern bool _debugMode;
+extern bool _debug_mode;
 void _debug(const char* s);
 void _err(const char* s);
 
@@ -84,9 +84,9 @@ void str_split(const char* str, char c, m_array_t* array);
 typedef uint32_t PC;
 typedef struct st_bytecode {
 	PC cindex;
-	m_array_t strTable;
-	PC *codeBuf;
-	uint32_t bufSize;
+	m_array_t str_table;
+	PC *code_buf;
+	uint32_t buf_size;
 } bytecode_t;
 
 //script var
@@ -107,13 +107,13 @@ typedef struct st_var {
 	uint32_t magic: 8; //0 for var; 1 for node
 	uint32_t refs:18;
 	uint32_t type:4;
-	uint32_t isArray:1;
-	uint32_t isFunc:1;
+	uint32_t is_array:1;
+	uint32_t is_func:1;
 	uint32_t size;  // size for bytes type of value;
 
 	void* value;
-	free_func_t freeFunc; //how to free value
-	free_func_t onDestroy; //before destroyed.
+	free_func_t free_func; //how to free value
+	free_func_t on_destroy; //before destroyed.
 
 	m_array_t children;
 } var_t;
@@ -133,7 +133,7 @@ typedef struct st_func {
 //script node for var member children
 typedef struct st_node {
 	int16_t magic: 8; //1 for node
-  int16_t beConst : 8;
+  int16_t be_const : 8;
 	char* name;
 	var_t* var;
 } node_t;
@@ -144,7 +144,7 @@ typedef struct st_node {
 
 typedef struct st_isignal {
 	var_t* obj;
-	var_t* handleFunc;
+	var_t* handle_func;
 	var_t* args;
 	struct st_isignal* next;
 } isignal_t;
@@ -157,20 +157,20 @@ typedef struct st_vm {
 	bytecode_t bc;
 	m_array_t scopes;
 	void* stack[VM_STACK_MAX];
-	int32_t stackTop;
+	int32_t stack_top;
 	PC pc;
 
 	bool terminated;
 	var_t* root;
 
-	m_array_t initNatives;
-	m_array_t closeNatives;
+	m_array_t init_natives;
+	m_array_t close_natives;
 
 	#ifdef MARIO_THREAD
-	pthread_mutex_t interruptLock;
-	isignal_t* isignalHead;
-	isignal_t* isignalTail;
-	uint32_t isignalNum;
+	pthread_mutex_t interrupt_lock;
+	isignal_t* isignal_head;
+	isignal_t* isignal_tail;
+	uint32_t isignal_num;
 	bool interrupted;
 	#endif
 } vm_t;
@@ -221,10 +221,10 @@ void vm_dump(vm_t* vm);
 bool vm_run(vm_t* vm);
 void vm_close(vm_t* vm);
 
-var_t* new_obj(vm_t* vm, const char* clsName, int argNum);
+var_t* new_obj(vm_t* vm, const char* cls_name, int arg_num);
 node_t* vm_find(vm_t* vm, const char* name);
 node_t* vm_find_in_class(var_t* var, const char* name);
-node_t* vm_reg_var(vm_t* vm, const char* cls, const char* name, var_t* var, bool beConst);
+node_t* vm_reg_var(vm_t* vm, const char* cls, const char* name, var_t* var, bool be_const);
 node_t* vm_reg_native(vm_t* vm, const char* cls, const char* decl, native_func_t native, void* data);
 void vm_reg_init(vm_t* vm, void (*func)(void*), void* data);
 void vm_reg_close(vm_t* vm, void (*func)(void*), void* data);
@@ -236,13 +236,13 @@ int get_int(var_t* obj, const char* name);
 float get_float(var_t* obj, const char* name);
 bool get_bool(var_t* obj, const char* name);
 
-var_t* callJSFunc(vm_t* vm, var_t* obj, var_t* func, var_t* args);
-var_t* callJSFuncByName(vm_t* vm, var_t* obj, const char* funcName, var_t* args);
+var_t* call_js_func(vm_t* vm, var_t* obj, var_t* func, var_t* args);
+var_t* call_js_func_by_name(vm_t* vm, var_t* obj, const char* func_name, var_t* args);
 
 
 #ifdef MARIO_THREAD
 bool interrupt(vm_t* vm, var_t* obj, var_t* func, var_t* args);
-bool interruptByName(vm_t* vm, var_t* obj, const char* funcName, var_t* args);
+bool interrupt_by_name(vm_t* vm, var_t* obj, const char* func_name, var_t* args);
 #endif
 
 #ifdef __cplusplus
