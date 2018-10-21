@@ -340,13 +340,13 @@ typedef enum {
 typedef struct st_lex {
 	const char* data;
 
-	int32_t dataPos;
-	int32_t dataStart, dataEnd;
-	char currCh, nextCh;
+	int32_t data_pos;
+	int32_t data_start, data_end;
+	char curr_ch, next_ch;
 
 	LEX_TYPES tk;
-	str_t* tkStr;
-	int32_t tkStart, tkEnd, tkLastEnd;
+	str_t* tk_str;
+	int32_t tk_start, tk_end, tk_last_end;
 } lex_t;
 
 bool is_whitespace(unsigned char ch) {
@@ -407,25 +407,25 @@ bool is_alpha_num(const char* cstr) {
 }
 
 void lex_get_nextch(lex_t* lex) {
-	lex->currCh = lex->nextCh;
-	if (lex->dataPos < lex->dataEnd){
-		lex->nextCh = lex->data[lex->dataPos];
+	lex->curr_ch = lex->next_ch;
+	if (lex->data_pos < lex->data_end){
+		lex->next_ch = lex->data[lex->data_pos];
 	}else{
-		lex->nextCh = 0;
+		lex->next_ch = 0;
 	}
-	lex->dataPos++;
+	lex->data_pos++;
 }
 
 void lex_get_next_token(lex_t* lex) {
 	lex->tk = LEX_EOF;
-	str_reset(lex->tkStr);
+	str_reset(lex->tk_str);
 
-	while (lex->currCh && is_whitespace(lex->currCh)){
+	while (lex->curr_ch && is_whitespace(lex->curr_ch)){
 		lex_get_nextch(lex);
 	}
 	// newline comments
-	if ((lex->currCh=='/' && lex->nextCh=='/') || (lex->currCh=='#' && lex->nextCh=='!')) {
-		while (lex->currCh && lex->currCh!='\n'){
+	if ((lex->curr_ch=='/' && lex->next_ch=='/') || (lex->curr_ch=='#' && lex->next_ch=='!')) {
+		while (lex->curr_ch && lex->curr_ch!='\n'){
 			lex_get_nextch(lex);
 		}
 		lex_get_nextch(lex);
@@ -433,8 +433,8 @@ void lex_get_next_token(lex_t* lex) {
 		return;
 	}
 	// block comments
-	if (lex->currCh=='/' && lex->nextCh=='*') {
-		while (lex->currCh && (lex->currCh!='*' || lex->nextCh!='/')) {
+	if (lex->curr_ch=='/' && lex->next_ch=='*') {
+		while (lex->curr_ch && (lex->curr_ch!='*' || lex->next_ch!='/')) {
 			lex_get_nextch(lex);
 		}
 		lex_get_nextch(lex);
@@ -443,133 +443,133 @@ void lex_get_next_token(lex_t* lex) {
 		return;
 	}
 	// record beginning of this token(pre-read 2 chars );
-	lex->tkStart = lex->dataPos-2;
+	lex->tk_start = lex->data_pos-2;
 	// tokens
-	if (is_alpha(lex->currCh)) { //  IDs
-		while (is_alpha(lex->currCh) || is_numeric(lex->currCh)) {
-			str_add(lex->tkStr, lex->currCh);
+	if (is_alpha(lex->curr_ch)) { //  IDs
+		while (is_alpha(lex->curr_ch) || is_numeric(lex->curr_ch)) {
+			str_add(lex->tk_str, lex->curr_ch);
 			lex_get_nextch(lex);
 		}
 		lex->tk = LEX_ID;
-		if (strcmp(lex->tkStr->cstr, "if") == 0)        lex->tk = LEX_R_IF;
-		else if (strcmp(lex->tkStr->cstr, "else") == 0)      lex->tk = LEX_R_ELSE;
-		else if (strcmp(lex->tkStr->cstr, "do") == 0)        lex->tk = LEX_R_DO;
-		else if (strcmp(lex->tkStr->cstr, "while") == 0)    lex->tk = LEX_R_WHILE;
-		else if (strcmp(lex->tkStr->cstr, "import") == 0)  lex->tk = LEX_R_INCLUDE;
-		else if (strcmp(lex->tkStr->cstr, "for") == 0)     lex->tk = LEX_R_FOR;
-		else if (strcmp(lex->tkStr->cstr, "break") == 0)    lex->tk = LEX_R_BREAK;
-		else if (strcmp(lex->tkStr->cstr, "continue") == 0)  lex->tk = LEX_R_CONTINUE;
-		else if (strcmp(lex->tkStr->cstr, "function") == 0)  lex->tk = LEX_R_FUNCTION;
-		else if (strcmp(lex->tkStr->cstr, "class") ==0) 		 lex->tk = LEX_R_CLASS;
-		else if (strcmp(lex->tkStr->cstr, "extends") == 0) 	 lex->tk = LEX_R_EXTENDS;
-		else if (strcmp(lex->tkStr->cstr, "return") == 0)   lex->tk = LEX_R_RETURN;
-		else if (strcmp(lex->tkStr->cstr, "var")  == 0)      lex->tk = LEX_R_VAR;
-		else if (strcmp(lex->tkStr->cstr, "let")  == 0)      lex->tk = LEX_R_LET;
-		else if (strcmp(lex->tkStr->cstr, "const") == 0)     lex->tk = LEX_R_CONST;
-		else if (strcmp(lex->tkStr->cstr, "true") == 0)      lex->tk = LEX_R_TRUE;
-		else if (strcmp(lex->tkStr->cstr, "false") == 0)     lex->tk = LEX_R_FALSE;
-		else if (strcmp(lex->tkStr->cstr, "null") == 0)      lex->tk = LEX_R_NULL;
-		else if (strcmp(lex->tkStr->cstr, "undefined") == 0) lex->tk = LEX_R_UNDEFINED;
-		else if (strcmp(lex->tkStr->cstr, "new") == 0)       lex->tk = LEX_R_NEW;
-		else if (strcmp(lex->tkStr->cstr, "typeof") == 0)       lex->tk = LEX_R_TYPEOF;
-		else if (strcmp(lex->tkStr->cstr, "throw") == 0)     lex->tk = LEX_R_THROW;
-		else if (strcmp(lex->tkStr->cstr, "try") == 0)    	 lex->tk = LEX_R_TRY;
-		else if (strcmp(lex->tkStr->cstr, "catch") == 0)     lex->tk = LEX_R_CATCH;
-	} else if (is_numeric(lex->currCh)) { // _numbers
+		if (strcmp(lex->tk_str->cstr, "if") == 0)        lex->tk = LEX_R_IF;
+		else if (strcmp(lex->tk_str->cstr, "else") == 0)      lex->tk = LEX_R_ELSE;
+		else if (strcmp(lex->tk_str->cstr, "do") == 0)        lex->tk = LEX_R_DO;
+		else if (strcmp(lex->tk_str->cstr, "while") == 0)    lex->tk = LEX_R_WHILE;
+		else if (strcmp(lex->tk_str->cstr, "import") == 0)  lex->tk = LEX_R_INCLUDE;
+		else if (strcmp(lex->tk_str->cstr, "for") == 0)     lex->tk = LEX_R_FOR;
+		else if (strcmp(lex->tk_str->cstr, "break") == 0)    lex->tk = LEX_R_BREAK;
+		else if (strcmp(lex->tk_str->cstr, "continue") == 0)  lex->tk = LEX_R_CONTINUE;
+		else if (strcmp(lex->tk_str->cstr, "function") == 0)  lex->tk = LEX_R_FUNCTION;
+		else if (strcmp(lex->tk_str->cstr, "class") ==0) 		 lex->tk = LEX_R_CLASS;
+		else if (strcmp(lex->tk_str->cstr, "extends") == 0) 	 lex->tk = LEX_R_EXTENDS;
+		else if (strcmp(lex->tk_str->cstr, "return") == 0)   lex->tk = LEX_R_RETURN;
+		else if (strcmp(lex->tk_str->cstr, "var")  == 0)      lex->tk = LEX_R_VAR;
+		else if (strcmp(lex->tk_str->cstr, "let")  == 0)      lex->tk = LEX_R_LET;
+		else if (strcmp(lex->tk_str->cstr, "const") == 0)     lex->tk = LEX_R_CONST;
+		else if (strcmp(lex->tk_str->cstr, "true") == 0)      lex->tk = LEX_R_TRUE;
+		else if (strcmp(lex->tk_str->cstr, "false") == 0)     lex->tk = LEX_R_FALSE;
+		else if (strcmp(lex->tk_str->cstr, "null") == 0)      lex->tk = LEX_R_NULL;
+		else if (strcmp(lex->tk_str->cstr, "undefined") == 0) lex->tk = LEX_R_UNDEFINED;
+		else if (strcmp(lex->tk_str->cstr, "new") == 0)       lex->tk = LEX_R_NEW;
+		else if (strcmp(lex->tk_str->cstr, "typeof") == 0)       lex->tk = LEX_R_TYPEOF;
+		else if (strcmp(lex->tk_str->cstr, "throw") == 0)     lex->tk = LEX_R_THROW;
+		else if (strcmp(lex->tk_str->cstr, "try") == 0)    	 lex->tk = LEX_R_TRY;
+		else if (strcmp(lex->tk_str->cstr, "catch") == 0)     lex->tk = LEX_R_CATCH;
+	} else if (is_numeric(lex->curr_ch)) { // _numbers
 		bool isHex = false;
-		if (lex->currCh=='0') {
-			str_add(lex->tkStr, lex->currCh);
+		if (lex->curr_ch=='0') {
+			str_add(lex->tk_str, lex->curr_ch);
 			lex_get_nextch(lex);
 		}
-		if (lex->currCh=='x') {
+		if (lex->curr_ch=='x') {
 			isHex = true;
-			str_add(lex->tkStr, lex->currCh);
+			str_add(lex->tk_str, lex->curr_ch);
 			lex_get_nextch(lex);
 		}
 		lex->tk = LEX_INT;
-		while (is_numeric(lex->currCh) || (isHex && is_hexadecimal(lex->currCh))) {
-			str_add(lex->tkStr, lex->currCh);
+		while (is_numeric(lex->curr_ch) || (isHex && is_hexadecimal(lex->curr_ch))) {
+			str_add(lex->tk_str, lex->curr_ch);
 			lex_get_nextch(lex);
 		}
-		if (!isHex && lex->currCh=='.') {
+		if (!isHex && lex->curr_ch=='.') {
 			lex->tk = LEX_FLOAT;
-			str_add(lex->tkStr, '.');
+			str_add(lex->tk_str, '.');
 			lex_get_nextch(lex);
-			while (is_numeric(lex->currCh)) {
-				str_add(lex->tkStr, lex->currCh);
+			while (is_numeric(lex->curr_ch)) {
+				str_add(lex->tk_str, lex->curr_ch);
 				lex_get_nextch(lex);
 			}
 		}
 		// do fancy e-style floating point
-		if (!isHex && (lex->currCh=='e'||lex->currCh=='E')) {
+		if (!isHex && (lex->curr_ch=='e'||lex->curr_ch=='E')) {
 			lex->tk = LEX_FLOAT;
-			str_add(lex->tkStr, lex->currCh);
+			str_add(lex->tk_str, lex->curr_ch);
 			lex_get_nextch(lex);
-			if (lex->currCh=='-') {
-				str_add(lex->tkStr, lex->currCh);
+			if (lex->curr_ch=='-') {
+				str_add(lex->tk_str, lex->curr_ch);
 				lex_get_nextch(lex);
 			}
-			while (is_numeric(lex->currCh)) {
-				str_add(lex->tkStr, lex->currCh);
+			while (is_numeric(lex->curr_ch)) {
+				str_add(lex->tk_str, lex->curr_ch);
 				lex_get_nextch(lex);
 			}
 		}
-	} else if (lex->currCh=='"') {
+	} else if (lex->curr_ch=='"') {
 		// strings...
 		lex_get_nextch(lex);
-		while (lex->currCh && lex->currCh!='"') {
-			if (lex->currCh == '\\') {
+		while (lex->curr_ch && lex->curr_ch!='"') {
+			if (lex->curr_ch == '\\') {
 				lex_get_nextch(lex);
-				switch (lex->currCh) {
-					case 'n' : str_add(lex->tkStr, '\n'); break;
-					case 'r' : str_add(lex->tkStr, '\r'); break;
-					case 't' : str_add(lex->tkStr, '\t'); break;
-					case '"' : str_add(lex->tkStr, '\"'); break;
-					case '\\' : str_add(lex->tkStr, '\\'); break;
-					default: str_add(lex->tkStr, lex->currCh);
+				switch (lex->curr_ch) {
+					case 'n' : str_add(lex->tk_str, '\n'); break;
+					case 'r' : str_add(lex->tk_str, '\r'); break;
+					case 't' : str_add(lex->tk_str, '\t'); break;
+					case '"' : str_add(lex->tk_str, '\"'); break;
+					case '\\' : str_add(lex->tk_str, '\\'); break;
+					default: str_add(lex->tk_str, lex->curr_ch);
 				}
 			} else {
-				str_add(lex->tkStr, lex->currCh);
+				str_add(lex->tk_str, lex->curr_ch);
 			}
 			lex_get_nextch(lex);
 		}
 		lex_get_nextch(lex);
 		lex->tk = LEX_STR;
-	} else if (lex->currCh=='\'') {
+	} else if (lex->curr_ch=='\'') {
 		// strings again...
 		lex_get_nextch(lex);
-		while (lex->currCh && lex->currCh!='\'') {
-			if (lex->currCh == '\\') {
+		while (lex->curr_ch && lex->curr_ch!='\'') {
+			if (lex->curr_ch == '\\') {
 				lex_get_nextch(lex);
-				switch (lex->currCh) {
-					case 'n' : str_add(lex->tkStr, '\n'); break;
-					case 'a' : str_add(lex->tkStr, '\a'); break;
-					case 'r' : str_add(lex->tkStr, '\r'); break;
-					case 't' : str_add(lex->tkStr, '\t'); break;
-					case '\'' : str_add(lex->tkStr, '\''); break;
-					case '\\' : str_add(lex->tkStr, '\\'); break;
+				switch (lex->curr_ch) {
+					case 'n' : str_add(lex->tk_str, '\n'); break;
+					case 'a' : str_add(lex->tk_str, '\a'); break;
+					case 'r' : str_add(lex->tk_str, '\r'); break;
+					case 't' : str_add(lex->tk_str, '\t'); break;
+					case '\'' : str_add(lex->tk_str, '\''); break;
+					case '\\' : str_add(lex->tk_str, '\\'); break;
 					case 'x' : { // hex digits
 											 char buf[3] = "??";
 											 lex_get_nextch(lex);
-											 buf[0] = lex->currCh;
+											 buf[0] = lex->curr_ch;
 											 lex_get_nextch(lex);
-											 buf[1] = lex->currCh;
-											 str_add(lex->tkStr, (char)strtol(buf,0,16));
+											 buf[1] = lex->curr_ch;
+											 str_add(lex->tk_str, (char)strtol(buf,0,16));
 										 } break;
-					default: if (lex->currCh>='0' && lex->currCh<='7') {
+					default: if (lex->curr_ch>='0' && lex->curr_ch<='7') {
 										 // octal digits
 										 char buf[4] = "???";
-										 buf[0] = lex->currCh;
+										 buf[0] = lex->curr_ch;
 										 lex_get_nextch(lex);
-										 buf[1] = lex->currCh;
+										 buf[1] = lex->curr_ch;
 										 lex_get_nextch(lex);
-										 buf[2] = lex->currCh;
-										 str_add(lex->tkStr, (char)strtol(buf,0,8));
+										 buf[2] = lex->curr_ch;
+										 str_add(lex->tk_str, (char)strtol(buf,0,8));
 									 } else
-										 str_add(lex->tkStr, lex->currCh);
+										 str_add(lex->tk_str, lex->curr_ch);
 				}
 			} else {
-				str_add(lex->tkStr, lex->currCh);
+				str_add(lex->tk_str, lex->curr_ch);
 			}
 			lex_get_nextch(lex);
 		}
@@ -577,96 +577,96 @@ void lex_get_next_token(lex_t* lex) {
 		lex->tk = LEX_STR;
 	} else {
 		// single chars
-		lex->tk = (LEX_TYPES)lex->currCh;
-		if (lex->currCh) 
+		lex->tk = (LEX_TYPES)lex->curr_ch;
+		if (lex->curr_ch) 
 			lex_get_nextch(lex);
-		if (lex->tk=='=' && lex->currCh=='=') { // ==
+		if (lex->tk=='=' && lex->curr_ch=='=') { // ==
 			lex->tk = LEX_EQUAL;
 			lex_get_nextch(lex);
-			if (lex->currCh=='=') { // ===
+			if (lex->curr_ch=='=') { // ===
 				lex->tk = LEX_TYPEEQUAL;
 				lex_get_nextch(lex);
 			}
-		} else if (lex->tk=='!' && lex->currCh=='=') { // !=
+		} else if (lex->tk=='!' && lex->curr_ch=='=') { // !=
 			lex->tk = LEX_NEQUAL;
 			lex_get_nextch(lex);
-			if (lex->currCh=='=') { // !==
+			if (lex->curr_ch=='=') { // !==
 				lex->tk = LEX_NTYPEEQUAL;
 				lex_get_nextch(lex);
 			}
-		} else if (lex->tk=='<' && lex->currCh=='=') {
+		} else if (lex->tk=='<' && lex->curr_ch=='=') {
 			lex->tk = LEX_LEQUAL;
 			lex_get_nextch(lex);
-		} else if (lex->tk=='<' && lex->currCh=='<') {
+		} else if (lex->tk=='<' && lex->curr_ch=='<') {
 			lex->tk = LEX_LSHIFT;
 			lex_get_nextch(lex);
-			if (lex->currCh=='=') { // <<=
+			if (lex->curr_ch=='=') { // <<=
 				lex->tk = LEX_LSHIFTEQUAL;
 				lex_get_nextch(lex);
 			}
-		} else if (lex->tk=='>' && lex->currCh=='=') {
+		} else if (lex->tk=='>' && lex->curr_ch=='=') {
 			lex->tk = LEX_GEQUAL;
 			lex_get_nextch(lex);
-		} else if (lex->tk=='>' && lex->currCh=='>') {
+		} else if (lex->tk=='>' && lex->curr_ch=='>') {
 			lex->tk = LEX_RSHIFT;
 			lex_get_nextch(lex);
-			if (lex->currCh=='=') { // >>=
+			if (lex->curr_ch=='=') { // >>=
 				lex->tk = LEX_RSHIFTEQUAL;
 				lex_get_nextch(lex);
-			} else if (lex->currCh=='>') { // >>>
+			} else if (lex->curr_ch=='>') { // >>>
 				lex->tk = LEX_RSHIFTUNSIGNED;
 				lex_get_nextch(lex);
 			}
-		}  else if (lex->tk=='+' && lex->currCh=='=') {
+		}  else if (lex->tk=='+' && lex->curr_ch=='=') {
 			lex->tk = LEX_PLUSEQUAL;
 			lex_get_nextch(lex);
-		}  else if (lex->tk=='-' && lex->currCh=='=') {
+		}  else if (lex->tk=='-' && lex->curr_ch=='=') {
 			lex->tk = LEX_MINUSEQUAL;
 			lex_get_nextch(lex);
-		}  else if (lex->tk=='*' && lex->currCh=='=') {
+		}  else if (lex->tk=='*' && lex->curr_ch=='=') {
 			lex->tk = LEX_MULTIEQUAL;
 			lex_get_nextch(lex);
-		}  else if (lex->tk=='/' && lex->currCh=='=') {
+		}  else if (lex->tk=='/' && lex->curr_ch=='=') {
 			lex->tk = LEX_DIVEQUAL;
 			lex_get_nextch(lex);
-		}  else if (lex->tk=='%' && lex->currCh=='=') {
+		}  else if (lex->tk=='%' && lex->curr_ch=='=') {
 			lex->tk = LEX_MODEQUAL;
 			lex_get_nextch(lex);
-		}  else if (lex->tk=='+' && lex->currCh=='+') {
+		}  else if (lex->tk=='+' && lex->curr_ch=='+') {
 			lex->tk = LEX_PLUSPLUS;
 			lex_get_nextch(lex);
-		}  else if (lex->tk=='-' && lex->currCh=='-') {
+		}  else if (lex->tk=='-' && lex->curr_ch=='-') {
 			lex->tk = LEX_MINUSMINUS;
 			lex_get_nextch(lex);
-		} else if (lex->tk=='&' && lex->currCh=='=') {
+		} else if (lex->tk=='&' && lex->curr_ch=='=') {
 			lex->tk = LEX_ANDEQUAL;
 			lex_get_nextch(lex);
-		} else if (lex->tk=='&' && lex->currCh=='&') {
+		} else if (lex->tk=='&' && lex->curr_ch=='&') {
 			lex->tk = LEX_ANDAND;
 			lex_get_nextch(lex);
-		} else if (lex->tk=='|' && lex->currCh=='=') {
+		} else if (lex->tk=='|' && lex->curr_ch=='=') {
 			lex->tk = LEX_OREQUAL;
 			lex_get_nextch(lex);
-		} else if (lex->tk=='|' && lex->currCh=='|') {
+		} else if (lex->tk=='|' && lex->curr_ch=='|') {
 			lex->tk = LEX_OROR;
 			lex_get_nextch(lex);
-		} else if (lex->tk=='^' && lex->currCh=='=') {
+		} else if (lex->tk=='^' && lex->curr_ch=='=') {
 			lex->tk = LEX_XOREQUAL;
 			lex_get_nextch(lex);
 		}
 	}
 	/* This isn't quite right yet */
-	lex->tkLastEnd = lex->tkEnd;
-	lex->tkEnd = lex->dataPos-3;
+	lex->tk_last_end = lex->tk_end;
+	lex->tk_end = lex->data_pos-3;
 }
 
 void lex_reset(lex_t* lex) {
-	lex->dataPos = lex->dataStart;
-	lex->tkStart   = 0;
-	lex->tkEnd     = 0;
-	lex->tkLastEnd = 0;
+	lex->data_pos = lex->data_start;
+	lex->tk_start   = 0;
+	lex->tk_end     = 0;
+	lex->tk_last_end = 0;
 	lex->tk  = LEX_EOF;
-	str_reset(lex->tkStr);
+	str_reset(lex->tk_str);
 	lex_get_nextch(lex);
 	lex_get_nextch(lex);
 	lex_get_next_token(lex);
@@ -674,15 +674,15 @@ void lex_reset(lex_t* lex) {
 
 void lex_init(lex_t * lex, const char* input) {
 	lex->data = input;
-	lex->dataStart = 0;
-	lex->dataEnd = strlen(lex->data);
-	lex->tkStr = str_new("");
+	lex->data_start = 0;
+	lex->data_end = strlen(lex->data);
+	lex->tk_str = str_new("");
 	lex_reset(lex);
 }
 
 void lex_release(lex_t* lex) {
-	str_free(lex->tkStr);
-	lex->tkStr = NULL;
+	str_free(lex->tk_str);
+	lex->tk_str = NULL;
 }
 
 #ifdef MARIO_DEBUG
@@ -751,14 +751,14 @@ const char* lex_get_token_str(int token) {
 
 void lex_get_pos(lex_t* lex, int* line, int *col, int pos) {
 	if (pos<0) 
-		pos= lex->tkLastEnd;
+		pos= lex->tk_last_end;
 
 	int l = 1;
 	int c  = 1;
 	int i;
 	for (i=0; i<pos; i++) {
 		char ch;
-		if (i < lex->dataEnd){
+		if (i < lex->data_end){
 			ch = lex->data[i];
 		}else{
 			ch = 0;
@@ -810,7 +810,7 @@ bool lex_chkread(lex_t* lex, uint32_t expected_tk) {
 
 /** JS bytecode.-----------------------------*/
 
-typedef uint16_t OprCode;
+typedef uint16_t opr_code_t;
 
 #define ILLEGAL_PC 0x0FFFFFFF
 #define INSTR_NEED_IMPROVE	 0x80000000 // NEED CACHE next time.
@@ -917,7 +917,7 @@ typedef uint16_t OprCode;
 
 #define BC_BUF_SIZE  3232
 
-static uint16_t _thisStrIndex = 0;
+static uint16_t _this_strIndex = 0;
 
 uint16_t bc_getstrindex(bytecode_t* bc, const char* str) {
 	uint16_t sz = bc->str_table.size;
@@ -944,7 +944,7 @@ void bc_init(bytecode_t* bc) {
 	bc->buf_size = 0;
 	array_init(&bc->str_table);
 
-	_thisStrIndex = bc_getstrindex(bc, THIS);
+	_this_strIndex = bc_getstrindex(bc, THIS);
 }
 
 void bc_release(bytecode_t* bc) {
@@ -983,9 +983,9 @@ PC bc_reserve(bytecode_t* bc) {
 }	
 */
 
-PC bc_bytecode(bytecode_t* bc, OprCode instr, const char* str) {
-	OprCode r = instr;
-	OprCode i = 0xFFFF;
+PC bc_bytecode(bytecode_t* bc, opr_code_t instr, const char* str) {
+	opr_code_t r = instr;
+	opr_code_t i = 0xFFFF;
 
 	if(str != NULL && str[0] != 0)
 		i = bc_getstrindex(bc, str);
@@ -993,21 +993,21 @@ PC bc_bytecode(bytecode_t* bc, OprCode instr, const char* str) {
 	return INS(r, i);
 }
 	
-PC bc_gen_int(bytecode_t* bc, OprCode instr, int32_t i) {
+PC bc_gen_int(bytecode_t* bc, opr_code_t instr, int32_t i) {
 	PC ins = bc_bytecode(bc, instr, "");
 	bc_add(bc, ins);
 	bc_add(bc, i);
 	return bc->cindex;
 }
 
-PC bc_gen_short(bytecode_t* bc, OprCode instr, int32_t s) {
+PC bc_gen_short(bytecode_t* bc, opr_code_t instr, int32_t s) {
 	PC ins = bc_bytecode(bc, instr, "");
 	ins = (ins&0xFFFF0000) | (s&0x0FFFF);
 	bc_add(bc, ins);
 	return bc->cindex;
 }
 	
-PC bc_gen_str(bytecode_t* bc, OprCode instr, const char* str) {
+PC bc_gen_str(bytecode_t* bc, opr_code_t instr, const char* str) {
 	uint32_t i = 0;
 	float f = 0.0;
 	const char* s = str;
@@ -1041,11 +1041,11 @@ PC bc_gen_str(bytecode_t* bc, OprCode instr, const char* str) {
 	return bc->cindex;
 }
 
-PC bc_gen(bytecode_t* bc, OprCode instr) {
+PC bc_gen(bytecode_t* bc, opr_code_t instr) {
 	return bc_gen_str(bc, instr, "");
 }
 
-void bc_set_instr(bytecode_t* bc, PC anchor, OprCode op, PC target) {
+void bc_set_instr(bytecode_t* bc, PC anchor, opr_code_t op, PC target) {
 	if(target == ILLEGAL_PC)
 		target = bc->cindex;
 
@@ -1054,7 +1054,7 @@ void bc_set_instr(bytecode_t* bc, PC anchor, OprCode op, PC target) {
 	bc->code_buf[anchor] = ins;
 }
 
-PC bc_add_instr(bytecode_t* bc, PC anchor, OprCode op, PC target) {
+PC bc_add_instr(bytecode_t* bc, PC anchor, opr_code_t op, PC target) {
 	if(target == ILLEGAL_PC)
 		target = bc->cindex;
 
@@ -1066,7 +1066,7 @@ PC bc_add_instr(bytecode_t* bc, PC anchor, OprCode op, PC target) {
 
 #ifdef MARIO_DEBUG
 
-const char* instr_str(OprCode ins) {
+const char* instr_str(opr_code_t ins) {
 	switch(ins) {
 		case  INSTR_NIL					: return "NIL";
 		case  INSTR_END					: return "END";
@@ -1150,8 +1150,8 @@ const char* instr_str(OprCode ins) {
 
 PC bc_get_instr_str(bytecode_t* bc, PC i, str_t* ret) {
 	PC ins = bc->code_buf[i];
-	OprCode instr = (ins >> 16) & 0xFFFF;
-	OprCode offset = ins & 0xFFFF;
+	opr_code_t instr = (ins >> 16) & 0xFFFF;
+	opr_code_t offset = ins & 0xFFFF;
 
 	char s[64];
 	str_reset(ret);
@@ -1315,18 +1315,18 @@ bool block(lex_t* l, bytecode_t* bc, loop_t* loop, bool func) {
 bool defFunc(lex_t* l, bytecode_t* bc, str_t* name) {
 	/* we can have functions without names */
 	if (l->tk == LEX_ID) {
-		str_cpy(name, l->tkStr->cstr);
+		str_cpy(name, l->tk_str->cstr);
 		if(!lex_chkread(l, LEX_ID)) return false;
 	}
 	
 	if(l->tk == LEX_ID) { //class get/set token
 		if(strcmp(name->cstr, "get") == 0) {
-			str_cpy(name, l->tkStr->cstr);
+			str_cpy(name, l->tk_str->cstr);
 			if(!lex_chkread(l, LEX_ID)) return false;
 			bc_gen(bc, INSTR_FUNC_GET);
 		}
 		if(strcmp(name->cstr, "set") == 0) {
-			str_cpy(name, l->tkStr->cstr);
+			str_cpy(name, l->tk_str->cstr);
 			if(!lex_chkread(l, LEX_ID)) return false;
 			bc_gen(bc, INSTR_FUNC_SET);
 		}
@@ -1337,7 +1337,7 @@ bool defFunc(lex_t* l, bytecode_t* bc, str_t* name) {
 	//do arguments
 	if(!lex_chkread(l, '(')) return false;
 	while (l->tk!=')') {
-		bc_gen_str(bc, INSTR_VAR, l->tkStr->cstr);
+		bc_gen_str(bc, INSTR_VAR, l->tk_str->cstr);
 		if(!lex_chkread(l, LEX_ID)) return false;
 		if (l->tk!=')') {
 			if(!lex_chkread(l, ',')) return false;
@@ -1347,7 +1347,7 @@ bool defFunc(lex_t* l, bytecode_t* bc, str_t* name) {
 	PC pc = bc_reserve(bc);
 	block(l, bc, NULL, true);
 	
-	OprCode op = bc->code_buf[bc->cindex - 1] >> 16;
+	opr_code_t op = bc->code_buf[bc->cindex - 1] >> 16;
 
 	if(op != INSTR_RETURN && op != INSTR_RETURNV)
 		bc_gen(bc, INSTR_RETURN);
@@ -1362,7 +1362,7 @@ bool def_class(lex_t* l, bytecode_t* bc) {
 
 	/* we can have classes without names */
 	if (l->tk==LEX_ID) {
-		str_cpy(name, l->tkStr->cstr);
+		str_cpy(name, l->tk_str->cstr);
 		if(!lex_chkread(l, LEX_ID)) return false;
 	}
 	bc_gen_str(bc, INSTR_CLASS, name->cstr);
@@ -1370,7 +1370,7 @@ bool def_class(lex_t* l, bytecode_t* bc) {
 	/*read extends*/
 	if (l->tk==LEX_R_EXTENDS) {
 		if(!lex_chkread(l, LEX_R_EXTENDS)) return false;
-		str_cpy(name, l->tkStr->cstr);
+		str_cpy(name, l->tk_str->cstr);
 		if(!lex_chkread(l, LEX_ID)) return false;
 		bc_gen_str(bc, INSTR_EXTENDS, name->cstr);
 	}
@@ -1412,15 +1412,15 @@ bool factor(lex_t* l, bytecode_t* bc) {
 		bc_gen(bc, INSTR_UNDEF);
 	}
 	else if (l->tk==LEX_INT) {
-		bc_gen_str(bc, INSTR_INT, l->tkStr->cstr);
+		bc_gen_str(bc, INSTR_INT, l->tk_str->cstr);
 		if(!lex_chkread(l, LEX_INT)) return false;
 	}
 	else if (l->tk==LEX_FLOAT) {
-		bc_gen_str(bc, INSTR_FLOAT, l->tkStr->cstr);
+		bc_gen_str(bc, INSTR_FLOAT, l->tk_str->cstr);
 		if(!lex_chkread(l, LEX_FLOAT)) return false;
 	}
 	else if (l->tk==LEX_STR) {
-		bc_gen_str(bc, INSTR_STR, l->tkStr->cstr);
+		bc_gen_str(bc, INSTR_STR, l->tk_str->cstr);
 		if(!lex_chkread(l, LEX_STR)) return false;
 	}
 	else if(l->tk==LEX_R_FUNCTION) {
@@ -1436,7 +1436,7 @@ bool factor(lex_t* l, bytecode_t* bc) {
 		// new -> create a new object
 		if(!lex_chkread(l, LEX_R_NEW)) return false;
 		str_t* class_name = str_new("");
-		str_cpy(class_name, l->tkStr->cstr);
+		str_cpy(class_name, l->tk_str->cstr);
 
 		if(!lex_chkread(l, LEX_ID)) return false;
 		if (l->tk == '(') {
@@ -1457,7 +1457,7 @@ bool factor(lex_t* l, bytecode_t* bc) {
 		if(!lex_chkread(l, '{')) return false;
 		bc_gen(bc, INSTR_OBJ);
 		while (l->tk != '}') {
-			str_t* id = str_new(l->tkStr->cstr);
+			str_t* id = str_new(l->tk_str->cstr);
 			// we only allow strings or IDs on the left hand side of an initialisation
 			if (l->tk==LEX_STR) {
 				if(!lex_chkread(l, LEX_STR)) return false;
@@ -1480,7 +1480,7 @@ bool factor(lex_t* l, bytecode_t* bc) {
 		if(!lex_chkread(l, '}')) return false;
 	}
 	else if(l->tk==LEX_ID) {
-		str_t* name = str_new(l->tkStr->cstr);
+		str_t* name = str_new(l->tk_str->cstr);
 		if(!lex_chkread(l, LEX_ID)) return false;
 
 		m_array_t names;
@@ -1517,10 +1517,10 @@ bool factor(lex_t* l, bytecode_t* bc) {
 			else if (l->tk == '.') { // ------------------------------------- Record Access
 				if(!lex_chkread(l, '.')) return false;
 				if(name->len == 0)
-					str_cpy(name, l->tkStr->cstr);
+					str_cpy(name, l->tk_str->cstr);
 				else {
 					str_append(name, ".");
-					str_append(name, l->tkStr->cstr);
+					str_append(name, l->tk_str->cstr);
 				}
 				if(!lex_chkread(l, LEX_ID)) return false;
 			} 
@@ -1576,7 +1576,7 @@ bool factor(lex_t* l, bytecode_t* bc) {
 }
 
 bool unary(lex_t* l, bytecode_t* bc) {
-	OprCode instr = INSTR_END;
+	opr_code_t instr = INSTR_END;
 	if (l->tk == '!') {
 		if(!lex_chkread(l, '!')) return false;
 		instr = INSTR_NOT;
@@ -1837,7 +1837,7 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 	}
 	else if (l->tk==LEX_R_VAR || l->tk == LEX_R_CONST || l->tk == LEX_R_LET) {
 		pop = false;
-		OprCode op;
+		opr_code_t op;
 		//bool be_const;
 
 		if(l->tk == LEX_R_VAR) {
@@ -1857,7 +1857,7 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 		}
 
 		while (l->tk != ';') {
-			str_t* vname = str_new(l->tkStr->cstr);
+			str_t* vname = str_new(l->tk_str->cstr);
 			if(!lex_chkread(l, LEX_ID)) return false;
 			bc_gen_str(bc, op, vname->cstr);
 			// sort out initialiser
@@ -2007,7 +2007,7 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 	}
 	else {
 			_err("Error: don't understand '");
-			_err(l->tkStr->cstr);
+			_err(l->tk_str->cstr);
 			_err("'!\n");
 			return false;
 	}
@@ -2603,17 +2603,17 @@ var_t* json_parse_factor(lex_t *l) {
 		return var_new();
 	}
 	else if (l->tk==LEX_INT) {
-		int i = atoi(l->tkStr->cstr);
+		int i = atoi(l->tk_str->cstr);
 		lex_chkread(l, LEX_INT);
 		return var_new_int(i);
 	}
 	else if (l->tk==LEX_FLOAT) {
-		float f = atof(l->tkStr->cstr);
+		float f = atof(l->tk_str->cstr);
 		lex_chkread(l, LEX_FLOAT);
 		return var_new_float(f);
 	}
 	else if (l->tk==LEX_STR) {
-		str_t* s = str_new(l->tkStr->cstr);
+		str_t* s = str_new(l->tk_str->cstr);
 		lex_chkread(l, LEX_STR);
 		var_t* ret = var_new_str(s->cstr);
 		str_free(s);
@@ -2643,7 +2643,7 @@ var_t* json_parse_factor(lex_t *l) {
 		var_t* obj = var_new();
 		obj->type = V_OBJECT;
 		while(l->tk != '}') {
-			str_t* id = str_new(l->tkStr->cstr);
+			str_t* id = str_new(l->tk_str->cstr);
 			if(l->tk == LEX_STR)
 				lex_chkread(l, LEX_STR);
 			else
@@ -3094,8 +3094,8 @@ var_t* func_def(vm_t* vm, bool regular) {
 	func->regular = regular;
 	while(true) {
 		PC ins = vm->bc.code_buf[vm->pc++];
-		OprCode instr = ins >> 16;
-		OprCode offset = ins & 0x0000FFFF;
+		opr_code_t instr = ins >> 16;
+		opr_code_t offset = ins & 0x0000FFFF;
 		if(instr == INSTR_JMP) {
 			func->pc = vm->pc;
 			vm->pc = vm->pc + offset - 1;
@@ -3113,7 +3113,7 @@ var_t* func_def(vm_t* vm, bool regular) {
 }
 
 
-static inline void math_op(vm_t* vm, OprCode op, var_t* v1, var_t* v2) {
+static inline void math_op(vm_t* vm, opr_code_t op, var_t* v1, var_t* v2) {
 	/*if(v1->value == NULL || v2->value == NULL) {
 		vm_push(vm, var_new());
 		return;
@@ -3267,7 +3267,7 @@ static inline void math_op(vm_t* vm, OprCode op, var_t* v1, var_t* v2) {
 static var_t* _var_true;
 static var_t* _var_false;
 
-static inline void compare(vm_t* vm, OprCode op, var_t* v1, var_t* v2) {
+static inline void compare(vm_t* vm, opr_code_t op, var_t* v1, var_t* v2) {
 	//do int
 	if(v1->type == V_INT && v2->type == V_INT) {
 		register int i1, i2;
@@ -3623,8 +3623,8 @@ void vm_run_code(vm_t* vm) {
 
 	do {
 		register PC ins = code[vm->pc++];
-		register OprCode instr = OP(ins);
-		register OprCode offset = ins & 0x0000FFFF;
+		register opr_code_t instr = OP(ins);
+		register opr_code_t offset = ins & 0x0000FFFF;
 
 		if(instr == INSTR_END)
 			break;
@@ -3671,7 +3671,7 @@ void vm_run_code(vm_t* vm) {
 				#endif
 
 				if(!loaded) {
-					if(offset == _thisStrIndex) {
+					if(offset == _this_strIndex) {
 						var_t* thisV = vm_this_in_scopes(vm);
 						if(thisV != NULL) {
 							vm_push(vm, thisV);	
@@ -4251,7 +4251,7 @@ void vm_run_code(vm_t* vm) {
 					sc = scope();
 				}
 				if(sc == NULL) {
-					ERR("uncaught exception:%s\n", exception->getString().c_str());
+					ERR("uncaught exception:%s\n", exception->get_string().c_str());
 					return;
 				}
 
