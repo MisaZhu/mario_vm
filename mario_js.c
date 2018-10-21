@@ -317,6 +317,7 @@ typedef enum {
   LEX_R_FOR,
   LEX_R_BREAK,
   LEX_R_CONTINUE,
+  LEX_R_STATIC,
   LEX_R_FUNCTION,
   LEX_R_CLASS,
   LEX_R_EXTENDS,
@@ -459,6 +460,7 @@ void lex_get_next_token(lex_t* lex) {
 		else if (strcmp(lex->tk_str->cstr, "for") == 0)     lex->tk = LEX_R_FOR;
 		else if (strcmp(lex->tk_str->cstr, "break") == 0)    lex->tk = LEX_R_BREAK;
 		else if (strcmp(lex->tk_str->cstr, "continue") == 0)  lex->tk = LEX_R_CONTINUE;
+		else if (strcmp(lex->tk_str->cstr, "static") == 0)  lex->tk = LEX_R_STATIC;
 		else if (strcmp(lex->tk_str->cstr, "function") == 0)  lex->tk = LEX_R_FUNCTION;
 		else if (strcmp(lex->tk_str->cstr, "class") ==0) 		 lex->tk = LEX_R_CLASS;
 		else if (strcmp(lex->tk_str->cstr, "extends") == 0) 	 lex->tk = LEX_R_EXTENDS;
@@ -730,6 +732,7 @@ const char* lex_get_token_str(int token) {
 		case LEX_R_FOR          : return "for";
 		case LEX_R_BREAK        : return "break";
 		case LEX_R_CONTINUE     : return "continue";
+		case LEX_R_STATIC       : return "static";
 		case LEX_R_FUNCTION     : return "function";
 		case LEX_R_CLASS     		: return "class";
 		case LEX_R_EXTENDS   		: return "extends";
@@ -846,6 +849,7 @@ typedef uint16_t opr_code_t;
 #define INSTR_MEMBER			 0x0017 // member without name
 #define INSTR_MEMBERN			 0x0018 // : member with name
 #define INSTR_EXTENDS			 0x0019 // : class extends
+#define INSTR_FUNC_STC		 0x001A // ST FUNC x						: static function definetion x
 
 #define INSTR_NOT					 0x0020 // NOT									: !
 #define INSTR_MULTI				 0x0021 // MULTI								: *
@@ -1092,6 +1096,7 @@ const char* instr_str(opr_code_t ins) {
 		case  INSTR_JMPB				: return "JMPB";
 		case  INSTR_NJMPB				: return "NJMPB";
 		case  INSTR_FUNC				: return "FUNC";
+		case  INSTR_FUNC_STC		: return "FUNC_STC";
 		case  INSTR_FUNC_GET		: return "FUNCGET";
 		case  INSTR_FUNC_SET		: return "FUNCSET";
 		case  INSTR_CLASS				: return "CLASS";
@@ -1313,6 +1318,12 @@ bool block(lex_t* l, bytecode_t* bc, loop_t* loop, bool func) {
 }
 
 bool defFunc(lex_t* l, bytecode_t* bc, str_t* name) {
+	bool is_static = false;
+	if (l->tk == LEX_R_STATIC) {
+		if(!lex_chkread(l, LEX_R_STATIC)) return false;
+		is_static = true;
+	}
+
 	/* we can have functions without names */
 	if (l->tk == LEX_ID) {
 		str_cpy(name, l->tk_str->cstr);
@@ -1332,7 +1343,7 @@ bool defFunc(lex_t* l, bytecode_t* bc, str_t* name) {
 		}
 	}
 	else {
-		bc_gen(bc, INSTR_FUNC);
+		bc_gen(bc, is_static ? INSTR_FUNC_STC:INSTR_FUNC);
 	}
 	//do arguments
 	if(!lex_chkread(l, '(')) return false;
@@ -3036,13 +3047,14 @@ var_t* find_func(vm_t* vm, var_t* obj, const char* fname) {
 void vm_run_code(vm_t* vm);
 bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 	var_t *env;
-	if(obj == NULL || obj == vm->root) {
-		env = var_new_func_from(func_var);
-	}
-	else
-		env = obj;
-
 	func_t* func = var_get_func(func_var);
+	if(obj == NULL || func->is_static) {
+		env = vm_this_in_scopes(vm);
+	}
+	else {
+		env = obj;
+	}
+
 	int32_t i;
 	for(i=arg_num; i>func->args.size; i--) {
 		vm_pop(vm);
@@ -3089,9 +3101,10 @@ bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 	return true;
 }
 
-var_t* func_def(vm_t* vm, bool regular) {
+var_t* func_def(vm_t* vm, bool regular, bool is_static) {
 	func_t* func = func_new();
 	func->regular = regular;
+	func->is_static = is_static;
 	while(true) {
 		PC ins = vm->bc.code_buf[vm->pc++];
 		opr_code_t instr = ins >> 16;
@@ -3439,14 +3452,15 @@ var_t* new_obj(vm_t* vm, const char* name, int arg_num) {
 		return var_new();
 	}
 
+	var_t* protoV = get_prototype(n->var);
+	obj = var_new_obj(NULL, NULL);
+	var_add(obj, PROTOTYPE, protoV);
+
 	var_t* constructor = NULL;
 	if(n->var->is_func) { // new object built by function call
 		constructor = n->var;
 	}
 	else {
-		var_t* protoV = get_prototype(n->var);
-		obj = var_new_obj(NULL, NULL);
-		var_add(obj, PROTOTYPE, protoV);
 		constructor = var_find_var(protoV, CONSTRUCTOR);
 	}
 
@@ -4089,11 +4103,6 @@ void vm_run_code(vm_t* vm) {
 				}
 
 				func = find_func(vm, obj, name->cstr);
-
-				if(obj == NULL) {
-					obj = vm_this_in_scopes(vm);
-				}
-
 				if(func != NULL && !func->is_func) { //constructor
 					var_t* constr = var_find_var(func, CONSTRUCTOR);	
 					if(constr == NULL) {
@@ -4155,10 +4164,13 @@ void vm_run_code(vm_t* vm) {
 			}
 
 			case INSTR_FUNC: 
+			case INSTR_FUNC_STC: 
 			case INSTR_FUNC_GET: 
 			case INSTR_FUNC_SET: 
 			{
-				var_t* v = func_def(vm, (instr == INSTR_FUNC ? true:false));
+				var_t* v = func_def(vm, 
+						(instr == INSTR_FUNC ? true:false),
+						(instr == INSTR_FUNC_STC ? true:false));
 				if(v != NULL)
 					vm_push(vm, v);
 				break;
@@ -4399,6 +4411,13 @@ node_t* vm_reg_native(vm_t* vm, const char* cls, const char* decl, native_func_t
 	str_free(name);
 
 	return node;
+}
+
+node_t* vm_reg_static(vm_t* vm, const char* cls, const char* decl, native_func_t native, void* data) {
+	node_t* n = vm_reg_native(vm, cls, decl, native, data);
+	func_t* func = var_get_func(n->var);
+	func->is_static = true;
+	return n;
 }
 
 const char* get_str(var_t* var, const char* name) {

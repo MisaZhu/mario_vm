@@ -123,7 +123,8 @@ typedef var_t* (*native_func_t)(struct st_vm *, var_t*, void*);
 
 typedef struct st_func {
 	native_func_t native;
-	bool regular;
+	int8_t regular: 4;
+	int8_t is_static: 4;
 	PC pc;
 	void *data;
 	m_array_t args; //argument names
@@ -226,6 +227,7 @@ node_t* vm_find(vm_t* vm, const char* name);
 node_t* vm_find_in_class(var_t* var, const char* name);
 node_t* vm_reg_var(vm_t* vm, const char* cls, const char* name, var_t* var, bool be_const);
 node_t* vm_reg_native(vm_t* vm, const char* cls, const char* decl, native_func_t native, void* data);
+node_t* vm_reg_static(vm_t* vm, const char* cls, const char* decl, native_func_t native, void* data);
 void vm_reg_init(vm_t* vm, void (*func)(void*), void* data);
 void vm_reg_close(vm_t* vm, void (*func)(void*), void* data);
 
