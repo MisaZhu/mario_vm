@@ -2203,6 +2203,8 @@ const char* get_typeof(var_t* var) {
 			return "number";
 		case V_BOOL: 
 			return "boolean";
+		case V_STRING: 
+			return "string";
 		case V_OBJECT: 
 			return var->is_func ? "function": "object";
 	}
@@ -2651,8 +2653,7 @@ var_t* json_parse_factor(lex_t *l) {
 	}
 	else if (l->tk=='{') {
 		lex_chkread(l, '{');
-		var_t* obj = var_new();
-		obj->type = V_OBJECT;
+		var_t* obj = var_new_obj(NULL, NULL);
 		while(l->tk != '}') {
 			str_t* id = str_new(l->tk_str->cstr);
 			if(l->tk == LEX_STR)
@@ -4181,6 +4182,7 @@ void vm_run_code(vm_t* vm) {
 				var_t* obj;
 				if(instr == INSTR_OBJ) {
 					obj = var_new_obj(NULL, NULL);
+					var_add(obj, PROTOTYPE, get_prototype(_var_Object));
 				}
 				else
 					obj = var_new_array();
