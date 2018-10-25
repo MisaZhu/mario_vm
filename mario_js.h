@@ -34,9 +34,9 @@ typedef enum {false, true} bool;
 #define null NULL
 #endif
 
-typedef void (*free_func_t)(void* p);
+typedef void (*free_func_t)(void* p, void* extra);
 
-extern void _free_none(void*p);
+extern void _free_none(void*p, void* extra);
 
 extern void (*_out_func)(const char*);
 extern bool _debug_mode;
@@ -57,10 +57,10 @@ void* array_set(m_array_t* array, uint32_t index, void* p);
 void* array_tail(m_array_t* array);
 void* array_head(m_array_t* array);
 void* array_remove(m_array_t* array, uint32_t index);
-void array_del(m_array_t* array, uint32_t index, free_func_t fr);
+void array_del(m_array_t* array, uint32_t index, free_func_t fr, void* extra);
 void array_remove_all(m_array_t* array);
 
-void array_clean(m_array_t* array, free_func_t fr);
+void array_clean(m_array_t* array, free_func_t fr, void* extra);
 
 typedef struct st_str {
 	char* cstr;
@@ -151,9 +151,17 @@ typedef struct st_isignal {
 } isignal_t;
 #endif
 
+#ifdef MARIO_CACHE
+#define VAR_CACHE_MAX 32
+#define NODE_CACHE_MAX 16
+typedef struct st_node_cache_t {
+	node_t* node;
+	var_t* sc_var;
+	int name_id;
+} node_cache_t;
+#endif
 
 #define VM_STACK_MAX 32
-
 typedef struct st_vm {
 	bytecode_t bc;
 	m_array_t scopes;
@@ -174,25 +182,36 @@ typedef struct st_vm {
 	uint32_t isignal_num;
 	bool interrupted;
 	#endif
+
+	#ifdef MARIO_CACHE
+	var_t* var_cache[VAR_CACHE_MAX];
+	uint32_t var_cache_used;
+
+	node_cache_t node_cache[NODE_CACHE_MAX];
+	#endif
+	uint16_t this_strIndex;
+	var_t* var_Object;
+	var_t* var_true;
+	var_t* var_false;
 } vm_t;
 
 
 node_t* node_new(const char* name);
-void node_free(void* p);
-var_t* node_replace(node_t* node, var_t* v);
+void node_free(void* p, void* extra);
+var_t* node_replace(vm_t* vm, node_t* node, var_t* v);
 
 void var_dump(var_t* var);
-void var_remove_all(var_t* var);
-node_t* var_add(var_t* var, const char* name, var_t* add);
+void var_remove_all(vm_t* vm, var_t* var);
+node_t* var_add(vm_t* vm, var_t* var, const char* name, var_t* add);
 node_t* var_find(var_t* var, const char*name);
 var_t* var_find_var(var_t* var, const char*name);
-node_t* var_find_create(var_t* var, const char*name);
-node_t* var_get(var_t* var, int32_t index);
+node_t* var_find_create(vm_t* vm, var_t* var, const char*name);
+node_t* var_get(vm_t* vm, var_t* var, int32_t index);
 
-void var_free(void* p);
+void var_free(void* p, void* extra);
 
 var_t* var_ref(var_t* var);
-void var_unref(var_t* var, bool del);
+void var_unref(vm_t* vm, var_t* var, bool del);
 
 //#define var_ref(var) ({ ++(var)->refs; var; })
 //#define var_unref(var, del) ({ --(var)->refs; if((var)->refs <= 0 && (del)) var_free((var)); })
@@ -211,8 +230,8 @@ bool var_get_bool(var_t* var);
 float var_get_float(var_t* var);
 func_t* var_get_func(var_t* var);
 
-void var_to_json_str(var_t*, str_t*, int);
-var_t* json_parse(const char* str);
+void var_to_json_str(vm_t* vm, var_t*, str_t*, int);
+var_t* json_parse(vm_t* vm, const char* str);
 
 void vm_push(vm_t* vm, var_t* var);
 void vm_push_node(vm_t* vm, node_t* node);
