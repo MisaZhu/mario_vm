@@ -224,19 +224,19 @@ void str_free(str_t* str) {
 	_free(str);
 }
 
-static char _s[32];
-const char* str_from_int(int i) {
-	snprintf(_s, 31, "%d", i);
-	return _s;
+#define FROM_STR_MAX 32
+const char* str_from_int(int i, char* s) {
+	snprintf(s, FROM_STR_MAX-1, "%d", i);
+	return s;
 }
 
 const char* str_from_bool(bool b) {
 	return b ? "true":"false";
 }
 
-const char* str_from_float(float i) {
-	snprintf(_s, 31, "%f", i);
-	return _s;
+const char* str_from_float(float i, char* s) {
+	snprintf(s, FROM_STR_MAX-1, "%f", i);
+	return s;
 }
 
 int str_to_int(const char* str) {
@@ -781,12 +781,13 @@ void lex_get_pos_str(lex_t* l, int pos, str_t* ret) {
 	int line = 1;
 	int col;
 
+	char s[FROM_STR_MAX];
 	lex_get_pos(l, &line, &col, pos);
 	str_reset(ret);
 	str_append(ret, "(line: ");
-	str_append(ret, str_from_int(line));
+	str_append(ret, str_from_int(line, s));
 	str_append(ret, ", col: ");
-	str_append(ret, str_from_int(col));
+	str_append(ret, str_from_int(col, s));
 	str_append(ret, ")");
 }
 
@@ -1245,7 +1246,8 @@ void gen_func_name(const char* name, int arg_num, str_t* full) {
 	str_cpy(full, name);
 	if(arg_num > 0) {
 		str_append(full, "$");
-		str_append(full, str_from_int(arg_num));
+		char s[FROM_STR_MAX];
+		str_append(full, str_from_int(arg_num, s));
 	}
 }
 
@@ -1455,7 +1457,8 @@ bool factor(lex_t* l, bytecode_t* bc) {
 			//lex_chkread(l, ')');
 			if(arg_num > 0) {
 				str_append(class_name, "$");
-				str_append(class_name, str_from_int(arg_num));
+				char s[FROM_STR_MAX];
+				str_append(class_name, str_from_int(arg_num, s));
 			}
 			bc_gen_str(bc, INSTR_NEW, class_name->cstr);
 		}
@@ -2344,12 +2347,13 @@ void var_to_str(vm_t* vm, var_t* var, str_t* ret) {
 		return;
 	}
 
+	char s[FROM_STR_MAX];
 	switch(var->type) {
 	case V_INT:
-		str_cpy(ret, str_from_int(var_get_int(var)));
+		str_cpy(ret, str_from_int(var_get_int(var), s));
 		break;
 	case V_FLOAT:
-		str_cpy(ret, str_from_float(var_get_float(var)));
+		str_cpy(ret, str_from_float(var_get_float(var), s));
 		break;
 	case V_STRING:
 		str_cpy(ret, var_get_str(var));
@@ -3225,15 +3229,16 @@ static inline void math_op(vm_t* vm, opr_code_t op, var_t* v1, var_t* v2) {
 	//do string + 
 	if(op == INSTR_PLUS || op == INSTR_PLUSEQ) {
 		str_t* s = str_new((const char*)v1->value);
+		char sfrom[FROM_STR_MAX];
 		switch(v2->type) {
 			case V_STRING: 
 				str_append(s, var_get_str(v2));
 				break;
 			case V_INT: 
-				str_append(s, str_from_int(var_get_int(v2)));
+				str_append(s, str_from_int(var_get_int(v2), sfrom));
 				break;
 			case V_FLOAT: 
-				str_append(s, str_from_float(var_get_float(v2)));
+				str_append(s, str_from_float(var_get_float(v2), sfrom));
 				break;
 			case V_BOOL: 
 				str_append(s, str_from_bool(var_get_bool(v2)));
@@ -4279,19 +4284,14 @@ void vm_dump(vm_t* vm) {
 #endif
 }
 
-bool vm_run(vm_t* vm) {
+void vm_close(vm_t* vm) {
 	int i;
-	for(i=0; i<vm->init_natives.size; i++) {
-		native_init_t* it = (native_init_t*)array_get(&vm->init_natives, i);
+	for(i=0; i<vm->close_natives.size; i++) {
+		native_init_t* it = (native_init_t*)array_get(&vm->close_natives, i);
 		it->func(it->data);
 	}
+	array_clean(&vm->close_natives, NULL, NULL);	
 
-	vm_run_code(vm);
-	vm->terminated = true;
-	return true;
-}
-
-void vm_close(vm_t* vm) {
 	var_unref(vm, vm->root, true);
 	var_unref(vm, vm->var_true, true);
 	var_unref(vm, vm->var_false, true);
@@ -4308,17 +4308,25 @@ void vm_close(vm_t* vm) {
 	array_clean(&vm->scopes, NULL, NULL);	
 	array_clean(&vm->init_natives, NULL, NULL);	
 
-	int i;
-	for(i=0; i<vm->close_natives.size; i++) {
-		native_init_t* it = (native_init_t*)array_get(&vm->close_natives, i);
-		it->func(it->data);
-	}
-	array_clean(&vm->close_natives, NULL, NULL);	
-
 
 	bc_release(&vm->bc);
 	vm->stack_top = 0;
+
+	if(vm->on_close != NULL)
+		vm->on_close(vm);
 }	
+
+bool vm_run(vm_t* vm) {
+	int i;
+	for(i=0; i<vm->init_natives.size; i++) {
+		native_init_t* it = (native_init_t*)array_get(&vm->init_natives, i);
+		it->func(it->data);
+	}
+
+	vm_run_code(vm);
+	vm->terminated = true;
+	return true;
+}
 
 /** native extended functions.-----------------------------*/
 
@@ -4460,6 +4468,14 @@ var_t* native_yield(vm_t* vm, var_t* env, void* data) {
 	return NULL;
 }
 
+vm_t* vm_from(vm_t* vm) {
+	vm_t* ret = (vm_t*)_malloc(sizeof(vm_t));
+	ret->on_start = vm->on_start;
+	ret->on_close= vm->on_close;
+  vm_init(ret);
+	return ret;
+}
+
 void vm_init(vm_t* vm) {
 	vm->terminated = false;
 	vm->pc = 0;
@@ -4500,6 +4516,9 @@ void vm_init(vm_t* vm) {
 	vm_reg_native(vm, "console", "log(str)", native_print, NULL);
 	vm_reg_native(vm, "console", "ln(str)", native_println, NULL);
 	vm_reg_native(vm, "", "yield()", native_yield, NULL);
+
+	if(vm->on_start != NULL)
+		vm->on_start(vm);
 }
 
 #ifdef __cplusplus

@@ -75,8 +75,8 @@ str_t* str_new(const char* s);
 char* str_append(str_t* str, const char* src);
 char* str_add(str_t* str, char c);
 void str_free(str_t* str);
-const char* str_from_int(int i);
-const char* str_from_float(float i);
+const char* str_from_int(int i, char* s);
+const char* str_from_float(float i, char* s);
 int str_to_int(const char* str);
 float str_to_float(const char* str);
 void str_split(const char* str, char c, m_array_t* array);
@@ -172,7 +172,9 @@ typedef struct st_vm {
 	bool terminated;
 	var_t* root;
 
+	void (*on_start)(struct st_vm* vm);
 	m_array_t init_natives;
+	void (*on_close)(struct st_vm* vm);
 	m_array_t close_natives;
 
 	#ifdef MARIO_THREAD
@@ -236,6 +238,7 @@ var_t* json_parse(vm_t* vm, const char* str);
 void vm_push(vm_t* vm, var_t* var);
 void vm_push_node(vm_t* vm, node_t* node);
 void vm_init(vm_t* vm);
+vm_t* vm_from(vm_t* vm);
 bool vm_load(vm_t* vm, const char* s);
 void vm_dump(vm_t* vm);
 bool vm_run(vm_t* vm);
