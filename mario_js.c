@@ -3508,18 +3508,18 @@ bool interrupt(vm_t* vm, var_t* obj, var_t* func, var_t* args) {
 	pthread_mutex_lock(&vm->interrupt_lock);
 	if(vm->isignal_num >= MAX_ISIGNAL) {
 		_err("Too many interrupt signals!\n");
-		pthread_mutex_unlock(&vm->interrupt_lock);
 		if(args != NULL)
 			var_unref(vm, args, true);
+		pthread_mutex_unlock(&vm->interrupt_lock);
 		return false;
 	}
 
 	isignal_t* is = (isignal_t*)_malloc(sizeof(isignal_t));
 	if(is == NULL) {
 		_err("Interrupt signal input error!\n");
-		pthread_mutex_unlock(&vm->interrupt_lock);
 		if(args != NULL)
 			var_unref(vm, args, true);
+		pthread_mutex_unlock(&vm->interrupt_lock);
 		return false;
 	}
 
@@ -3563,24 +3563,21 @@ bool interrupt_by_name(vm_t* vm, var_t* obj, const char* func_name, var_t* args)
 }
 
 void tryInterrupter(vm_t* vm) {
-	if(vm->isignal_head == NULL)
-		return;
-	
-	pthread_mutex_lock(&vm->interrupt_lock);
-	if(vm->interrupted) {
-		pthread_mutex_unlock(&vm->interrupt_lock);
+	if(vm->isignal_head == NULL || vm->interrupted) {
 		return;
 	}
+
+	pthread_mutex_lock(&vm->interrupt_lock);
 	vm->interrupted = true;
 
 	isignal_t* sig = vm->isignal_head;
 	vm->isignal_head = vm->isignal_head->next;
 	if(vm->isignal_head == NULL)
 		vm->isignal_tail = NULL;
-	pthread_mutex_unlock(&vm->interrupt_lock);
 
 	var_t* ret = call_js_func(vm, sig->obj, sig->handle_func, sig->args);
-	if(ret != NULL && ret != sig->obj)
+
+	if(ret != NULL)
 		var_unref(vm, ret, true);
 
 	var_unref(vm, sig->obj, true);
@@ -3589,8 +3586,8 @@ void tryInterrupter(vm_t* vm) {
 		var_unref(vm, sig->args, true);
 	_free(sig);
 	vm->isignal_num--;
-
 	vm->interrupted = false;
+	pthread_mutex_unlock(&vm->interrupt_lock);
 }
 
 #endif
