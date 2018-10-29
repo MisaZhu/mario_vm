@@ -149,6 +149,7 @@ typedef struct st_isignal {
 	str_t* handle_func_name;
 	var_t* args;
 	struct st_isignal* next;
+	struct st_isignal* prev;
 } isignal_t;
 #endif
 

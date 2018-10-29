@@ -3524,6 +3524,7 @@ static bool interrupt_raw(vm_t* vm, var_t* obj, const char* func_name, var_t* fu
 	}
 
 	is->next = NULL;
+	is->prev = NULL;
 	is->obj = var_ref(obj);
 
 	if(func != NULL)
@@ -3547,6 +3548,7 @@ static bool interrupt_raw(vm_t* vm, var_t* obj, const char* func_name, var_t* fu
 	}
 	else {
 		vm->isignal_tail->next = is;
+		is->prev = vm->isignal_tail;
 		vm->isignal_tail = is;
 	}
 
@@ -3574,22 +3576,39 @@ void tryInterrupter(vm_t* vm) {
 	isignal_t* sig = vm->isignal_head;
 		
 	var_t* func = NULL;
-	if(sig->handle_func != NULL) {
-		func = sig->handle_func;
-	}
-	else if(sig->handle_func_name != NULL) {
-		node_t* func_node = find_member(sig->obj, sig->handle_func_name->cstr);
-		if(func_node == NULL || func_node->var->is_func == 0) { //undefined yet, leave it alone.
-			vm->interrupted = false;
-			pthread_mutex_unlock(&vm->interrupt_lock);
-			return;
+
+	while(sig != NULL) {
+		if(sig->handle_func != NULL) {
+			func = sig->handle_func;
+			break;
 		}
-		func = var_ref(func_node->var);
+		else if(sig->handle_func_name != NULL) {
+			//if func undefined yet, keep it and try next sig
+			node_t* func_node = find_member(sig->obj, sig->handle_func_name->cstr);
+			if(func_node != NULL && func_node->var->is_func) { 
+				func = var_ref(func_node->var);
+				break;
+			}
+		}
+		sig = sig->next;
 	}
 
-	vm->isignal_head = vm->isignal_head->next;
-	if(vm->isignal_head == NULL)
-		vm->isignal_tail = NULL;
+	if(func == NULL || sig == NULL) {
+		vm->interrupted = false;
+		pthread_mutex_unlock(&vm->interrupt_lock);
+		return;
+	}
+
+	//pop this sig from queue.
+	if(sig->prev == NULL) 
+		vm->isignal_head = sig->next;
+	else 
+		sig->prev->next = sig->next;
+
+	if(sig->next == NULL)
+		vm->isignal_tail = sig->prev;
+	else
+		sig->next->prev = sig->prev;
 
 	var_t* ret = call_js_func(vm, sig->obj, func, sig->args);
 
