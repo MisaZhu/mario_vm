@@ -4435,6 +4435,21 @@ var_t* get_obj(var_t* var, const char* name) {
 	return n->var;
 }
 
+var_t* get_obj_member(var_t* env, const char* name) {
+	var_t* obj = get_obj(env, THIS);
+	if(obj == NULL)
+		return NULL;
+	return var_find_var(obj, name);
+}
+
+var_t* set_obj_member(vm_t* vm, var_t* env, const char* name, var_t* var) {
+	var_t* obj = get_obj(env, THIS);
+	if(obj == NULL)
+		return NULL;
+	var_add(vm, obj, name, var);
+	return var;
+}
+
 /**print string*/
 var_t* native_print(vm_t* vm, var_t* env, void* data) {
 	(void)vm; (void)data;

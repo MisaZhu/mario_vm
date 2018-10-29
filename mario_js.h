@@ -259,6 +259,8 @@ const char* get_str(var_t* obj, const char* name);
 int get_int(var_t* obj, const char* name);
 float get_float(var_t* obj, const char* name);
 bool get_bool(var_t* obj, const char* name);
+var_t* get_obj_member(var_t* obj, const char* name);
+var_t* set_obj_member(vm_t* vm, var_t* obj, const char* name, var_t* var);
 
 var_t* call_js_func(vm_t* vm, var_t* obj, var_t* func, var_t* args);
 var_t* call_js_func_by_name(vm_t* vm, var_t* obj, const char* func_name, var_t* args);
