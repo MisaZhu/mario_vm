@@ -3502,7 +3502,7 @@ interrupter
 
 #define MAX_ISIGNAL 128
 
-bool interrupt(vm_t* vm, var_t* obj, var_t* func, var_t* args) {
+static bool interrupt_raw(vm_t* vm, var_t* obj, const char* func_name, var_t* func, var_t* args) {
 	while(vm->interrupted) { } // can not interrupt another interrupter.
 
 	pthread_mutex_lock(&vm->interrupt_lock);
@@ -3525,7 +3525,17 @@ bool interrupt(vm_t* vm, var_t* obj, var_t* func, var_t* args) {
 
 	is->next = NULL;
 	is->obj = var_ref(obj);
-	is->handle_func = var_ref(func);
+
+	if(func != NULL)
+		is->handle_func = var_ref(func);
+	else
+		is->handle_func = NULL;
+
+	if(func_name != NULL && func_name[0] != 0) 
+		is->handle_func_name = str_new(func_name);
+	else
+		is->handle_func_name = NULL;
+
 	if(args != NULL)
 		is->args = var_ref(args);
 	else
@@ -3546,20 +3556,11 @@ bool interrupt(vm_t* vm, var_t* obj, var_t* func, var_t* args) {
 }
 
 bool interrupt_by_name(vm_t* vm, var_t* obj, const char* func_name, var_t* args) {
-	pthread_mutex_lock(&vm->interrupt_lock);
-	node_t* func = find_member(obj, func_name);
-	if(func == NULL || func->var->is_func == 0) {
-		_err("Interrupt function '");
-		_err(func_name);
-		_err("' not defined!\n");
-		if(args != NULL)
-			var_unref(vm, args, true);
-		pthread_mutex_unlock(&vm->interrupt_lock);
-		return false;
-	}
-	pthread_mutex_unlock(&vm->interrupt_lock);
+	return interrupt_raw(vm, obj, func_name, NULL, args);
+}
 
-	return interrupt(vm, obj, func->var, args);
+bool interrupt(vm_t* vm, var_t* obj, var_t* func, var_t* args) {
+	return interrupt_raw(vm, obj, NULL, func, args);
 }
 
 void tryInterrupter(vm_t* vm) {
@@ -3571,17 +3572,34 @@ void tryInterrupter(vm_t* vm) {
 	vm->interrupted = true;
 
 	isignal_t* sig = vm->isignal_head;
+		
+	var_t* func = NULL;
+	if(sig->handle_func != NULL) {
+		func = sig->handle_func;
+	}
+	else if(sig->handle_func_name != NULL) {
+		node_t* func_node = find_member(sig->obj, sig->handle_func_name->cstr);
+		if(func_node == NULL || func_node->var->is_func == 0) { //undefined yet, leave it alone.
+			vm->interrupted = false;
+			pthread_mutex_unlock(&vm->interrupt_lock);
+			return;
+		}
+		func = var_ref(func_node->var);
+	}
+
 	vm->isignal_head = vm->isignal_head->next;
 	if(vm->isignal_head == NULL)
 		vm->isignal_tail = NULL;
 
-	var_t* ret = call_js_func(vm, sig->obj, sig->handle_func, sig->args);
+	var_t* ret = call_js_func(vm, sig->obj, func, sig->args);
 
 	if(ret != NULL)
 		var_unref(vm, ret, true);
 
 	var_unref(vm, sig->obj, true);
-	var_unref(vm, sig->handle_func, true);
+	var_unref(vm, func, true);
+	if(sig->handle_func_name != NULL)
+		str_free(sig->handle_func_name);
 	if(sig->args != NULL)
 		var_unref(vm, sig->args, true);
 	_free(sig);

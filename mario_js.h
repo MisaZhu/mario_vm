@@ -146,6 +146,7 @@ typedef struct st_node {
 typedef struct st_isignal {
 	var_t* obj;
 	var_t* handle_func;
+	str_t* handle_func_name;
 	var_t* args;
 	struct st_isignal* next;
 } isignal_t;
