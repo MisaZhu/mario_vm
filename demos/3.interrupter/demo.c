@@ -15,8 +15,8 @@ void* interrupterThread(void* arg) {
 
 	while(true) {
 		var_t* args = var_new(); //interrupter function arguments.
-		var_add(args, "", var_new_int(count1)); //the first argment
-		var_add(args, "", var_new_int(count2)); //the second argment
+		var_add(vm, args, "", var_new_int(count1)); //the first argment
+		var_add(vm, args, "", var_new_int(count2)); //the second argment
 
 		//call interrupter 'onInterrupt' with 2 argument.
 		interrupt_by_name(vm, vm->root, "onInterrupt", args);

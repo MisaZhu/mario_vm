@@ -17,7 +17,7 @@ int main(int argc, char** argv) {
 		if(ret != NULL) {
 			const char* s = var_get_str(ret);
 			_out_func(s);
-			var_unref(ret, true);
+			var_unref(&vm, ret, true);
 		}
 	}
 	
