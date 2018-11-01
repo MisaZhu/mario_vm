@@ -11,9 +11,7 @@ int main(int argc, char** argv) {
 
 	vm_init(&vm); //initialize the vm enviroment.
 
-	if(vm_load(&vm, js)) { // load JS script (and compile to bytecode). 
-		vm_run(&vm); //run bytecode.
-	}
+	vm_load_run(&vm, js); // load JS script (and compile to bytecode) and run
 	
 	vm_close(&vm); //release
 	return 0;

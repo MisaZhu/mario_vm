@@ -174,7 +174,7 @@ typedef struct st_vm {
 	bool terminated;
 	var_t* root;
 
-	void (*on_start)(struct st_vm* vm);
+	void (*on_init)(struct st_vm* vm);
 	m_array_t init_natives;
 	void (*on_close)(struct st_vm* vm);
 	m_array_t close_natives;
@@ -242,6 +242,7 @@ void vm_push_node(vm_t* vm, node_t* node);
 void vm_init(vm_t* vm);
 vm_t* vm_from(vm_t* vm);
 bool vm_load(vm_t* vm, const char* s);
+bool vm_load_run(vm_t* vm, const char* s);
 void vm_dump(vm_t* vm);
 bool vm_run(vm_t* vm);
 void vm_close(vm_t* vm);

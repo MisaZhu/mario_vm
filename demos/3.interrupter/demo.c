@@ -43,9 +43,7 @@ int main(int argc, char** argv) {
 	pthread_t pth;
 	pthread_create(&pth, NULL, interrupterThread, &vm);
 
-	if(vm_load(&vm, js)) {
-		vm_run(&vm);
-	}
+	vm_load_run(&vm, js);
 	
 	vm_close(&vm);
 	return 0;

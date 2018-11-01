@@ -32,9 +32,7 @@ int main(int argc, char** argv) {
 	/** Register a const variable 'HELLO' in class 'ClassHello'. */
 	vm_reg_var(&vm, "ClassHello", "HELLO", var_new_str("Hello, class native.\n"), true);
 
-	if(vm_load(&vm, js)) {
-		vm_run(&vm);
-	}
+	vm_load_run(&vm, js);
 
 	vm_close(&vm);
 	return 0;

@@ -4301,9 +4301,18 @@ void vm_run_code(vm_t* vm) {
 }
 
 bool vm_load(vm_t* vm, const char* s) {
-	if(vm->bc.cindex > 0)
+	if(vm->bc.cindex > 0) {
 		vm->bc.cindex--;
+	}
+	vm->pc = vm->bc.cindex;
 	return compile(&vm->bc, s);
+}
+
+bool vm_load_run(vm_t* vm, const char* s) {
+	if(!vm_load(vm, s))
+		return false;
+	vm_run_code(vm);
+	return true;
 }
 
 typedef struct st_native_init {
@@ -4319,6 +4328,7 @@ void vm_dump(vm_t* vm) {
 }
 
 void vm_close(vm_t* vm) {
+	vm->terminated = true;
 	int i;
 	for(i=0; i<vm->close_natives.size; i++) {
 		native_init_t* it = (native_init_t*)array_get(&vm->close_natives, i);
@@ -4351,14 +4361,7 @@ void vm_close(vm_t* vm) {
 }	
 
 bool vm_run(vm_t* vm) {
-	int i;
-	for(i=0; i<vm->init_natives.size; i++) {
-		native_init_t* it = (native_init_t*)array_get(&vm->init_natives, i);
-		it->func(it->data);
-	}
-
 	vm_run_code(vm);
-	vm->terminated = true;
 	return true;
 }
 
@@ -4519,7 +4522,7 @@ var_t* native_yield(vm_t* vm, var_t* env, void* data) {
 
 vm_t* vm_from(vm_t* vm) {
 	vm_t* ret = (vm_t*)_malloc(sizeof(vm_t));
-	ret->on_start = vm->on_start;
+	ret->on_init = vm->on_init;
 	ret->on_close= vm->on_close;
   vm_init(ret);
 	return ret;
@@ -4566,8 +4569,14 @@ void vm_init(vm_t* vm) {
 	vm_reg_native(vm, "console", "ln(str)", native_println, NULL);
 	vm_reg_native(vm, "", "yield()", native_yield, NULL);
 
-	if(vm->on_start != NULL)
-		vm->on_start(vm);
+	if(vm->on_init != NULL)
+		vm->on_init(vm);
+
+	int i;
+	for(i=0; i<vm->init_natives.size; i++) {
+		native_init_t* it = (native_init_t*)array_get(&vm->init_natives, i);
+		it->func(it->data);
+	}
 }
 
 #ifdef __cplusplus
