@@ -4323,10 +4323,23 @@ bool vm_load(vm_t* vm, const char* s) {
 }
 
 bool vm_load_run(vm_t* vm, const char* s) {
-	if(!vm_load(vm, s))
-		return false;
-	vm_run_code(vm);
-	return true;
+	bool ret = false;
+	bool pop = false;
+	if(vm->pc > 0) {
+		scope_t* sc = scope_new(var_new_block(), vm->pc);
+		vm_push_scope(vm, sc);
+		pop = true;
+	}
+
+	if(vm_load(vm, s)) {
+		vm_run_code(vm);
+		ret = true;
+	}
+
+	if(pop) {
+		vm->pc = vm_pop_scope(vm);
+	}
+	return ret;
 }
 
 typedef struct st_native_init {
