@@ -2683,7 +2683,6 @@ inline void vm_push_node(vm_t* vm, node_t* node) {
 		vm->stack[vm->stack_top++] = node;
 }
 
-/*
 static inline var_t* vm_pop2(vm_t* vm) {
 	void *p = NULL;
 	vm->stack_top--;
@@ -2701,9 +2700,8 @@ static inline var_t* vm_pop2(vm_t* vm) {
 
 	return NULL;
 }
-*/
 
-#define vm_pop2(vm) ({ \
+/*#define vm_pop2(vm) ({ \
 	(vm)->stack_top--; \
 	void* p = (vm)->stack[(vm)->stack_top]; \
 	int8_t magic = *(int8_t*)p; \
@@ -2720,11 +2718,27 @@ static inline var_t* vm_pop2(vm_t* vm) {
 	} \
 	ret; \
 })
+*/
 
 static inline void vm_pop(vm_t* vm) {
-	var_t* var = vm_pop2(vm);
-	if(var != NULL)
-		var_unref(vm, var, true);
+	vm->stack_top--;
+	void *p = vm->stack[vm->stack_top];
+	int8_t magic = *(int8_t*)p;
+	var_t* v;
+	if(magic == 0) { //var
+		v = (var_t*)p;
+	}
+	else { //node
+		node_t* node = (node_t*)p;
+		v = node->var;
+		str_t* s = str_new("");
+		var_to_str(vm, v, s);
+		str_add(s, '\n');
+		_out_func(s->cstr);
+		str_free(s);
+	}
+
+	var_unref(vm, v, true);
 }
 
 static inline node_t* vm_pop2node(vm_t* vm) {
