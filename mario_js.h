@@ -249,8 +249,9 @@ void vm_init(vm_t* vm,
 vm_t* vm_from(vm_t* vm);
 bool vm_load(vm_t* vm, const char* s);
 bool vm_load_run(vm_t* vm, const char* s);
+bool vm_load_run_native(vm_t* vm, const char* s);
 void vm_dump(vm_t* vm);
-bool vm_run(vm_t* vm);
+void vm_run(vm_t* vm);
 void vm_close(vm_t* vm);
 
 var_t* new_obj(vm_t* vm, const char* cls_name, int arg_num);

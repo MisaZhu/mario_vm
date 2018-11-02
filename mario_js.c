@@ -3045,7 +3045,6 @@ var_t* find_func(vm_t* vm, var_t* obj, const char* fname) {
 	return NULL;
 }
 
-void vm_run_code(vm_t* vm);
 bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 	var_t *env;
 	func_t* func = var_get_func(func_var);
@@ -3083,22 +3082,23 @@ bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 			var_add(vm, env, SUPER, superN->var);
 	}
 
-	scope_t* sc = scope_new(env, vm->pc);
-	vm_push_scope(vm, sc);
-
 	//native function
 	if(func->native != NULL) {
+		var_ref(env);
 		var_t* ret = func->native(vm, env, func->data);
 		if(ret == NULL)
 			ret = var_new();
 		vm_push(vm, ret);
-		vm_pop_scope(vm);
+		var_unref(vm, env, true);
 		return true;
 	}
 
+	scope_t* sc = scope_new(env, vm->pc);
+	vm_push_scope(vm, sc);
+
 	//js function
 	vm->pc = func->pc;
-	vm_run_code(vm);
+	vm_run(vm);
 	return true;
 }
 
@@ -3662,7 +3662,7 @@ node_t* vm_new_class(vm_t* vm, const char* cls) {
 	return cls_node;
 }
 
-void vm_run_code(vm_t* vm) {
+void vm_run(vm_t* vm) {
 	//int32_t scDeep = vm->scopes.size;
 	register PC code_size = vm->bc.cindex;
 	register PC* code = vm->bc.code_buf;
@@ -4315,30 +4315,34 @@ void vm_run_code(vm_t* vm) {
 }
 
 bool vm_load(vm_t* vm, const char* s) {
+	/*
 	if(vm->bc.cindex > 0) {
 		vm->bc.cindex--;
 	}
+	*/
 	vm->pc = vm->bc.cindex;
 	return compile(&vm->bc, s);
 }
 
 bool vm_load_run(vm_t* vm, const char* s) {
 	bool ret = false;
-	bool pop = false;
-	if(vm->pc > 0) {
-		scope_t* sc = scope_new(var_new_block(), vm->pc);
-		vm_push_scope(vm, sc);
-		pop = true;
+	if(vm_load(vm, s)) {
+		vm_run(vm);
+		ret = true;
 	}
+	return ret;
+}
+
+bool vm_load_run_native(vm_t* vm, const char* s) {
+	bool ret = false;
+	PC old = vm->pc;
 
 	if(vm_load(vm, s)) {
-		vm_run_code(vm);
+		vm_run(vm);
 		ret = true;
 	}
 
-	if(pop) {
-		vm->pc = vm_pop_scope(vm);
-	}
+	vm->pc = old;
 	return ret;
 }
 
@@ -4387,11 +4391,6 @@ void vm_close(vm_t* vm) {
 		vm->on_close(vm);
 	_free(vm);
 }	
-
-bool vm_run(vm_t* vm) {
-	vm_run_code(vm);
-	return true;
-}
 
 /** native extended functions.-----------------------------*/
 
