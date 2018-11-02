@@ -37,14 +37,14 @@ const char* js = " \
 	}";
 
 int main(int argc, char** argv) {
-	vm_t vm;
-	vm_init(&vm);
+	vm_t* vm = vm_new();
+	vm_init(vm, NULL, NULL);
 
 	pthread_t pth;
-	pthread_create(&pth, NULL, interrupterThread, &vm);
+	pthread_create(&pth, NULL, interrupterThread, vm);
 
-	vm_load_run(&vm, js);
+	vm_load_run(vm, js);
 	
-	vm_close(&vm);
+	vm_close(vm);
 	return 0;
 }

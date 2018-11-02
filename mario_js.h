@@ -239,7 +239,13 @@ var_t* json_parse(vm_t* vm, const char* str);
 
 void vm_push(vm_t* vm, var_t* var);
 void vm_push_node(vm_t* vm, node_t* node);
-void vm_init(vm_t* vm);
+vm_t* vm_new();
+
+void vm_init(vm_t* vm,
+	void (*on_init)(struct st_vm* vm),
+	void (*on_close)(struct st_vm* vm)
+);
+
 vm_t* vm_from(vm_t* vm);
 bool vm_load(vm_t* vm, const char* s);
 bool vm_load_run(vm_t* vm, const char* s);

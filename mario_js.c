@@ -4358,6 +4358,7 @@ void vm_close(vm_t* vm) {
 
 	if(vm->on_close != NULL)
 		vm->on_close(vm);
+	_free(vm);
 }	
 
 bool vm_run(vm_t* vm) {
@@ -4521,14 +4522,15 @@ var_t* native_yield(vm_t* vm, var_t* env, void* data) {
 }
 
 vm_t* vm_from(vm_t* vm) {
-	vm_t* ret = (vm_t*)_malloc(sizeof(vm_t));
-	ret->on_init = vm->on_init;
-	ret->on_close= vm->on_close;
-  vm_init(ret);
+	vm_t* ret = vm_new();
+  vm_init(ret, vm->on_init, vm->on_close);
 	return ret;
 }
 
-void vm_init(vm_t* vm) {
+vm_t* vm_new() {
+	vm_t* vm = (vm_t*)_malloc(sizeof(vm_t));
+	memset(vm, 0, sizeof(vm_t));
+
 	vm->terminated = false;
 	vm->pc = 0;
 	vm->this_strIndex = 0;
@@ -4569,6 +4571,15 @@ void vm_init(vm_t* vm) {
 	vm_reg_native(vm, "console", "ln(str)", native_println, NULL);
 	vm_reg_native(vm, "", "yield()", native_yield, NULL);
 
+	return vm;
+}
+
+void vm_init(vm_t* vm,
+		void (*on_init)(struct st_vm* vm),
+		void (*on_close)(struct st_vm* vm)) {
+	vm->on_init = on_init;
+	vm->on_close = on_close;
+	
 	if(vm->on_init != NULL)
 		vm->on_init(vm);
 
