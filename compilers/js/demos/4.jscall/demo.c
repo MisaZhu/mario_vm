@@ -1,4 +1,4 @@
-#include "mario_js.h"
+#include "compiler.h"
 
 const char* js = " \
 	function jsFunc() { \
@@ -8,11 +8,11 @@ const char* js = " \
 
 int main(int argc, char** argv) {
 	vm_t* vm = vm_new();
-	vm_init(vm, NULL, NULL); //initialize the vm enviroment.
+	vm_init(vm, compiler, NULL, NULL); //initialize the vm enviroment.
 
 	vm_load_run(vm, js); 
 
-	var_t* ret = call_js_func_by_name(vm, vm->root, "jsFunc", NULL);
+	var_t* ret = call_m_func_by_name(vm, vm->root, "jsFunc", NULL);
 	if(ret != NULL) {
 		const char* s = var_get_str(ret);
 		_out_func(s);

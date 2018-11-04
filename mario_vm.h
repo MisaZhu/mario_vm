@@ -2,92 +2,14 @@
 very tiny js engine in single file.
 */
 
-#ifndef MARIO_JS
-#define MARIO_JS
+#ifndef MARIO_VM
+#define MARIO_VM
+
+#include "mario_bc.h"
 
 #ifdef __cplusplus /* __cplusplus */
 extern "C" {
-#else
-
-#ifndef bool
-typedef enum {false, true} bool;
 #endif
-
-#endif
-
-
-#include <inttypes.h>
-#include <string.h>
-#include <stdio.h>
-
-/** memory functions.-----------------------------*/
-#ifndef PRE_ALLOC
-#include <stdlib.h>
-	#define _malloc malloc
-	#define _realloc realloc
-	#define _free free
-#else
-/*TODO*/
-#endif
-
-#ifndef null
-#define null NULL
-#endif
-
-typedef void (*free_func_t)(void* p, void* extra);
-
-extern void _free_none(void*p, void* extra);
-
-extern void (*_out_func)(const char*);
-extern bool _debug_mode;
-void _debug(const char* s);
-void _err(const char* s);
-
-typedef struct st_array {
-	void** items;
-	uint32_t max: 16;
-	uint32_t size: 16;
-} m_array_t;
-
-void array_init(m_array_t* array);
-void array_add(m_array_t* array, void* item);
-void* array_add_buf(m_array_t* array, void* s, uint32_t sz);
-void* array_get(m_array_t* array, uint32_t index);
-void* array_set(m_array_t* array, uint32_t index, void* p);
-void* array_tail(m_array_t* array);
-void* array_head(m_array_t* array);
-void* array_remove(m_array_t* array, uint32_t index);
-void array_del(m_array_t* array, uint32_t index, free_func_t fr, void* extra);
-void array_remove_all(m_array_t* array);
-
-void array_clean(m_array_t* array, free_func_t fr, void* extra);
-
-typedef struct st_str {
-	char* cstr;
-	uint32_t max: 16;
-	uint32_t len: 16;
-} str_t;
-
-void str_reset(str_t* str);
-char* str_ncpy(str_t* str, const char* src, uint32_t l);
-char* str_cpy(str_t* str, const char* src);
-str_t* str_new(const char* s);
-char* str_append(str_t* str, const char* src);
-char* str_add(str_t* str, char c);
-void str_free(str_t* str);
-const char* str_from_int(int i, char* s);
-const char* str_from_float(float i, char* s);
-int str_to_int(const char* str);
-float str_to_float(const char* str);
-void str_split(const char* str, char c, m_array_t* array);
-
-typedef uint32_t PC;
-typedef struct st_bytecode {
-	PC cindex;
-	m_array_t str_table;
-	PC *code_buf;
-	uint32_t buf_size;
-} bytecode_t;
 
 //script var
 #define V_UNDEF  0
@@ -166,6 +88,8 @@ typedef struct st_node_cache_t {
 #define VM_STACK_MAX 32
 typedef struct st_vm {
 	bytecode_t bc;
+	bool (*compiler)(bytecode_t *bc, const char* input);
+
 	m_array_t scopes;
 	void* stack[VM_STACK_MAX];
 	int32_t stack_top;
@@ -242,6 +166,7 @@ void vm_push_node(vm_t* vm, node_t* node);
 vm_t* vm_new();
 
 void vm_init(vm_t* vm,
+	bool (*compiler)(bytecode_t *bc, const char* input),
 	void (*on_init)(struct st_vm* vm),
 	void (*on_close)(struct st_vm* vm)
 );
@@ -258,8 +183,8 @@ var_t* new_obj(vm_t* vm, const char* cls_name, int arg_num);
 node_t* vm_find(vm_t* vm, const char* name);
 node_t* vm_find_in_class(var_t* var, const char* name);
 node_t* vm_reg_var(vm_t* vm, const char* cls, const char* name, var_t* var, bool be_const);
-node_t* vm_reg_native(vm_t* vm, const char* cls, const char* decl, native_func_t native, void* data);
 node_t* vm_reg_static(vm_t* vm, const char* cls, const char* decl, native_func_t native, void* data);
+node_t* vm_reg_native(vm_t* vm, const char* cls, const char* decl, native_func_t native, void* data);
 void vm_reg_init(vm_t* vm, void (*func)(void*), void* data);
 void vm_reg_close(vm_t* vm, void (*func)(void*), void* data);
 
@@ -272,8 +197,8 @@ bool get_bool(var_t* obj, const char* name);
 var_t* get_obj_member(var_t* obj, const char* name);
 var_t* set_obj_member(vm_t* vm, var_t* obj, const char* name, var_t* var);
 
-var_t* call_js_func(vm_t* vm, var_t* obj, var_t* func, var_t* args);
-var_t* call_js_func_by_name(vm_t* vm, var_t* obj, const char* func_name, var_t* args);
+var_t* call_m_func(vm_t* vm, var_t* obj, var_t* func, var_t* args);
+var_t* call_m_func_by_name(vm_t* vm, var_t* obj, const char* func_name, var_t* args);
 
 
 #ifdef MARIO_THREAD

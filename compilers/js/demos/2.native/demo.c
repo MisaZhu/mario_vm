@@ -1,4 +1,4 @@
-#include "mario_js.h"
+#include "compiler.h"
 
 const char* js = " \
 	out(\"Hello, global native.\n\"); \
@@ -13,7 +13,7 @@ var_t* native_out(vm_t* vm, var_t* env, void* data) {
 
 int main(int argc, char** argv) {
 	vm_t* vm = vm_new();
-	vm_init(vm, NULL, NULL);
+	vm_init(vm, compiler, NULL, NULL);
 
 	/** Register a native function(mapped to js) in class 'ClassHello'.
 		Class name: ClassHello (doesn't exist, so will be created automaticly).

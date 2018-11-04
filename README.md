@@ -1,2 +1,2 @@
-# Mario
-very tiny simple js engine in one single c  and one single head file "mario_js.c mario_js.h", including bytecode-compiler, VM interpreter. None 3rd libs relied, so can be used on most of embedded systems.
+# Mario VM
+very tiny simple bytecode vm engine, None 3rd libs relied, so can be used on most of embedded systems. You have to implement compiler for your own language(check the compilers/js).
