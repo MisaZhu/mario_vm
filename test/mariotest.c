@@ -1,4 +1,4 @@
-#include "compiler.h"
+#include "mario_vm.h"
 
 #include <unistd.h>
 #include <sys/stat.h>
@@ -89,7 +89,7 @@ int main(int argc, char** argv) {
 	}
 	
 	vm_t* vm = vm_new();
-	vm_init(vm, compiler, NULL, NULL);
+	vm_init(vm, compile, NULL, NULL);
 
 	if(fname[0] != 0) {
 		if(load_js(vm, fname, verify)) {

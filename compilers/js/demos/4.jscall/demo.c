@@ -1,4 +1,4 @@
-#include "compiler.h"
+#include "mario_vm.h"
 
 const char* js = " \
 	function jsFunc() { \
@@ -8,7 +8,7 @@ const char* js = " \
 
 int main(int argc, char** argv) {
 	vm_t* vm = vm_new();
-	vm_init(vm, compiler, NULL, NULL); //initialize the vm enviroment.
+	vm_init(vm, compile, NULL, NULL); //initialize the vm enviroment.
 
 	vm_load_run(vm, js); 
 

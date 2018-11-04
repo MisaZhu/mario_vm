@@ -3,7 +3,6 @@ very tiny script engine in single file.
 */
 
 #include "mario_vm.h"
-#include <stdio.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -1329,7 +1328,7 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 	return true;
 }
 
-bool compiler(bytecode_t *bc, const char* input) {
+bool compile(bytecode_t *bc, const char* input) {
 	lex_t lex;
 	lex_init(&lex, input);
 

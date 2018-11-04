@@ -11,6 +11,8 @@ very tiny js engine in single file.
 extern "C" {
 #endif
 
+bool compile(bytecode_t *bc, const char* input);
+
 //script var
 #define V_UNDEF  0
 #define V_INT    1
