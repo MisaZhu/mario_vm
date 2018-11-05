@@ -36,56 +36,29 @@ bool load_js(vm_t* vm, const char* fname, bool verify) {
 	return ret;
 }
 
-void run_shell(vm_t* vm) {
-	str_t* cmd = str_new("");
-	while(!vm->terminated) {
-		str_reset(cmd);
-
-		write(0, ":> ", 3);
-		while(true) {
-			char c[1];
-			if(read(0, c, 1) <= 0) {
-				vm->terminated = true;
-				break;
-			}
-			str_add(cmd, c[0]);
-			if(c[0] == '\n')
-				break;
-		}
-
-		if(cmd->len > 0 && cmd->cstr[0] != '\n') {
-			if(strncmp(cmd->cstr, "exit\n", 5) == 0) {
-				vm->terminated = true;
-				break;
-			}
-			else {
-				vm_load_run(vm, cmd->cstr);
-			}
-		}
-	}
-	str_free(cmd);
-}
-
 int main(int argc, char** argv) {
 	bool verify = false;
 	const char* fname = "";
 
-	if(argc > 1) {
-		if(strcmp(argv[1], "-v") == 0) {
-			if(argc != 3)
-				return 1;
-			verify = true;
-			fname = argv[2];
-		}
-		else if(strcmp(argv[1], "-d") == 0) {
-			if(argc != 3)
-				return 1;
-			_debug_mode = true;
-			fname = argv[2];
-		}
-		else {
-			fname = argv[1];
-		}
+	if(argc < 2) {
+		_err("Usage: demo [source_file]!\n");
+		return 1;
+	}
+
+	if(strcmp(argv[1], "-v") == 0) {
+		if(argc != 3)
+			return 1;
+		verify = true;
+		fname = argv[2];
+	}
+	else if(strcmp(argv[1], "-d") == 0) {
+		if(argc != 3)
+			return 1;
+		_debug_mode = true;
+		fname = argv[2];
+	}
+	else {
+		fname = argv[1];
 	}
 	
 	vm_t* vm = vm_new();
@@ -96,9 +69,6 @@ int main(int argc, char** argv) {
 			if(verify)
 				vm_dump(vm);
 		}
-	}
-	else {
-		run_shell(vm);
 	}
 
 	vm_close(vm);

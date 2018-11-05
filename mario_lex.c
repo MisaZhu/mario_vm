@@ -143,6 +143,94 @@ void lex_release(lex_t* lex) {
 	lex->tk_str = NULL;
 }
 
+void lex_token_start(lex_t* lex) {
+	// record beginning of this token(pre-read 2 chars );
+	lex->tk_start = lex->data_pos-2;
+}
+
+void lex_token_end(lex_t* lex) {
+	lex->tk_last_end = lex->tk_end;
+	lex->tk_end = lex->data_pos-3;
+}
+
+void lex_get_char_token(lex_t* lex) {
+	lex->tk = lex->curr_ch;
+	if (lex->curr_ch) 
+		lex_get_nextch(lex);
+}
+
+void lex_get_basic_token(lex_t* lex) {
+	// tokens
+	if (is_alpha(lex->curr_ch)) { //  IDs
+		while (is_alpha(lex->curr_ch) || is_numeric(lex->curr_ch)) {
+			str_add(lex->tk_str, lex->curr_ch);
+			lex_get_nextch(lex);
+		}
+		lex->tk = LEX_ID;
+	} else if (is_numeric(lex->curr_ch)) { // _numbers
+		bool isHex = false;
+		if (lex->curr_ch=='0') {
+			str_add(lex->tk_str, lex->curr_ch);
+			lex_get_nextch(lex);
+		}
+		if (lex->curr_ch=='x') {
+			isHex = true;
+			str_add(lex->tk_str, lex->curr_ch);
+			lex_get_nextch(lex);
+		}
+		lex->tk = LEX_INT;
+
+		while (is_numeric(lex->curr_ch) || (isHex && is_hexadecimal(lex->curr_ch))) {
+			str_add(lex->tk_str, lex->curr_ch);
+			lex_get_nextch(lex);
+		}
+		if (!isHex && lex->curr_ch=='.') {
+			lex->tk = LEX_FLOAT;
+			str_add(lex->tk_str, '.');
+			lex_get_nextch(lex);
+			while (is_numeric(lex->curr_ch)) {
+				str_add(lex->tk_str, lex->curr_ch);
+				lex_get_nextch(lex);
+			}
+		}
+		// do fancy e-style floating point
+		if (!isHex && (lex->curr_ch=='e'||lex->curr_ch=='E')) {
+			lex->tk = LEX_FLOAT;
+			str_add(lex->tk_str, lex->curr_ch);
+			lex_get_nextch(lex);
+			if (lex->curr_ch=='-') {
+				str_add(lex->tk_str, lex->curr_ch);
+				lex_get_nextch(lex);
+			}
+			while (is_numeric(lex->curr_ch)) {
+				str_add(lex->tk_str, lex->curr_ch);
+				lex_get_nextch(lex);
+			}
+		}
+	} else if (lex->curr_ch=='"') {
+		// strings...
+		lex_get_nextch(lex);
+		while (lex->curr_ch && lex->curr_ch!='"') {
+			if (lex->curr_ch == '\\') {
+				lex_get_nextch(lex);
+				switch (lex->curr_ch) {
+					case 'n' : str_add(lex->tk_str, '\n'); break;
+					case 'r' : str_add(lex->tk_str, '\r'); break;
+					case 't' : str_add(lex->tk_str, '\t'); break;
+					case '"' : str_add(lex->tk_str, '\"'); break;
+					case '\\' : str_add(lex->tk_str, '\\'); break;
+					default: str_add(lex->tk_str, lex->curr_ch);
+				}
+			} else {
+				str_add(lex->tk_str, lex->curr_ch);
+			}
+			lex_get_nextch(lex);
+		}
+		lex_get_nextch(lex);
+		lex->tk = LEX_STR;
+	}
+}
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

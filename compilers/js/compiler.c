@@ -1,5 +1,5 @@
 /**
-very tiny script engine in single file.
+very tiny js script compiler.
 */
 
 #include "mario_vm.h"
@@ -12,12 +12,7 @@ extern "C" {
 /** Script Lex. -----------------------------*/
 
 typedef enum {
-  LEX_ID = 256,
-  LEX_INT,
-  LEX_FLOAT,
-  LEX_STR,
-
-  LEX_EQUAL,
+  LEX_EQUAL = LEX_BASIC_END,
   LEX_TYPEEQUAL,
   LEX_NEQUAL,
   LEX_NTYPEEQUAL,
@@ -70,233 +65,185 @@ typedef enum {
   LEX_R_LIST_END /* always the last entry */
 } LEX_TYPES;
 
+void lex_get_op_token(lex_t* lex) {
+	if (lex->tk=='=' && lex->curr_ch=='=') { // ==
+		lex->tk = LEX_EQUAL;
+		lex_get_nextch(lex);
+		if (lex->curr_ch=='=') { // ===
+			lex->tk = LEX_TYPEEQUAL;
+			lex_get_nextch(lex);
+		}
+	} else if (lex->tk=='!' && lex->curr_ch=='=') { // !=
+		lex->tk = LEX_NEQUAL;
+		lex_get_nextch(lex);
+		if (lex->curr_ch=='=') { // !==
+			lex->tk = LEX_NTYPEEQUAL;
+			lex_get_nextch(lex);
+		}
+	} else if (lex->tk=='<' && lex->curr_ch=='=') {
+		lex->tk = LEX_LEQUAL;
+		lex_get_nextch(lex);
+	} else if (lex->tk=='<' && lex->curr_ch=='<') {
+		lex->tk = LEX_LSHIFT;
+		lex_get_nextch(lex);
+		if (lex->curr_ch=='=') { // <<=
+			lex->tk = LEX_LSHIFTEQUAL;
+			lex_get_nextch(lex);
+		}
+	} else if (lex->tk=='>' && lex->curr_ch=='=') {
+		lex->tk = LEX_GEQUAL;
+		lex_get_nextch(lex);
+	} else if (lex->tk=='>' && lex->curr_ch=='>') {
+		lex->tk = LEX_RSHIFT;
+		lex_get_nextch(lex);
+		if (lex->curr_ch=='=') { // >>=
+			lex->tk = LEX_RSHIFTEQUAL;
+			lex_get_nextch(lex);
+		} else if (lex->curr_ch=='>') { // >>>
+			lex->tk = LEX_RSHIFTUNSIGNED;
+			lex_get_nextch(lex);
+		}
+	}  else if (lex->tk=='+' && lex->curr_ch=='=') {
+		lex->tk = LEX_PLUSEQUAL;
+		lex_get_nextch(lex);
+	}  else if (lex->tk=='-' && lex->curr_ch=='=') {
+		lex->tk = LEX_MINUSEQUAL;
+		lex_get_nextch(lex);
+	}  else if (lex->tk=='*' && lex->curr_ch=='=') {
+		lex->tk = LEX_MULTIEQUAL;
+		lex_get_nextch(lex);
+	}  else if (lex->tk=='/' && lex->curr_ch=='=') {
+		lex->tk = LEX_DIVEQUAL;
+		lex_get_nextch(lex);
+	}  else if (lex->tk=='%' && lex->curr_ch=='=') {
+		lex->tk = LEX_MODEQUAL;
+		lex_get_nextch(lex);
+	}  else if (lex->tk=='+' && lex->curr_ch=='+') {
+		lex->tk = LEX_PLUSPLUS;
+		lex_get_nextch(lex);
+	}  else if (lex->tk=='-' && lex->curr_ch=='-') {
+		lex->tk = LEX_MINUSMINUS;
+		lex_get_nextch(lex);
+	} else if (lex->tk=='&' && lex->curr_ch=='=') {
+		lex->tk = LEX_ANDEQUAL;
+		lex_get_nextch(lex);
+	} else if (lex->tk=='&' && lex->curr_ch=='&') {
+		lex->tk = LEX_ANDAND;
+		lex_get_nextch(lex);
+	} else if (lex->tk=='|' && lex->curr_ch=='=') {
+		lex->tk = LEX_OREQUAL;
+		lex_get_nextch(lex);
+	} else if (lex->tk=='|' && lex->curr_ch=='|') {
+		lex->tk = LEX_OROR;
+		lex_get_nextch(lex);
+	} else if (lex->tk=='^' && lex->curr_ch=='=') {
+		lex->tk = LEX_XOREQUAL;
+		lex_get_nextch(lex);
+	}
+}
+
+void lex_get_js_str(lex_t* lex) {
+	// js style strings 
+	lex_get_nextch(lex);
+	while (lex->curr_ch && lex->curr_ch!='\'') {
+		if (lex->curr_ch == '\\') {
+			lex_get_nextch(lex);
+			switch (lex->curr_ch) {
+				case 'n' : str_add(lex->tk_str, '\n'); break;
+				case 'a' : str_add(lex->tk_str, '\a'); break;
+				case 'r' : str_add(lex->tk_str, '\r'); break;
+				case 't' : str_add(lex->tk_str, '\t'); break;
+				case '\'' : str_add(lex->tk_str, '\''); break;
+				case '\\' : str_add(lex->tk_str, '\\'); break;
+				case 'x' : { // hex digits
+										 char buf[3] = "??";
+										 lex_get_nextch(lex);
+										 buf[0] = lex->curr_ch;
+										 lex_get_nextch(lex);
+										 buf[1] = lex->curr_ch;
+										 str_add(lex->tk_str, (char)strtol(buf,0,16));
+									 } break;
+				default: if (lex->curr_ch>='0' && lex->curr_ch<='7') {
+									 // octal digits
+									 char buf[4] = "???";
+									 buf[0] = lex->curr_ch;
+									 lex_get_nextch(lex);
+									 buf[1] = lex->curr_ch;
+									 lex_get_nextch(lex);
+									 buf[2] = lex->curr_ch;
+									 str_add(lex->tk_str, (char)strtol(buf,0,8));
+								 } else
+									 str_add(lex->tk_str, lex->curr_ch);
+			}
+		} else {
+			str_add(lex->tk_str, lex->curr_ch);
+		}
+		lex_get_nextch(lex);
+	}
+	lex_get_nextch(lex);
+	lex->tk = LEX_STR;
+}
+
+void lex_get_reserved_word(lex_t *lex) {
+	if (strcmp(lex->tk_str->cstr, "if") == 0)        lex->tk = LEX_R_IF;
+	else if (strcmp(lex->tk_str->cstr, "else") == 0)      lex->tk = LEX_R_ELSE;
+	else if (strcmp(lex->tk_str->cstr, "do") == 0)        lex->tk = LEX_R_DO;
+	else if (strcmp(lex->tk_str->cstr, "while") == 0)    lex->tk = LEX_R_WHILE;
+	else if (strcmp(lex->tk_str->cstr, "import") == 0)  lex->tk = LEX_R_INCLUDE;
+	else if (strcmp(lex->tk_str->cstr, "for") == 0)     lex->tk = LEX_R_FOR;
+	else if (strcmp(lex->tk_str->cstr, "break") == 0)    lex->tk = LEX_R_BREAK;
+	else if (strcmp(lex->tk_str->cstr, "continue") == 0)  lex->tk = LEX_R_CONTINUE;
+	else if (strcmp(lex->tk_str->cstr, "static") == 0)  lex->tk = LEX_R_STATIC;
+	else if (strcmp(lex->tk_str->cstr, "function") == 0)  lex->tk = LEX_R_FUNCTION;
+	else if (strcmp(lex->tk_str->cstr, "class") ==0) 		 lex->tk = LEX_R_CLASS;
+	else if (strcmp(lex->tk_str->cstr, "extends") == 0) 	 lex->tk = LEX_R_EXTENDS;
+	else if (strcmp(lex->tk_str->cstr, "return") == 0)   lex->tk = LEX_R_RETURN;
+	else if (strcmp(lex->tk_str->cstr, "var")  == 0)      lex->tk = LEX_R_VAR;
+	else if (strcmp(lex->tk_str->cstr, "let")  == 0)      lex->tk = LEX_R_LET;
+	else if (strcmp(lex->tk_str->cstr, "const") == 0)     lex->tk = LEX_R_CONST;
+	else if (strcmp(lex->tk_str->cstr, "true") == 0)      lex->tk = LEX_R_TRUE;
+	else if (strcmp(lex->tk_str->cstr, "false") == 0)     lex->tk = LEX_R_FALSE;
+	else if (strcmp(lex->tk_str->cstr, "null") == 0)      lex->tk = LEX_R_NULL;
+	else if (strcmp(lex->tk_str->cstr, "undefined") == 0) lex->tk = LEX_R_UNDEFINED;
+	else if (strcmp(lex->tk_str->cstr, "new") == 0)       lex->tk = LEX_R_NEW;
+	else if (strcmp(lex->tk_str->cstr, "typeof") == 0)       lex->tk = LEX_R_TYPEOF;
+	else if (strcmp(lex->tk_str->cstr, "throw") == 0)     lex->tk = LEX_R_THROW;
+	else if (strcmp(lex->tk_str->cstr, "try") == 0)    	 lex->tk = LEX_R_TRY;
+	else if (strcmp(lex->tk_str->cstr, "catch") == 0)     lex->tk = LEX_R_CATCH;
+}
+
 void lex_get_next_token(lex_t* lex) {
 	lex->tk = LEX_EOF;
 	str_reset(lex->tk_str);
 
 	lex_skip_whitespace(lex);
-	if(lex_skip_comments_line(lex, "//"))
-		return lex_get_next_token(lex);
-	if(lex_skip_comments_block(lex, "/*", "*/"))
-		return lex_get_next_token(lex);
-	
-	// record beginning of this token(pre-read 2 chars );
-	lex->tk_start = lex->data_pos-2;
-	// tokens
-	if (is_alpha(lex->curr_ch)) { //  IDs
-		while (is_alpha(lex->curr_ch) || is_numeric(lex->curr_ch)) {
-			str_add(lex->tk_str, lex->curr_ch);
-			lex_get_nextch(lex);
-		}
-		lex->tk = LEX_ID;
-		if (strcmp(lex->tk_str->cstr, "if") == 0)        lex->tk = LEX_R_IF;
-		else if (strcmp(lex->tk_str->cstr, "else") == 0)      lex->tk = LEX_R_ELSE;
-		else if (strcmp(lex->tk_str->cstr, "do") == 0)        lex->tk = LEX_R_DO;
-		else if (strcmp(lex->tk_str->cstr, "while") == 0)    lex->tk = LEX_R_WHILE;
-		else if (strcmp(lex->tk_str->cstr, "import") == 0)  lex->tk = LEX_R_INCLUDE;
-		else if (strcmp(lex->tk_str->cstr, "for") == 0)     lex->tk = LEX_R_FOR;
-		else if (strcmp(lex->tk_str->cstr, "break") == 0)    lex->tk = LEX_R_BREAK;
-		else if (strcmp(lex->tk_str->cstr, "continue") == 0)  lex->tk = LEX_R_CONTINUE;
-		else if (strcmp(lex->tk_str->cstr, "static") == 0)  lex->tk = LEX_R_STATIC;
-		else if (strcmp(lex->tk_str->cstr, "function") == 0)  lex->tk = LEX_R_FUNCTION;
-		else if (strcmp(lex->tk_str->cstr, "class") ==0) 		 lex->tk = LEX_R_CLASS;
-		else if (strcmp(lex->tk_str->cstr, "extends") == 0) 	 lex->tk = LEX_R_EXTENDS;
-		else if (strcmp(lex->tk_str->cstr, "return") == 0)   lex->tk = LEX_R_RETURN;
-		else if (strcmp(lex->tk_str->cstr, "var")  == 0)      lex->tk = LEX_R_VAR;
-		else if (strcmp(lex->tk_str->cstr, "let")  == 0)      lex->tk = LEX_R_LET;
-		else if (strcmp(lex->tk_str->cstr, "const") == 0)     lex->tk = LEX_R_CONST;
-		else if (strcmp(lex->tk_str->cstr, "true") == 0)      lex->tk = LEX_R_TRUE;
-		else if (strcmp(lex->tk_str->cstr, "false") == 0)     lex->tk = LEX_R_FALSE;
-		else if (strcmp(lex->tk_str->cstr, "null") == 0)      lex->tk = LEX_R_NULL;
-		else if (strcmp(lex->tk_str->cstr, "undefined") == 0) lex->tk = LEX_R_UNDEFINED;
-		else if (strcmp(lex->tk_str->cstr, "new") == 0)       lex->tk = LEX_R_NEW;
-		else if (strcmp(lex->tk_str->cstr, "typeof") == 0)       lex->tk = LEX_R_TYPEOF;
-		else if (strcmp(lex->tk_str->cstr, "throw") == 0)     lex->tk = LEX_R_THROW;
-		else if (strcmp(lex->tk_str->cstr, "try") == 0)    	 lex->tk = LEX_R_TRY;
-		else if (strcmp(lex->tk_str->cstr, "catch") == 0)     lex->tk = LEX_R_CATCH;
-	} else if (is_numeric(lex->curr_ch)) { // _numbers
-		bool isHex = false;
-		if (lex->curr_ch=='0') {
-			str_add(lex->tk_str, lex->curr_ch);
-			lex_get_nextch(lex);
-		}
-		if (lex->curr_ch=='x') {
-			isHex = true;
-			str_add(lex->tk_str, lex->curr_ch);
-			lex_get_nextch(lex);
-		}
-		lex->tk = LEX_INT;
-		while (is_numeric(lex->curr_ch) || (isHex && is_hexadecimal(lex->curr_ch))) {
-			str_add(lex->tk_str, lex->curr_ch);
-			lex_get_nextch(lex);
-		}
-		if (!isHex && lex->curr_ch=='.') {
-			lex->tk = LEX_FLOAT;
-			str_add(lex->tk_str, '.');
-			lex_get_nextch(lex);
-			while (is_numeric(lex->curr_ch)) {
-				str_add(lex->tk_str, lex->curr_ch);
-				lex_get_nextch(lex);
-			}
-		}
-		// do fancy e-style floating point
-		if (!isHex && (lex->curr_ch=='e'||lex->curr_ch=='E')) {
-			lex->tk = LEX_FLOAT;
-			str_add(lex->tk_str, lex->curr_ch);
-			lex_get_nextch(lex);
-			if (lex->curr_ch=='-') {
-				str_add(lex->tk_str, lex->curr_ch);
-				lex_get_nextch(lex);
-			}
-			while (is_numeric(lex->curr_ch)) {
-				str_add(lex->tk_str, lex->curr_ch);
-				lex_get_nextch(lex);
-			}
-		}
-	} else if (lex->curr_ch=='"') {
-		// strings...
-		lex_get_nextch(lex);
-		while (lex->curr_ch && lex->curr_ch!='"') {
-			if (lex->curr_ch == '\\') {
-				lex_get_nextch(lex);
-				switch (lex->curr_ch) {
-					case 'n' : str_add(lex->tk_str, '\n'); break;
-					case 'r' : str_add(lex->tk_str, '\r'); break;
-					case 't' : str_add(lex->tk_str, '\t'); break;
-					case '"' : str_add(lex->tk_str, '\"'); break;
-					case '\\' : str_add(lex->tk_str, '\\'); break;
-					default: str_add(lex->tk_str, lex->curr_ch);
-				}
-			} else {
-				str_add(lex->tk_str, lex->curr_ch);
-			}
-			lex_get_nextch(lex);
-		}
-		lex_get_nextch(lex);
-		lex->tk = LEX_STR;
-	} else if (lex->curr_ch=='\'') {
-		// strings again...
-		lex_get_nextch(lex);
-		while (lex->curr_ch && lex->curr_ch!='\'') {
-			if (lex->curr_ch == '\\') {
-				lex_get_nextch(lex);
-				switch (lex->curr_ch) {
-					case 'n' : str_add(lex->tk_str, '\n'); break;
-					case 'a' : str_add(lex->tk_str, '\a'); break;
-					case 'r' : str_add(lex->tk_str, '\r'); break;
-					case 't' : str_add(lex->tk_str, '\t'); break;
-					case '\'' : str_add(lex->tk_str, '\''); break;
-					case '\\' : str_add(lex->tk_str, '\\'); break;
-					case 'x' : { // hex digits
-											 char buf[3] = "??";
-											 lex_get_nextch(lex);
-											 buf[0] = lex->curr_ch;
-											 lex_get_nextch(lex);
-											 buf[1] = lex->curr_ch;
-											 str_add(lex->tk_str, (char)strtol(buf,0,16));
-										 } break;
-					default: if (lex->curr_ch>='0' && lex->curr_ch<='7') {
-										 // octal digits
-										 char buf[4] = "???";
-										 buf[0] = lex->curr_ch;
-										 lex_get_nextch(lex);
-										 buf[1] = lex->curr_ch;
-										 lex_get_nextch(lex);
-										 buf[2] = lex->curr_ch;
-										 str_add(lex->tk_str, (char)strtol(buf,0,8));
-									 } else
-										 str_add(lex->tk_str, lex->curr_ch);
-				}
-			} else {
-				str_add(lex->tk_str, lex->curr_ch);
-			}
-			lex_get_nextch(lex);
-		}
-		lex_get_nextch(lex);
-		lex->tk = LEX_STR;
-	} else {
-		// single chars
-		lex->tk = (LEX_TYPES)lex->curr_ch;
-		if (lex->curr_ch) 
-			lex_get_nextch(lex);
-		if (lex->tk=='=' && lex->curr_ch=='=') { // ==
-			lex->tk = LEX_EQUAL;
-			lex_get_nextch(lex);
-			if (lex->curr_ch=='=') { // ===
-				lex->tk = LEX_TYPEEQUAL;
-				lex_get_nextch(lex);
-			}
-		} else if (lex->tk=='!' && lex->curr_ch=='=') { // !=
-			lex->tk = LEX_NEQUAL;
-			lex_get_nextch(lex);
-			if (lex->curr_ch=='=') { // !==
-				lex->tk = LEX_NTYPEEQUAL;
-				lex_get_nextch(lex);
-			}
-		} else if (lex->tk=='<' && lex->curr_ch=='=') {
-			lex->tk = LEX_LEQUAL;
-			lex_get_nextch(lex);
-		} else if (lex->tk=='<' && lex->curr_ch=='<') {
-			lex->tk = LEX_LSHIFT;
-			lex_get_nextch(lex);
-			if (lex->curr_ch=='=') { // <<=
-				lex->tk = LEX_LSHIFTEQUAL;
-				lex_get_nextch(lex);
-			}
-		} else if (lex->tk=='>' && lex->curr_ch=='=') {
-			lex->tk = LEX_GEQUAL;
-			lex_get_nextch(lex);
-		} else if (lex->tk=='>' && lex->curr_ch=='>') {
-			lex->tk = LEX_RSHIFT;
-			lex_get_nextch(lex);
-			if (lex->curr_ch=='=') { // >>=
-				lex->tk = LEX_RSHIFTEQUAL;
-				lex_get_nextch(lex);
-			} else if (lex->curr_ch=='>') { // >>>
-				lex->tk = LEX_RSHIFTUNSIGNED;
-				lex_get_nextch(lex);
-			}
-		}  else if (lex->tk=='+' && lex->curr_ch=='=') {
-			lex->tk = LEX_PLUSEQUAL;
-			lex_get_nextch(lex);
-		}  else if (lex->tk=='-' && lex->curr_ch=='=') {
-			lex->tk = LEX_MINUSEQUAL;
-			lex_get_nextch(lex);
-		}  else if (lex->tk=='*' && lex->curr_ch=='=') {
-			lex->tk = LEX_MULTIEQUAL;
-			lex_get_nextch(lex);
-		}  else if (lex->tk=='/' && lex->curr_ch=='=') {
-			lex->tk = LEX_DIVEQUAL;
-			lex_get_nextch(lex);
-		}  else if (lex->tk=='%' && lex->curr_ch=='=') {
-			lex->tk = LEX_MODEQUAL;
-			lex_get_nextch(lex);
-		}  else if (lex->tk=='+' && lex->curr_ch=='+') {
-			lex->tk = LEX_PLUSPLUS;
-			lex_get_nextch(lex);
-		}  else if (lex->tk=='-' && lex->curr_ch=='-') {
-			lex->tk = LEX_MINUSMINUS;
-			lex_get_nextch(lex);
-		} else if (lex->tk=='&' && lex->curr_ch=='=') {
-			lex->tk = LEX_ANDEQUAL;
-			lex_get_nextch(lex);
-		} else if (lex->tk=='&' && lex->curr_ch=='&') {
-			lex->tk = LEX_ANDAND;
-			lex_get_nextch(lex);
-		} else if (lex->tk=='|' && lex->curr_ch=='=') {
-			lex->tk = LEX_OREQUAL;
-			lex_get_nextch(lex);
-		} else if (lex->tk=='|' && lex->curr_ch=='|') {
-			lex->tk = LEX_OROR;
-			lex_get_nextch(lex);
-		} else if (lex->tk=='^' && lex->curr_ch=='=') {
-			lex->tk = LEX_XOREQUAL;
-			lex_get_nextch(lex);
+	if(lex_skip_comments_line(lex, "//")) {
+		lex_get_next_token(lex);
+		return;
+	}
+	if(lex_skip_comments_block(lex, "/*", "*/")) {
+		lex_get_next_token(lex);
+		return;
+	}
+
+	lex_token_start(lex);
+	lex_get_basic_token(lex);
+
+	if (lex->tk == LEX_ID) { //  IDs
+		lex_get_reserved_word(lex);
+	} 
+	else if(lex->tk == LEX_EOF) {
+		if (lex->curr_ch=='\'') {
+			// js style strings 
+			lex_get_js_str(lex);
+		} 
+		else {
+			lex_get_char_token(lex);
+			lex_get_op_token(lex);
 		}
 	}
-	/* This isn't quite right yet */
-	lex->tk_last_end = lex->tk_end;
-	lex->tk_end = lex->data_pos-3;
+
+	lex_token_end(lex);
 }
 
 #ifdef MARIO_DEBUG

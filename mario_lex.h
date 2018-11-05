@@ -5,7 +5,14 @@
 
 /** Script Lex. -----------------------------*/
 
-#define  LEX_EOF  0
+typedef enum {
+	LEX_EOF  =  0,
+  LEX_ID = 256,
+	LEX_INT,
+  LEX_FLOAT,
+  LEX_STR,
+	LEX_BASIC_END
+} lex_basic_type_t;
 
 typedef struct st_lex {
 	const char* data;
@@ -48,5 +55,13 @@ void lex_skip_space(lex_t* lex);
 bool lex_skip_comments_line(lex_t* lex, const char* start);
 
 bool lex_skip_comments_block(lex_t* lex, const char* start, const char* end);
+
+void lex_token_start(lex_t* lex); 
+
+void lex_token_end(lex_t* lex); 
+
+void lex_get_char_token(lex_t* lex); 
+
+void lex_get_basic_token(lex_t* lex); 
 
 #endif
