@@ -3,7 +3,8 @@ $(info CROSS_COMPILE=$(CROSS_COMPILE))
 endif
 
 ifeq ($(MARIO_LANG),)
-MARIO_LANG = js
+MARIO_LANG = demo
+#MARIO_LANG = js
 endif
 
 ifeq ($(MARIO_VM),)

@@ -110,7 +110,46 @@ bool lex_chkread(lex_t* lex, uint32_t expected_tk) {
 	return true;
 }
 
+/*function */
+void gen_func_name(const char* name, int arg_num, str_t* full) {
+	str_reset(full);
+	str_cpy(full, name);
+	if(arg_num > 0) {
+		str_append(full, "$");
+		char s[STATIC_STR_MAX];
+		str_append(full, str_from_int(arg_num, s));
+	}
+}
+
 bool base(lex_t* l, bytecode_t* bc);
+int call_func(lex_t* l, bytecode_t* bc) {
+	if(!lex_chkread(l, '(')) return -1;
+	int arg_num = 0;
+	while(true) {
+		PC pc1 = bc->cindex;
+		if(!base(l, bc))
+			return -1;
+		PC pc2 = bc->cindex;
+		if(pc2 > pc1) //not empty, means valid arguemnt.
+			arg_num++;
+
+		if (l->tk!=')') {
+			if(!lex_chkread(l, ',')) return -1;	
+		}
+		else
+			break;
+	}
+	if(!lex_chkread(l, ')')) return -1;
+	return arg_num;
+}
+
+void factor_func(lex_t* l, bytecode_t* bc, const char* name) {
+	int arg_num = call_func(l, bc);
+	str_t* fname = str_new("");
+	gen_func_name(name, arg_num, fname);
+	bc_gen_str(bc, INSTR_CALL, fname->cstr);	
+	str_free(fname);
+}
 
 bool factor(lex_t* l, bytecode_t* bc) {
 	if (l->tk=='(') {
@@ -134,7 +173,12 @@ bool factor(lex_t* l, bytecode_t* bc) {
 		str_t* name = str_new(l->tk_str->cstr);
 		if(!lex_chkread(l, LEX_ID)) return false;
 
-		bc_gen_str(bc, INSTR_LOAD, name->cstr);
+		if (l->tk=='(') { // ------------------------------------- Function Call
+			factor_func(l, bc, name->cstr);
+		} 
+		else {
+			bc_gen_str(bc, INSTR_LOAD, name->cstr);
+		}
 		str_free(name);
 	}
 

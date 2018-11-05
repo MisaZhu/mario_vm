@@ -1,10 +1,5 @@
 var a = 2 * (3 + 3) / 4
-a
-//output: 3
+debug("a = " + a)
 
-b = "str1\nstr2"
-b
-/* output:
-str1
-str2
-*/
+b = "Hello, " + "compiler!"
+debug(b)
