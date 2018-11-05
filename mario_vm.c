@@ -2413,7 +2413,6 @@ var_t* set_obj_member(vm_t* vm, var_t* env, const char* name, var_t* var) {
 	return var;
 }
 
-/**print string*/
 var_t* native_print(vm_t* vm, var_t* env, void* data) {
 	(void)vm; (void)data;
 
@@ -2425,7 +2424,7 @@ var_t* native_print(vm_t* vm, var_t* env, void* data) {
 	return NULL;
 }
 
-var_t* native_println(vm_t* vm, var_t* env, void* data) {
+var_t* native_debug(vm_t* vm, var_t* env, void* data) {
 	(void)vm; (void)data;
 
 	var_t* v = var_find_var(env, "v");
@@ -2491,9 +2490,7 @@ vm_t* vm_new() {
 
 	vm_new_class(vm, "Object");
 
-	vm_reg_native(vm, "console", "log(v)", native_print, NULL);
-	vm_reg_native(vm, "console", "ln(v)", native_println, NULL);
-	vm_reg_native(vm, "", "debug(v)", native_println, NULL);
+	vm_reg_native(vm, "", "debug(v)", native_debug, NULL);
 	vm_reg_native(vm, "", "yield()", native_yield, NULL);
 
 	return vm;
