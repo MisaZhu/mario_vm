@@ -11,7 +11,7 @@ ifeq ($(MARIO_VM),)
 MARIO_VM = ../../../..
 endif
 
-mario_OBJS= $(MARIO_VM)/mario_utils.o $(MARIO_VM)/mario_bc.o $(MARIO_VM)/mario_vm.o
+mario_OBJS= $(MARIO_VM)/mario_utils.o $(MARIO_VM)/mario_bc.o $(MARIO_VM)/mario_vm.o $(MARIO_VM)/mario_lex.o
 demo_OBJS = demo.o ../../compiler.o 
 
 CFLAGS = -I$(MARIO_VM) -I../.. -g -Wall -DMARIO_CACHE -DMARIO_DEBUG -DMARIO_THREAD

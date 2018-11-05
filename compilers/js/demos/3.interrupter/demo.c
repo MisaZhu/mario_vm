@@ -37,8 +37,8 @@ const char* js = " \
 	}";
 
 int main(int argc, char** argv) {
-	vm_t* vm = vm_new();
-	vm_init(vm, compile, NULL, NULL);
+	vm_t* vm = vm_new(compile);
+	vm_init(vm, NULL, NULL);
 
 	pthread_t pth;
 	pthread_create(&pth, NULL, interrupterThread, vm);

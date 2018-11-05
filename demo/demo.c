@@ -61,8 +61,8 @@ int main(int argc, char** argv) {
 		fname = argv[1];
 	}
 	
-	vm_t* vm = vm_new();
-	vm_init(vm, compile, NULL, NULL);
+	vm_t* vm = vm_new(compile);
+	vm_init(vm, NULL, NULL);
 
 	if(fname[0] != 0) {
 		if(load_js(vm, fname, verify)) {
