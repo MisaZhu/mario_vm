@@ -2413,17 +2413,6 @@ var_t* set_obj_member(vm_t* vm, var_t* env, const char* name, var_t* var) {
 	return var;
 }
 
-var_t* native_print(vm_t* vm, var_t* env, void* data) {
-	(void)vm; (void)data;
-
-	var_t* v = var_find_var(env, "v");
-	str_t* s = str_new("");
-	var_to_str(vm, v, s);
-	_out_func(s->cstr);
-	str_free(s);
-	return NULL;
-}
-
 var_t* native_debug(vm_t* vm, var_t* env, void* data) {
 	(void)vm; (void)data;
 
