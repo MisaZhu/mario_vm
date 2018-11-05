@@ -3,6 +3,7 @@ very tiny script engine in single file.
 */
 
 #include "mario_vm.h"
+#include "mario_lex.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -11,7 +12,6 @@ extern "C" {
 /** Script Lex. -----------------------------*/
 
 typedef enum {
-  LEX_EOF = 0,
   LEX_ID = 256,
   LEX_INT,
   LEX_FLOAT,
@@ -69,85 +69,6 @@ typedef enum {
   LEX_R_CATCH,
   LEX_R_LIST_END /* always the last entry */
 } LEX_TYPES;
-
-typedef struct st_lex {
-	const char* data;
-
-	int32_t data_pos;
-	int32_t data_start, data_end;
-	char curr_ch, next_ch;
-
-	LEX_TYPES tk;
-	str_t* tk_str;
-	int32_t tk_start, tk_end, tk_last_end;
-} lex_t;
-
-bool is_whitespace(unsigned char ch) {
-	if(ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r')
-		return true;
-	return false;
-}
-
-bool is_numeric(unsigned char ch) {
-	if(ch >= '0' && ch <= '9')
-		return true;
-	return false;
-}
-
-bool is_number(const char* cstr) {
-	int  i= 0;
-	while(cstr[i] != 0) {
-		if (is_numeric(cstr[i]) == false)
-			return false;
-		i++;
-	}
-	return true;
-}
-
-bool is_hexadecimal(unsigned char ch) {
-	if(((ch>='0') && (ch<='9')) ||
-		((ch>='a') && (ch<='f')) ||
-		((ch>='A') && (ch<='F')))
-			return true;
-	return false;
-}
-
-bool is_alpha(unsigned char ch) {
-	if(((ch>='a') && (ch<='z')) ||
-		((ch>='A') && (ch<='Z')) ||
-		ch == '_')
-		return true;
-	return false;
-}
-
-/** Is the std::string alphanumeric */
-bool is_alpha_num(const char* cstr) {
-	if (cstr[0] == 0){
-		return true;
-	}
-	if (is_alpha(cstr[0]) == 0){
-		return false;
-	}
-
-	int  i= 0;
-	while(cstr[i] != 0) {
-		if (is_alpha(cstr[i]) == false || is_numeric(cstr[i]) == true){
-			return false;
-		}
-		i++;
-	}
-	return true;
-}
-
-void lex_get_nextch(lex_t* lex) {
-	lex->curr_ch = lex->next_ch;
-	if (lex->data_pos < lex->data_end){
-		lex->next_ch = lex->data[lex->data_pos];
-	}else{
-		lex->next_ch = 0;
-	}
-	lex->data_pos++;
-}
 
 void lex_get_next_token(lex_t* lex) {
 	lex->tk = LEX_EOF;
@@ -392,31 +313,6 @@ void lex_get_next_token(lex_t* lex) {
 	/* This isn't quite right yet */
 	lex->tk_last_end = lex->tk_end;
 	lex->tk_end = lex->data_pos-3;
-}
-
-void lex_reset(lex_t* lex) {
-	lex->data_pos = lex->data_start;
-	lex->tk_start   = 0;
-	lex->tk_end     = 0;
-	lex->tk_last_end = 0;
-	lex->tk  = LEX_EOF;
-	str_reset(lex->tk_str);
-	lex_get_nextch(lex);
-	lex_get_nextch(lex);
-	lex_get_next_token(lex);
-}
-
-void lex_init(lex_t * lex, const char* input) {
-	lex->data = input;
-	lex->data_start = 0;
-	lex->data_end = strlen(lex->data);
-	lex->tk_str = str_new("");
-	lex_reset(lex);
-}
-
-void lex_release(lex_t* lex) {
-	str_free(lex->tk_str);
-	lex->tk_str = NULL;
 }
 
 #ifdef MARIO_DEBUG
@@ -1331,6 +1227,7 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 bool compile(bytecode_t *bc, const char* input) {
 	lex_t lex;
 	lex_init(&lex, input);
+	lex_get_next_token(&lex);
 
 	while(lex.tk) {
 		if(!statement(&lex, bc, true, NULL)) {
@@ -1424,6 +1321,8 @@ var_t* json_parse_factor(vm_t* vm, lex_t *l) {
 var_t* json_parse(vm_t* vm, const char* str) {
 	lex_t lex;
 	lex_init(&lex, str);
+	lex_get_next_token(&lex);
+
 	var_t* ret = json_parse_factor(vm, &lex);
 	lex_release(&lex);
 	return ret;
