@@ -20,27 +20,34 @@ void lex_get_next_token(lex_t* lex) {
 	lex->tk = LEX_EOF;
 	str_reset(lex->tk_str);
 
-	lex_skip_space(lex);
-	if(lex_skip_comments_line(lex, "//"))
-		return lex_get_next_token(lex);
-	if(lex_skip_comments_block(lex, "/*", "*/"))
-		return lex_get_next_token(lex);
+	lex_skip_space(lex); //skip the space like ' ','\t','\r'. but keep '\n' for end of sentence.
+	//skip c++/java style comments.
+	if(lex_skip_comments_line(lex, "//")) { //line comments
+		lex_get_next_token(lex);
+		return;
+	}
+	if(lex_skip_comments_block(lex, "/*", "*/")) { //block comments
+		lex_get_next_token(lex);
+		return;
+	}
 
-	lex_token_start(lex);
-
+	lex_token_start(lex); //
+	//get basic tokens like LEX_INT, LEX_FLOAT, LEX_STR, LEX_ID, or LEX_EOF if got nothing.
 	lex_get_basic_token(lex);
 
 	if (lex->tk == LEX_ID) { //  IDs
+		//try to replace LEX_ID token by reserved word.
 		if (strcmp(lex->tk_str->cstr, "var")  == 0) 
 			lex->tk = LEX_R_VAR;
 	} 
 	if(lex->tk == LEX_EOF) {
+		//simplely set token with single char
 		lex_get_char_token(lex);
 	}
-
 	lex_token_end(lex);
 }
 
+/**check current token with expected one, and read the next token*/
 bool lex_chkread(lex_t* lex, uint32_t expected_tk) {
 	if(lex->tk != expected_tk) 
 		return false;
@@ -61,12 +68,13 @@ void gen_func_name(const char* name, int arg_num, str_t* full) {
 }
 
 bool base(lex_t* l, bytecode_t* bc);
+
 int call_func(lex_t* l, bytecode_t* bc) {
 	if(!lex_chkread(l, '(')) return -1;
 	int arg_num = 0;
-	while(true) {
+	while(true) { // parameters.
 		PC pc1 = bc->cindex;
-		if(!base(l, bc))
+		if(!base(l, bc)) 
 			return -1;
 		PC pc2 = bc->cindex;
 		if(pc2 > pc1) //not empty, means valid arguemnt.
