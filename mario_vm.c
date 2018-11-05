@@ -2432,15 +2432,16 @@ var_t* native_yield(vm_t* vm, var_t* env, void* data) {
 }
 
 vm_t* vm_from(vm_t* vm) {
-	vm_t* ret = vm_new();
-  vm_init(ret, vm->compiler, vm->on_init, vm->on_close);
+	vm_t* ret = vm_new(vm->compiler);
+  vm_init(ret, vm->on_init, vm->on_close);
 	return ret;
 }
 
-vm_t* vm_new() {
+vm_t* vm_new(bool compiler(bytecode_t *bc, const char* input)) {
 	vm_t* vm = (vm_t*)_malloc(sizeof(vm_t));
 	memset(vm, 0, sizeof(vm_t));
 
+	vm->compiler = compiler;
 	vm->terminated = false;
 	vm->pc = 0;
 	vm->this_strIndex = 0;
@@ -2486,10 +2487,8 @@ vm_t* vm_new() {
 }
 
 void vm_init(vm_t* vm,
-		bool compiler(bytecode_t *bc, const char* input),
 		void (*on_init)(struct st_vm* vm),
 		void (*on_close)(struct st_vm* vm)) {
-	vm->compiler = compiler;
 	vm->on_init = on_init;
 	vm->on_close = on_close;
 	
