@@ -10,6 +10,12 @@ bool is_whitespace(unsigned char ch) {
 	return false;
 }
 
+bool is_space(unsigned char ch) {
+	if(ch == ' ' || ch == '\t' || ch == '\r')
+		return true;
+	return false;
+}
+
 bool is_numeric(unsigned char ch) {
 	if(ch >= '0' && ch <= '9')
 		return true;
@@ -68,6 +74,49 @@ void lex_get_nextch(lex_t* lex) {
 		lex->next_ch = 0;
 	}
 	lex->data_pos++;
+}
+
+void lex_skip_whitespace(lex_t* lex) {
+	while (lex->curr_ch && is_whitespace(lex->curr_ch)){
+		lex_get_nextch(lex);
+	}
+}
+
+void lex_skip_space(lex_t* lex) {
+	while (lex->curr_ch && is_space(lex->curr_ch)){
+		lex_get_nextch(lex);
+	}
+}
+
+//only take first 1~2 chars from start
+bool lex_skip_comments_line(lex_t* lex, const char* start) {
+	if(start[0] == 0)
+		return false;
+
+	if ((lex->curr_ch==start[0] && (start[1] == 0 || lex->next_ch==start[1]))) {
+		while (lex->curr_ch && lex->curr_ch!='\n'){
+			lex_get_nextch(lex);
+		}
+		lex_get_nextch(lex);
+		return true;
+	}
+	return false;
+}
+
+//only take first 2 chars from start and end.
+bool lex_skip_comments_block(lex_t* lex, const char* start, const char* end) {
+	if(start[0] == 0 || start[1] == 0 || end[0] == 0 || end[1] == 0)
+		return false;
+
+	if (lex->curr_ch==start[0] && lex->next_ch==start[1]) {
+		while (lex->curr_ch && (lex->curr_ch!=end[0] || lex->next_ch!=end[1])) {
+			lex_get_nextch(lex);
+		}
+		lex_get_nextch(lex);
+		lex_get_nextch(lex);
+		return true;
+	}	
+	return false;
 }
 
 void lex_reset(lex_t* lex) {

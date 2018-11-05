@@ -21,6 +21,8 @@ typedef struct st_lex {
 
 bool is_whitespace(unsigned char ch);
 
+bool is_space(unsigned char ch);
+
 bool is_numeric(unsigned char ch);
 
 bool is_number(const char* cstr);
@@ -38,5 +40,13 @@ void lex_reset(lex_t* lex);
 void lex_init(lex_t * lex, const char* input);
 
 void lex_release(lex_t* lex);
+
+void lex_skip_whitespace(lex_t* lex);
+
+void lex_skip_space(lex_t* lex);
+
+bool lex_skip_comments_line(lex_t* lex, const char* start);
+
+bool lex_skip_comments_block(lex_t* lex, const char* start, const char* end);
 
 #endif

@@ -74,28 +74,12 @@ void lex_get_next_token(lex_t* lex) {
 	lex->tk = LEX_EOF;
 	str_reset(lex->tk_str);
 
-	while (lex->curr_ch && is_whitespace(lex->curr_ch)){
-		lex_get_nextch(lex);
-	}
-	// newline comments
-	if ((lex->curr_ch=='/' && lex->next_ch=='/') || (lex->curr_ch=='#' && lex->next_ch=='!')) {
-		while (lex->curr_ch && lex->curr_ch!='\n'){
-			lex_get_nextch(lex);
-		}
-		lex_get_nextch(lex);
-		lex_get_next_token(lex);
-		return;
-	}
-	// block comments
-	if (lex->curr_ch=='/' && lex->next_ch=='*') {
-		while (lex->curr_ch && (lex->curr_ch!='*' || lex->next_ch!='/')) {
-			lex_get_nextch(lex);
-		}
-		lex_get_nextch(lex);
-		lex_get_nextch(lex);
-		lex_get_next_token(lex);
-		return;
-	}
+	lex_skip_whitespace(lex);
+	if(lex_skip_comments_line(lex, "//"))
+		return lex_get_next_token(lex);
+	if(lex_skip_comments_block(lex, "/*", "*/"))
+		return lex_get_next_token(lex);
+	
 	// record beginning of this token(pre-read 2 chars );
 	lex->tk_start = lex->data_pos-2;
 	// tokens
@@ -1045,21 +1029,17 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 	else if (l->tk==LEX_R_VAR || l->tk == LEX_R_CONST || l->tk == LEX_R_LET) {
 		pop = false;
 		opr_code_t op;
-		//bool be_const;
 
 		if(l->tk == LEX_R_VAR) {
 			if(!lex_chkread(l, LEX_R_VAR)) return false;
-			//be_const = false;
 			op = INSTR_VAR;
 		}
 		else if(l->tk == LEX_R_LET) {
 			if(!lex_chkread(l, LEX_R_LET)) return false;
-			//be_const = false;
 			op = INSTR_LET;
 		}
 		else {
 			if(!lex_chkread(l, LEX_R_CONST)) return false;
-			//be_const = true;
 			op = INSTR_CONST;
 		}
 
