@@ -227,6 +227,7 @@ void handle_gotos(bytecode_t* bc) {
 }
 
 bool compile(bytecode_t *bc, const char* input) {
+	bool ret = true;
 	array_init(&_lines);
 	array_init(&_gotos);
 
@@ -237,7 +238,8 @@ bool compile(bytecode_t *bc, const char* input) {
 	while(lex.tk) {
 		if(!statement(&lex, bc)) {
 			lex_release(&lex);
-			return false;
+			ret = false;
+			break;
 		}
 	}
 	bc_gen(bc, INSTR_END);
@@ -247,7 +249,7 @@ bool compile(bytecode_t *bc, const char* input) {
 
 	array_clean(&_gotos, NULL, NULL);
 	array_clean(&_lines, NULL, NULL);
-	return true;
+	return ret;
 }
 
 #ifdef __cplusplus
