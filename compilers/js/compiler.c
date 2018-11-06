@@ -737,7 +737,7 @@ bool term(lex_t* l, bytecode_t* bc) {
 		return false;
 
 	while (l->tk=='*' || l->tk=='/' || l->tk=='%') {
-		LEX_TYPES op = l->tk;
+		LEX_TYPES op = (LEX_TYPES)l->tk;
 		if(!lex_chkread(l, l->tk)) return false;
 		if(!unary(l, bc)) return false;
 
@@ -756,7 +756,7 @@ bool term(lex_t* l, bytecode_t* bc) {
 }
 
 bool expr(lex_t* l, bytecode_t* bc) {
-	LEX_TYPES pre = l->tk;
+	LEX_TYPES pre = (LEX_TYPES)l->tk;
 
 	if (l->tk=='-') {
 		if(!lex_chkread(l, '-')) return false;
@@ -928,7 +928,7 @@ bool base(lex_t* l, bytecode_t* bc) {
 			l->tk==LEX_DIVEQUAL ||
 			l->tk==LEX_MODEQUAL ||
 			l->tk==LEX_MINUSEQUAL) {
-		LEX_TYPES op = l->tk;
+		LEX_TYPES op = (LEX_TYPES)l->tk;
 		if(!lex_chkread(l, l->tk)) return false;
 		base(l, bc);
 		// sort out initialiser

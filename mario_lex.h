@@ -3,6 +3,10 @@
 
 #include "mario_utils.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /** Script Lex. -----------------------------*/
 
 typedef enum {
@@ -63,5 +67,9 @@ void lex_token_end(lex_t* lex);
 void lex_get_char_token(lex_t* lex); 
 
 void lex_get_basic_token(lex_t* lex); 
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
