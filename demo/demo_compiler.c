@@ -194,6 +194,8 @@ bool statement(lex_t* l, bytecode_t* bc) {
 		if(l->tk != LEX_INT) return false;
 		int32_t ln_to = str_to_int(l->tk_str->cstr);
 		if(!lex_chkread(l, LEX_INT)) return false;
+		//keep the goto instruction to _gotos array, 
+		//coz we have to calculate the jmp/jmpb offset after finished the compiling. 
 		PC pc = bc_reserve(bc);
 		add_line(&_gotos, ln_to, pc);
 	}
