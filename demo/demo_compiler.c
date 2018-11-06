@@ -13,8 +13,16 @@ extern "C" {
 
 typedef enum {
   // reserved words
-  LEX_R_VAR = LEX_BASIC_END,
+  LEX_R_GOTO = LEX_BASIC_END,
+  LEX_R_PRINT
 } LEX_TYPES;
+
+void lex_get_reserved(lex_t* lex) {
+	if (strcmp(lex->tk_str->cstr, "print")  == 0) 
+		lex->tk = LEX_R_PRINT;
+	else if (strcmp(lex->tk_str->cstr, "goto")  == 0) 
+		lex->tk = LEX_R_GOTO;
+}
 
 void lex_get_next_token(lex_t* lex) {
 	lex->tk = LEX_EOF;
@@ -26,10 +34,6 @@ void lex_get_next_token(lex_t* lex) {
 		lex_get_next_token(lex);
 		return;
 	}
-	if(lex_skip_comments_block(lex, "/*", "*/")) { //block comments
-		lex_get_next_token(lex);
-		return;
-	}
 
 	lex_token_start(lex); //
 	//get basic tokens like LEX_INT, LEX_FLOAT, LEX_STR, LEX_ID, or LEX_EOF if got nothing.
@@ -37,8 +41,7 @@ void lex_get_next_token(lex_t* lex) {
 
 	if (lex->tk == LEX_ID) { //  IDs
 		//try to replace LEX_ID token by reserved word.
-		if (strcmp(lex->tk_str->cstr, "var")  == 0) 
-			lex->tk = LEX_R_VAR;
+		lex_get_reserved(lex);
 	} 
 	if(lex->tk == LEX_EOF) {
 		//simplely set token with single char
@@ -70,7 +73,9 @@ void gen_func_name(const char* name, int arg_num, str_t* full) {
 bool base(lex_t* l, bytecode_t* bc);
 
 int call_func(lex_t* l, bytecode_t* bc) {
-	if(!lex_chkread(l, '(')) return -1;
+	if(l->tk == '\n')
+		return 0;
+
 	int arg_num = 0;
 	while(true) { // parameters.
 		PC pc1 = bc->cindex;
@@ -80,13 +85,12 @@ int call_func(lex_t* l, bytecode_t* bc) {
 		if(pc2 > pc1) //not empty, means valid arguemnt.
 			arg_num++;
 
-		if (l->tk!=')') {
+		if(l->tk != '\n') {
 			if(!lex_chkread(l, ',')) return -1;	
 		}
 		else
 			break;
 	}
-	if(!lex_chkread(l, ')')) return -1;
 	return arg_num;
 }
 
@@ -120,73 +124,15 @@ bool factor(lex_t* l, bytecode_t* bc) {
 		str_t* name = str_new(l->tk_str->cstr);
 		if(!lex_chkread(l, LEX_ID)) return false;
 
-		if (l->tk=='(') { // ------------------------------------- Function Call
-			factor_func(l, bc, name->cstr);
-		} 
-		else {
-			bc_gen_str(bc, INSTR_LOAD, name->cstr);
-		}
+		bc_gen_str(bc, INSTR_LOAD, name->cstr);
 		str_free(name);
 	}
 
 	return true;
 }
 
-bool term(lex_t* l, bytecode_t* bc) {
-	if(!factor(l, bc))
-		return false;
-
-	while (l->tk=='*' || l->tk=='/') {
-		LEX_TYPES op = l->tk;
-		if(!lex_chkread(l, l->tk)) return false;
-		if(!factor(l, bc)) return false;
-
-		if(op == '*') {
-			bc_gen(bc, INSTR_MULTI);
-		}
-		else if(op == '/') {
-			bc_gen(bc, INSTR_DIV);
-		}
-	}
-
-	return true;	
-}
-
-bool expr(lex_t* l, bytecode_t* bc) {
-	LEX_TYPES pre = l->tk;
-
-	if (l->tk=='-') {
-		if(!lex_chkread(l, '-')) return false;
-	}
-
-	if(!term(l, bc))
-		return false;
-
-	if (pre == '-') {
-		bc_gen(bc, INSTR_NEG);
-	}
-
-	while (l->tk=='+' || l->tk=='-') {
-		int op = l->tk;
-		if(!lex_chkread(l, l->tk))
-			return false;
-		else {
-			if(!term(l, bc))
-				return false;
-			if(op== '+') {
-				bc_gen(bc, INSTR_PLUS);
-			}
-			else if(op=='-') {
-				bc_gen(bc, INSTR_MINUS);
-			}
-		}
-	}
-
-	return true;	
-}
-
 bool base(lex_t* l, bytecode_t* bc) {
-	if(!expr(l, bc))
+	if(!factor(l, bc))
 		return false;
 
 	if (l->tk=='=') {
@@ -201,39 +147,59 @@ bool base(lex_t* l, bytecode_t* bc) {
 	return true;
 }
 
+typedef struct {
+	uint32_t line;
+	PC pc;
+} line_t;
+
+m_array_t _lines;
+m_array_t _gotos;
+
+void add_line(m_array_t* lines, uint32_t ln, PC pc) {
+	line_t* l = (line_t*)_malloc(sizeof(line_t));
+	l->line = ln;
+	l->pc = pc;
+	array_add(lines, l);
+}
+
+PC get_line_pc(uint32_t ln) {
+	int32_t i;
+	for(i=0; i<_lines.size; ++i) {
+		line_t* l = (line_t*)array_get(&_lines, i);
+		if(l->line == ln)
+			return l->pc;
+	}
+	return 0;
+}
+
 bool statement(lex_t* l, bytecode_t* bc) {
 	bool pop = true;
 	if(l->tk == '\n') {
-		pop = false;
-		if(!lex_chkread(l, '\n')) return false;
+		return lex_chkread(l, '\n');
 	}
-	else if (l->tk==LEX_ID    ||
-			l->tk==LEX_INT   ||
-			l->tk==LEX_FLOAT ||
-			l->tk==LEX_STR   ||
-			l->tk=='-'    ) {
-		/* Execute a simple statement that only contains basic arithmetic... */
+
+	//read line num
+	int32_t ln = str_to_int(l->tk_str->cstr);
+	if(!lex_chkread(l, LEX_INT)) return false;
+	add_line(&_lines, ln, bc->cindex);
+
+	if (l->tk == LEX_ID) {
 		if(!base(l, bc))
 			return false;
 		if(!lex_chkread(l, '\n')) return false;
 	}
-	else if (l->tk==LEX_R_VAR) {
+	else if (l->tk == LEX_R_GOTO) {
 		pop = false;
-
-		if(!lex_chkread(l, LEX_R_VAR)) return false;
-
-		str_t* vname = str_new(l->tk_str->cstr);
-		if(!lex_chkread(l, LEX_ID)) return false;
-		bc_gen_str(bc, LEX_R_VAR, vname->cstr);
-		// sort out initialiser
-		if (l->tk == '=') {
-			if(!lex_chkread(l, '=')) return false;
-			bc_gen_str(bc, INSTR_LOAD, vname->cstr);
-			if(!base(l, bc)) return false;
-			bc_gen(bc, INSTR_ASIGN);
-			bc_gen(bc, INSTR_POP);
-		}
-		str_free(vname);
+		if(!lex_chkread(l, LEX_R_GOTO)) return false;
+		if(l->tk != LEX_INT) return false;
+		int32_t ln_to = str_to_int(l->tk_str->cstr);
+		if(!lex_chkread(l, LEX_INT)) return false;
+		PC pc = bc_reserve(bc);
+		add_line(&_gotos, ln_to, pc);
+	}
+	else if (l->tk == LEX_R_PRINT) {
+		if(!lex_chkread(l, LEX_R_PRINT)) return false;
+		factor_func(l, bc, "debug");
 		if(!lex_chkread(l, '\n')) return false;
 	}
 	else {
@@ -248,7 +214,20 @@ bool statement(lex_t* l, bytecode_t* bc) {
 	return true;
 }
 
+void handle_gotos(bytecode_t* bc) {
+	int32_t i;
+	for(i=0; i<_gotos.size; ++i) {
+		line_t* l = (line_t*)array_get(&_gotos, i);
+		PC pc = get_line_pc(l->line);
+		opr_code_t op = pc > l->pc ? INSTR_JMP : INSTR_JMPB;
+		bc_set_instr(bc, l->pc, op, pc); 
+	}
+}
+
 bool compile(bytecode_t *bc, const char* input) {
+	array_init(&_lines);
+	array_init(&_gotos);
+
 	lex_t lex;
 	lex_init(&lex, input);
 	lex_get_next_token(&lex);
@@ -261,6 +240,11 @@ bool compile(bytecode_t *bc, const char* input) {
 	}
 	bc_gen(bc, INSTR_END);
 	lex_release(&lex);
+
+	handle_gotos(bc);
+
+	array_clean(&_gotos, NULL, NULL);
+	array_clean(&_lines, NULL, NULL);
 	return true;
 }
 
