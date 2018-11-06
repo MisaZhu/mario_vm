@@ -21,8 +21,8 @@ void lex_get_next_token(lex_t* lex) {
 	str_reset(lex->tk_str);
 
 	lex_skip_space(lex); //skip the space like ' ','\t','\r'. but keep '\n' for end of sentence.
-	//skip c++/java style comments.
-	if(lex_skip_comments_line(lex, "//")) { //line comments
+	//skip comments.
+	if(lex_skip_comments_line(lex, ";")) { //line comments
 		lex_get_next_token(lex);
 		return;
 	}

@@ -1,5 +1,5 @@
-var a = 2 * (3 + 3) / 4
-debug("a = " + a)
+var a = 2 * (3 + 3) / 4     ; variable definition and assignment
+debug("a = " + a)           ; function call (vm built-in function 'debug')
 
-b = "Hello, " + "compiler!"
+b = "Hello, " + "compiler!" ; string operate
 debug(b)

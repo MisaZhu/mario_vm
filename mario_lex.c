@@ -97,7 +97,8 @@ bool lex_skip_comments_line(lex_t* lex, const char* start) {
 		while (lex->curr_ch && lex->curr_ch!='\n'){
 			lex_get_nextch(lex);
 		}
-		lex_get_nextch(lex);
+		if(start[1] != 0)
+			lex_get_nextch(lex);
 		return true;
 	}
 	return false;
