@@ -377,7 +377,7 @@ typedef struct st_loop {
 	uint32_t blockDepth;
 } loop_t;
 
-bool statement(lex_t*, bytecode_t*, bool, loop_t*);
+bool statement(lex_t*, bytecode_t*, loop_t*);
 bool factor(lex_t*, bytecode_t*);
 bool base(lex_t*, bytecode_t*);
 
@@ -429,7 +429,7 @@ bool block(lex_t* l, bytecode_t* bc, loop_t* loop, bool func) {
 		bc_gen(bc, INSTR_BLOCK);
 
 	while (l->tk && l->tk!='}'){
-		if(!statement(l, bc, true, loop))
+		if(!statement(l, bc, loop))
 			return false;
 	}
 	if(!lex_chkread(l, '}')) return false;
@@ -954,7 +954,8 @@ bool base(lex_t* l, bytecode_t* bc) {
 	return true;
 }
 
-bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
+bool statement(lex_t* l, bytecode_t* bc, loop_t* loop) {
+	bool pop = true;
 	if (l->tk=='{') {
 		/* A block of code */
 		if(!block(l, bc, loop, false))
@@ -1037,13 +1038,13 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 		if(!base(l, bc)) return false; //condition
 		if(!lex_chkread(l, ')')) return false;
 		PC pc = bc_reserve(bc);
-		if(!statement(l, bc, true, loop)) return false;
+		if(!statement(l, bc, loop)) return false;
 
 		if (l->tk == LEX_R_ELSE) {
 			if(!lex_chkread(l, LEX_R_ELSE)) return false;
 			PC pc2 = bc_reserve(bc);
 			bc_set_instr(bc, pc, INSTR_NJMP, ILLEGAL_PC);
-			if(!statement(l, bc, true, loop)) return false;
+			if(!statement(l, bc, loop)) return false;
 			bc_set_instr(bc, pc2, INSTR_JMP, ILLEGAL_PC);
 		}
 		else {
@@ -1069,7 +1070,7 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 		lp.breakAnchor = pcb;
 		lp.blockDepth = 0;
 		
-		if(!statement(l, bc, true, &lp)) return false;
+		if(!statement(l, bc, &lp)) return false;
 
 		bc_add_instr(bc, cpc, INSTR_JMPB, ILLEGAL_PC); //coninue anchor;
 		bc_set_instr(bc, pc, INSTR_NJMP, ILLEGAL_PC); // end anchor;
@@ -1084,7 +1085,7 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 		PC pcb = bc_reserve(bc); //jump out of loop (for break anchor);
 
 		if(!lex_chkread(l, '(')) return false;
-		if(!statement(l, bc, true, NULL)) //init statement
+		if(!statement(l, bc, NULL)) //init statement
 			return false;
 
 		PC cpc = bc->cindex; //condition anchor(also continue anchor as well)
@@ -1107,7 +1108,7 @@ bool statement(lex_t* l, bytecode_t* bc, bool pop, loop_t* loop) {
 		lp.blockDepth = 0;
 
 		bc_set_instr(bc, lpc, INSTR_JMP, ILLEGAL_PC); // loop anchor;
-		if(!statement(l, bc, true, &lp)) return false; //loop statement
+		if(!statement(l, bc, &lp)) return false; //loop statement
 
 		bc_add_instr(bc, ipc, INSTR_JMPB, ILLEGAL_PC); //jump to iterator anchor;
 		bc_set_instr(bc, pc, INSTR_NJMP, ILLEGAL_PC); // end anchor;
@@ -1157,7 +1158,7 @@ bool compile(bytecode_t *bc, const char* input) {
 	lex_get_next_token(&lex);
 
 	while(lex.tk) {
-		if(!statement(&lex, bc, true, NULL)) {
+		if(!statement(&lex, bc, NULL)) {
 			lex_release(&lex);
 			return false;
 		}
