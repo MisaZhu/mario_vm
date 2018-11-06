@@ -4,7 +4,7 @@ Demo compiler
 .Features:
 	
 	var x              ; define variable named 'x'
-	x = 1              ; asign int value 1 to x
+	x = 1              ; assign int value 1 to x
 	x                  ; print value of x
 	x = 2 * (1+1) / 2  ; math operate(s)
 	x                  ; print value of x
