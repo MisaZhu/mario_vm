@@ -8,7 +8,7 @@ AR := $(CROSS_COMPILE)ar
 LD := $(CROSS_COMPILE)gcc
 
 ifeq ($(MARIO_VM),)
-MARIO_VM = ../../../..
+MARIO_VM = ../../../../vm
 endif
 
 mario_OBJS= $(MARIO_VM)/mario_utils.o $(MARIO_VM)/mario_bc.o $(MARIO_VM)/mario_vm.o $(MARIO_VM)/mario_lex.o

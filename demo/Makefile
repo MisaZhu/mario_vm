@@ -4,7 +4,7 @@ endif
 
 
 ifeq ($(MARIO_VM),)
-MARIO_VM = ..
+MARIO_VM = ../vm
 endif
 
 NATIVE_PATH = builtin
