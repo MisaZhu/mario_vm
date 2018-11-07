@@ -232,6 +232,31 @@ void lex_get_basic_token(lex_t* lex) {
 	}
 }
 
+void lex_get_pos(lex_t* lex, int* line, int *col, int pos) {
+	if (pos<0) 
+		pos= lex->tk_last_end;
+
+	int l = 1;
+	int c  = 1;
+	int i;
+	for (i=0; i<pos; i++) {
+		char ch;
+		if (i < lex->data_end){
+			ch = lex->data[i];
+		}else{
+			ch = 0;
+		}
+
+		c++;
+		if (ch=='\n') {
+			l++;
+			c = 1;
+		}
+	}
+	*line = l;
+	*col = c;
+}
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

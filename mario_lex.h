@@ -68,6 +68,8 @@ void lex_get_char_token(lex_t* lex);
 
 void lex_get_basic_token(lex_t* lex); 
 
+void lex_get_pos(lex_t* lex, int* line, int *col, int pos);
+
 #ifdef __cplusplus
 }
 #endif
