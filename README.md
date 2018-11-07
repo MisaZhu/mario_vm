@@ -3,4 +3,4 @@ very tiny bytecode vm engine, None 3rd libs relied, so can be used on most of em
 
 .How to build 
 
-  export MARIO_LANG=<lang>, <lang> is the compiler path under 'compilers' in this project. for exmaple: 'js'.
+  export MARIO_LANG=\<lang\>, \<lang\> is the compiler path under 'compilers' in this project. for exmaple: 'js'.
