@@ -508,15 +508,11 @@ bool factor_new(lex_t*l, bytecode_t* bc) {
 
 	if(!lex_chkread(l, LEX_ID)) return false;
 	if (l->tk == '(') {
-		//lex_chkread(l, '(');
 		int arg_num = call_func(l, bc);
-		//lex_chkread(l, ')');
-		if(arg_num > 0) {
-			str_append(class_name, "$");
-			char s[STATIC_STR_MAX];
-			str_append(class_name, str_from_int(arg_num, s));
-		}
-		bc_gen_str(bc, INSTR_NEW, class_name->cstr);
+		str_t* s = str_new("");
+		gen_func_name(class_name->cstr, arg_num, s);
+		bc_gen_str(bc, INSTR_NEW, s->cstr);
+		str_free(s);
 	}
 	str_free(class_name);
 	return true;
@@ -1040,9 +1036,6 @@ bool statement(lex_t* l, bytecode_t* bc, loop_t* loop) {
 		pop = false;
 	}
 	else if (l->tk==LEX_ID    ||
-			l->tk==LEX_INT   ||
-			l->tk==LEX_FLOAT ||
-			l->tk==LEX_STR   ||
 			l->tk==LEX_PLUSPLUS   ||
 			l->tk==LEX_MINUSMINUS ||
 			l->tk=='-'    ) {
