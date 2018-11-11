@@ -202,11 +202,8 @@ var_t* set_obj_member(vm_t* vm, var_t* obj, const char* name, var_t* var);
 var_t* call_m_func(vm_t* vm, var_t* obj, var_t* func, var_t* args);
 var_t* call_m_func_by_name(vm_t* vm, var_t* obj, const char* func_name, var_t* args);
 
-
-#ifdef MARIO_THREAD
 bool interrupt(vm_t* vm, var_t* obj, var_t* func, var_t* args);
 bool interrupt_by_name(vm_t* vm, var_t* obj, const char* func_name, var_t* args);
-#endif
 
 #ifdef __cplusplus
 }

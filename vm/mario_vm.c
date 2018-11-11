@@ -1544,6 +1544,16 @@ void tryInterrupter(vm_t* vm) {
 	pthread_mutex_unlock(&vm->interrupt_lock);
 }
 
+#else
+
+bool interrupt(vm_t* vm, var_t* obj, var_t* func, var_t* args) {
+	return false;
+}	
+
+bool interrupt_by_name(vm_t* vm, var_t* obj, const char* func_name, var_t* args) {
+	return false;
+}	
+
 #endif
 
 /*****************/
@@ -1604,9 +1614,9 @@ void vm_run(vm_t* vm) {
 			case INSTR_LOAD: 
 			{
 				bool loaded = false;
-				var_t* sc_var = vm_get_scope_var(vm, true);
 
 				#ifdef MARIO_CACHE
+				var_t* sc_var = vm_get_scope_var(vm, true);
 				if((ins & INSTR_NEED_IMPROVE) != 0) { //try cached.
 					node_t* n = vm->node_cache[offset].node;
 					if(vm->node_cache[offset].sc_var == sc_var) { //cached
