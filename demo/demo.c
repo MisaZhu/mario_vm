@@ -60,6 +60,8 @@ int main(int argc, char** argv) {
 	else {
 		fname = argv[1];
 	}
+
+	_mem_init();
 	
 	vm_t* vm = vm_new(compile);
 	vm_init(vm, NULL, NULL);
@@ -72,5 +74,6 @@ int main(int argc, char** argv) {
 	}
 
 	vm_close(vm);
+	_mem_close();
 	return 0;
 }

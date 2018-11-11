@@ -7,7 +7,7 @@ Some utils functions like str / array
 
 #include <inttypes.h>
 #include <string.h>
-#include <stdio.h>
+#include <stdlib.h>
 
 #ifdef __cplusplus /* __cplusplus */
 extern "C" {
@@ -18,14 +18,19 @@ typedef enum bool_enum {false, true} bool;
 #endif
 
 /** memory functions.-----------------------------*/
-#ifndef PRE_ALLOC
-	#include <stdlib.h>
+#ifndef MARIO_DEBUG
 	#define _malloc malloc
-	#define _realloc realloc
 	#define _free free
 #else
-/*TODO*/
+	void* _raw_malloc(uint32_t size, const char* file, uint32_t line);
+	#define _malloc(size) _raw_malloc((size), __FILE__, __LINE__)
+	void _free(void *p);
 #endif
+
+void _mem_init();
+void _mem_close();
+void* _raw_realloc(void* p, uint32_t old_size, uint32_t new_size, const char* file, uint32_t line);
+#define _realloc(p, old_size, new_size) _raw_realloc(p, old_size, new_size, __FILE__, __LINE__)
 
 #define STATIC_STR_MAX 32
 

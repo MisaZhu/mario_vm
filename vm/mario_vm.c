@@ -3,6 +3,13 @@ very tiny script engine in single file.
 */
 
 #include "mario_vm.h"
+#include <stdlib.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/** vm var-----------------------------*/
 
 #ifdef __cplusplus
 extern "C" {
@@ -1144,10 +1151,13 @@ static inline void math_op(vm_t* vm, opr_code_t op, var_t* v1, var_t* v2) {
 		}
 
 		var_t* v;
-		if(op == INSTR_PLUSEQ || op == INSTR_MINUSEQ) {
+		if(op == INSTR_PLUSEQ) {
 			v = v1;
-			v->value = _realloc(v->value, s->len+1);
+			char* p = (char*)v->value;
+			v->value = _malloc(s->len+1);
 			memcpy(v->value, s->cstr, s->len+1);
+			if(p != NULL)
+				_free(p);
 		}
 		else {
 			v = var_new_str(s->cstr);

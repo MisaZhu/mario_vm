@@ -7,6 +7,8 @@ extern "C" {
 #endif
 
 #include "mario_bc.h"
+#include <stdlib.h>
+#include <stdio.h>
 
 /** bytecode.-----------------------------*/
 

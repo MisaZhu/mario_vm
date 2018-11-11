@@ -4,6 +4,7 @@ very tiny js script compiler.
 
 #include "mario_vm.h"
 #include "mario_lex.h"
+#include <stdlib.h>
 
 #ifdef __cplusplus
 extern "C" {
