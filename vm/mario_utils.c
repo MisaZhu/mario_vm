@@ -24,23 +24,11 @@ void _err(const char* s) {
 	_out_func(s);
 }
 
-#ifdef MARIO_DEBUG
-
-#include <pthread.h>
-
-typedef struct mem_block {
-	void* p;
-	uint32_t size;
-	const char* file;
-	uint32_t line;
-	struct mem_block *prev;
-	struct mem_block *next;
-} mem_block_t;
-
-mem_block_t* _mem_head = NULL;
+//#ifdef MARIO_DEBUG
+/*mem_block_t* _mem_head = NULL;
 pthread_mutex_t _mem_lock;
 
-void* _raw_malloc(uint32_t size, const char* file, uint32_t line) {
+inline void* _raw_malloc(uint32_t size, const char* file, uint32_t line) {
 	if(size == 0)
 		return NULL;
 
@@ -60,7 +48,7 @@ void* _raw_malloc(uint32_t size, const char* file, uint32_t line) {
 	return block->p;
 }
 
-void _free(void* p) {
+inline void _free(void* p) {
 	pthread_mutex_lock(&_mem_lock);
 	mem_block_t* block = _mem_head;	
 	while(block != NULL) {
@@ -125,8 +113,8 @@ void *_raw_realloc(void* p, uint32_t old_size, uint32_t new_size, const char* fi
 	}
 	return np;
 }
-
-#else
+*/
+//#else
 
 void _mem_init() { }
 void _mem_close() { }
@@ -140,7 +128,7 @@ void *_raw_realloc(void* p, uint32_t old_size, uint32_t new_size, const char* fi
 	return np;
 }
 
-#endif
+//#endif
 
 /** array functions.-----------------------------*/
 
