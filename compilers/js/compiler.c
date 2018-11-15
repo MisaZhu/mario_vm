@@ -318,7 +318,6 @@ void lex_get_pos_str(lex_t* l, int pos, str_t* ret) {
 
 	char s[STATIC_STR_MAX];
 	lex_get_pos(l, &line, &col, pos);
-	str_reset(ret);
 	str_append(ret, "(line: ");
 	str_append(ret, str_from_int(line, s));
 	str_append(ret, ", col: ");
@@ -388,7 +387,7 @@ int call_func(lex_t* l, bytecode_t* bc) {
 	return arg_num;
 }
 
-bool block(lex_t* l, bytecode_t* bc, loop_t* loop, bool func) {
+bool stmt_block(lex_t* l, bytecode_t* bc, loop_t* loop, bool func) {
 	bool doBlock = false;
 	if(!lex_chkread(l, '{')) return false;
 
@@ -458,7 +457,7 @@ bool factor_def_func(lex_t* l, bytecode_t* bc, str_t* name) {
 	}
 	if(!lex_chkread(l, ')')) return false;
 	PC pc = bc_reserve(bc);
-	block(l, bc, NULL, true);
+	stmt_block(l, bc, NULL, true);
 	
 	opr_code_t op = bc->code_buf[bc->cindex - 1] >> 16;
 
@@ -1028,49 +1027,100 @@ bool stmt_for(lex_t* l, bytecode_t* bc) {
 	return true;
 }
 
+bool stmt_break(lex_t* l, bytecode_t* bc, loop_t* loop) {
+	if(!lex_chkread(l, LEX_R_BREAK)) return false;
+	if(!lex_chkread(l, ';')) return false;
+	if(loop == NULL) {
+		_err("Error: There is no loop for 'break' here!\n");
+		return false;
+	}
+	bc_gen_short(bc, INSTR_BLOCK_END, loop->blockDepth);
+	bc_add_instr(bc, loop->breakAnchor, INSTR_JMPB, ILLEGAL_PC); //to break anchor;
+	return true;
+}
+
+bool stmt_continue(lex_t* l, bytecode_t* bc, loop_t* loop) {
+	if(!lex_chkread(l, LEX_R_CONTINUE)) return false;
+	if(!lex_chkread(l, ';')) return false;
+	if(loop == NULL) {
+		_err("Error: There is no loop for 'continue' here!\n");
+		return false;
+	}
+	bc_gen_short(bc, INSTR_BLOCK_END, loop->blockDepth);
+	bc_add_instr(bc, loop->continueAnchor, INSTR_JMPB, ILLEGAL_PC); //to continue anchor;
+	return true;
+}
+
+bool stmt_function(lex_t* l, bytecode_t* bc) {
+	if(!lex_chkread(l, LEX_R_FUNCTION)) return false;
+	str_t* fname = str_new("");
+	factor_def_func(l, bc, fname);
+	bc_gen_str(bc, INSTR_MEMBERN, fname->cstr);
+	str_free(fname);
+	return true;
+}
+
+bool stmt_return(lex_t* l, bytecode_t* bc) {
+	if(!lex_chkread(l, LEX_R_RETURN)) return false;
+	if (l->tk != ';') {
+		if(!base(l, bc)) return false;
+		bc_gen(bc, INSTR_RETURNV);
+	}
+	else {
+		bc_gen(bc, INSTR_RETURN);
+	}
+	return lex_chkread(l, ';');
+}
+
+bool stmt_throw(lex_t* l, bytecode_t* bc) {
+	if(!lex_chkread(l, LEX_R_THROW)) return false;
+	if(!base(l, bc)) return false;
+	if (l->tk != ';') return false;
+	bc_gen(bc, INSTR_THROW);
+	return lex_chkread(l, ';');
+}
+
+bool stmt_try(lex_t* l, bytecode_t* bc, loop_t* loop) {
+	if(!lex_chkread(l, LEX_R_TRY)) return false;
+	bc_gen(bc, INSTR_TRY);
+	if(!statement(l, bc, loop)) return false;
+	PC pc = bc_reserve(bc); //jmp to finalize.
+
+	if(!lex_chkread(l, LEX_R_CATCH)) return false;
+	if(!lex_chkread(l, '(')) return false;
+	bc_gen_str(bc, INSTR_CATCH, l->tk_str->cstr);
+	if(!lex_chkread(l, LEX_ID)) return false;
+	if(!lex_chkread(l, ')')) return false;
+	if(!statement(l, bc, loop)) return false;
+	bc_set_instr(bc, pc, INSTR_JMP, ILLEGAL_PC); // end anchor;
+	return true;
+}
+
 bool statement(lex_t* l, bytecode_t* bc, loop_t* loop) {
 	bool pop = true;
-	if (l->tk=='{') {
-		/* A block of code */
-		if(!block(l, bc, loop, false))
-			return false;
+	if (l->tk=='{') { /* A block of code */
+		if(!stmt_block(l, bc, loop, false)) return false;
 		pop = false;
 	}
-	else if (l->tk==LEX_ID    ||
-			l->tk==LEX_PLUSPLUS   ||
-			l->tk==LEX_MINUSMINUS ||
-			l->tk=='-'    ) {
+	else if (l->tk==LEX_ID || l->tk==LEX_PLUSPLUS || l->tk==LEX_MINUSMINUS || l->tk=='-') {
 		/* Execute a simple statement that only contains basic arithmetic... */
-		if(!base(l, bc))
-			return false;
+		if(!base(l, bc)) return false;
 		if(!lex_chkread(l, ';')) return false;
 	}
 	else if (l->tk==LEX_R_VAR || l->tk == LEX_R_CONST || l->tk == LEX_R_LET) {
-		pop = false;
 		if(!stmt_var(l, bc)) return false; 
+		pop = false;
 	}
 	else if(l->tk == LEX_R_CLASS) {
 		factor_def_class(l, bc);
 	}
 	else if(l->tk == LEX_R_FUNCTION) {
-		if(!lex_chkread(l, LEX_R_FUNCTION)) return false;
-		str_t* fname = str_new("");
-		factor_def_func(l, bc, fname);
-		bc_gen_str(bc, INSTR_MEMBERN, fname->cstr);
-		str_free(fname);
+		if(!stmt_function(l, bc)) return false; 
 		pop = false;
 	}
 	else if (l->tk == LEX_R_RETURN) {
-		if(!lex_chkread(l, LEX_R_RETURN)) return false;
+		if(!stmt_return(l, bc)) return false;
 		pop = false;
-		if (l->tk != ';') {
-			if(!base(l, bc)) return false;
-			bc_gen(bc, INSTR_RETURNV);
-		}
-		else {
-			bc_gen(bc, INSTR_RETURN);
-		}
-		if(!lex_chkread(l, ';')) return false;
 	} 
 	else if (l->tk == LEX_R_IF) {
 		if(!stmt_if(l, bc, loop)) return false;
@@ -1085,31 +1135,30 @@ bool statement(lex_t* l, bytecode_t* bc, loop_t* loop) {
 		pop = false;
 	}
 	else if(l->tk == LEX_R_BREAK) {
-		if(!lex_chkread(l, LEX_R_BREAK)) return false;
-		if(!lex_chkread(l, ';')) return false;
-		if(loop == NULL) {
-			_err("Error: There is no loop for 'break' here!\n");
-			return false;
-		}
-		bc_gen_short(bc, INSTR_BLOCK_END, loop->blockDepth);
-		bc_add_instr(bc, loop->breakAnchor, INSTR_JMPB, ILLEGAL_PC); //to break anchor;
+		if(!stmt_break(l, bc, loop)) return false;
 		pop = false;
 	}
 	else if(l->tk == LEX_R_CONTINUE) {
-		if(!lex_chkread(l, LEX_R_CONTINUE)) return false;
-		if(!lex_chkread(l, ';')) return false;
-		if(loop == NULL) {
-			_err("Error: There is no loop for 'continue' here!\n");
-			return false;
-		}
-		bc_gen_short(bc, INSTR_BLOCK_END, loop->blockDepth);
-		bc_add_instr(bc, loop->continueAnchor, INSTR_JMPB, ILLEGAL_PC); //to continue anchor;
+		if(!stmt_continue(l, bc, loop)) return false;
+		pop = false;
+	}
+	else if(l->tk == LEX_R_TRY) {
+		if(!stmt_try(l, bc, loop)) return false;
+		pop = false;
+	}
+	else if(l->tk == LEX_R_THROW) {
+		if(!stmt_throw(l, bc)) return false;
 		pop = false;
 	}
 	else {
-			_err("Error: don't understand '");
-			_err(l->tk_str->cstr);
-			_err("'!\n");
+			str_t* s = str_new("Error: don't understand '");
+			str_add(s, l->tk);
+			str_append(s, l->tk_str->cstr);
+			str_append(s, "', ");
+			lex_get_pos_str(l, -1, s);
+			str_append(s, "!\n");
+			_err(s->cstr);
+			str_free(s);
 			return false;
 	}
 

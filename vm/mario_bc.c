@@ -237,7 +237,8 @@ const char* instr_str(opr_code_t ins) {
 		case  INSTR_BLOCK				: return "BLOCK";
 		case  INSTR_BLOCK_END		: return "BLOCKE";
 		case  INSTR_THROW				: return "THROW";
-		case  INSTR_MOV_EXCP		: return "MOVEXCP";
+		case  INSTR_TRY					: return "TRY";
+		case  INSTR_CATCH				: return "CATCH";
 		default									: return "";
 	}
 }

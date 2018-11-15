@@ -121,7 +121,8 @@ typedef struct st_bytecode {
 #define INSTR_BLOCK_END		 0x00A1 // : block end 
 
 #define INSTR_THROW				 0x00B0 // : throw
-#define INSTR_MOV_EXCP		 0x00B1 // : move exception
+#define INSTR_TRY					 0x00B1 // : try
+#define INSTR_CATCH				 0x00B2 // : catch
 
 #define INSTR_END					 0x00FF // END									: end of code.
 
