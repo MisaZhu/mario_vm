@@ -485,14 +485,14 @@ int32_t var_cache(vm_t* vm, var_t* v) {
 }
 
 bool try_cache(vm_t* vm, PC* ins, var_t* v) {
-	if((*ins) & INSTR_NEED_IMPROVE) {
+	if((*ins) & INSTR_OPT_CACHE) {
 		int index = var_cache(vm, v); 
 		if(index >= 0) 
 			*ins = INS(INSTR_CACHE, index);
 		return true;
 	}
 
-	*ins = (*ins) | INSTR_NEED_IMPROVE;
+	*ins = (*ins) | INSTR_OPT_CACHE;
 	return false;
 }
 
@@ -1772,11 +1772,11 @@ void vm_run(vm_t* vm) {
 					int *i = (int*)v->value;
 					if(i != NULL) {
 						(*i)--;
-						if((ins & INSTR_NEED_IMPROVE) == 0) {
+						if((ins & INSTR_OPT_CACHE) == 0) {
 							if(OP(code[vm->pc]) != INSTR_POP) { 
 								vm_push(vm, v);
 							}
-							else { code[vm->pc] = INSTR_NIL; code[vm->pc-1] |= INSTR_NEED_IMPROVE; }
+							else { code[vm->pc] = INSTR_NIL; code[vm->pc-1] |= INSTR_OPT_CACHE; }
 						}
 					}
 					else {
@@ -1792,14 +1792,14 @@ void vm_run(vm_t* vm) {
 				if(v != NULL) {
 					int *i = (int*)v->value;
 					if(i != NULL) {
-						if((ins & INSTR_NEED_IMPROVE) == 0) {
+						if((ins & INSTR_OPT_CACHE) == 0) {
 							var_t* v2 = var_new_int(*i);
 							if(OP(code[vm->pc]) != INSTR_POP) {
 								vm_push(vm, v2);
 							}
 							else { 
 								code[vm->pc] = INSTR_NIL; 
-								code[vm->pc-1] |= INSTR_NEED_IMPROVE;
+								code[vm->pc-1] |= INSTR_OPT_CACHE;
 								var_unref(v2, true);
 							}
 						}
@@ -1820,11 +1820,11 @@ void vm_run(vm_t* vm) {
 					if(i != NULL) {
 						(*i)++;
 
-						if((ins & INSTR_NEED_IMPROVE) == 0) {
+						if((ins & INSTR_OPT_CACHE) == 0) {
 							if(OP(code[vm->pc]) != INSTR_POP) { 
 								vm_push(vm, v);
 							}
-							else { code[vm->pc] = INSTR_NIL; code[vm->pc-1] |= INSTR_NEED_IMPROVE; }
+							else { code[vm->pc] = INSTR_NIL; code[vm->pc-1] |= INSTR_OPT_CACHE; }
 						}
 					}
 					else {
@@ -1841,14 +1841,14 @@ void vm_run(vm_t* vm) {
 				if(v != NULL) {
 					int *i = (int*)v->value;
 					if(i != NULL) {
-						if((ins & INSTR_NEED_IMPROVE) == 0) {
+						if((ins & INSTR_OPT_CACHE) == 0) {
 							var_t* v2 = var_new_int(*i);
 							if(OP(code[vm->pc]) != INSTR_POP) {
 								vm_push(vm, v2);
 							}
 							else { 
 								code[vm->pc] = INSTR_NIL;
-								code[vm->pc-1] |= INSTR_NEED_IMPROVE; 
+								code[vm->pc-1] |= INSTR_OPT_CACHE; 
 								var_unref(v2, true);
 							}
 						}
@@ -1976,11 +1976,11 @@ void vm_run(vm_t* vm) {
 					}
 					var_unref(v, true);
 
-					if((ins & INSTR_NEED_IMPROVE) == 0) {
+					if((ins & INSTR_OPT_CACHE) == 0) {
 						if(OP(code[vm->pc]) != INSTR_POP) {
 							vm_push(vm, n->var);
 						}
-						else { code[vm->pc] = INSTR_NIL; code[vm->pc-1] |= INSTR_NEED_IMPROVE; }
+						else { code[vm->pc] = INSTR_NIL; code[vm->pc-1] |= INSTR_OPT_CACHE; }
 					}
 				}
 				break;

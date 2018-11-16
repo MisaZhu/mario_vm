@@ -242,11 +242,11 @@ PC bc_get_instr_str(bytecode_t* bc, PC i, str_t* ret) {
 	opr_code_t instr = OP(ins);
 	uint32_t offset = ins & OFF_MASK;
 
-	char s[64];
+	char s[128+1];
 	str_reset(ret);
 
 	if(offset == OFF_MASK) {
-		sprintf(s, "  |%04d 0x%08X ; %s", i, ins, instr_str(instr));	
+		snprintf(s, 128, "%08d | 0x%08X ; %s", i, ins, instr_str(instr));	
 		str_append(ret, s);
 	}
 	else {
@@ -255,11 +255,11 @@ PC bc_get_instr_str(bytecode_t* bc, PC i, str_t* ret) {
 				instr == INSTR_NJMPB ||
 				instr == INSTR_JMPB ||
 				instr == INSTR_INT_S) {
-			sprintf(s, "  |%04d 0x%08X ; %s\t%d", i, ins, instr_str(instr), offset);	
+			snprintf(s, 128, "%08d | 0x%08X ; %s\t%d", i, ins, instr_str(instr), offset);	
 			str_append(ret, s);
 		}
 		else {
-			sprintf(s, "  |%04d 0x%08X ; %s\t\"", i, ins, instr_str(instr));	
+			snprintf(s, 128, "%08d | 0x%08X ; %s\t\"", i, ins, instr_str(instr));	
 			str_append(ret, s);
 			str_append(ret, bc_getstr(bc, offset));
 			str_add(ret, '"');
@@ -268,7 +268,7 @@ PC bc_get_instr_str(bytecode_t* bc, PC i, str_t* ret) {
 	
 	if(instr == INSTR_INT) {
 		ins = bc->code_buf[i+1];
-		sprintf(s, "\n  |%04d 0x%08X ; (%d)", i+1, ins, ins);	
+		snprintf(s, 128, "\n%08d | 0x%08X ; (%d)", i+1, ins, ins);	
 		str_append(ret, s);
 		i++;
 	}
@@ -276,7 +276,7 @@ PC bc_get_instr_str(bytecode_t* bc, PC i, str_t* ret) {
 		ins = bc->code_buf[i+1];
 		float f;
 		memcpy(&f, &ins, sizeof(PC));
-		sprintf(s, "\n  |%04d 0x%08X ; (%f)", i+1, ins, f);	
+		snprintf(s, 128, "\n%08d | 0x%08X ; (%f)", i+1, ins, f);	
 		str_append(ret, s);
 		i++;
 	}	
@@ -285,16 +285,18 @@ PC bc_get_instr_str(bytecode_t* bc, PC i, str_t* ret) {
 
 void bc_dump(bytecode_t* bc) {
 	PC i;
-	char index[8];
+	char index[32];
 	PC sz = bc->str_table.size;
 
-	_out_func("-------string table--------------------\n");
+	_out_func("str_index| value\n");
+	_out_func("---------------------------------------\n");
 	for(i=0; i<sz; ++i) {
-		sprintf(index, "%04X: ", i);
+		sprintf(index, "0x%06X | ", i);
 		_out_func(index);
 		_out_func((const char*)bc->str_table.items[i]);
 		_out_func("\n");
 	}
+	_out_func("\npc_index | opr_code   ; instruction\n");
 	_out_func("---------------------------------------\n");
 
 	str_t* s = str_new("");

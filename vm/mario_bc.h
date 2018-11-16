@@ -21,11 +21,20 @@ typedef struct st_bytecode {
 	uint32_t buf_size;
 } bytecode_t;
 
+/*
+32bits bytecode:
++----------------------------------+
+| 4bits  | 8bits    | 20bits       |
+|----------------------------------|
+| OPTION | OPR_CODE | OFFSET/VALUE |
++----------------------------------+
+*/
+
 #define ILLEGAL_PC 0xFFFFFFFF
-#define INSTR_NEED_IMPROVE	 0x80000000 // NEED CACHE next time.
+#define INSTR_OPT_CACHE	 0x80000000
 #define OFF_MASK 0x0FFFFF
 #define INS(ins, off) (((((int32_t)ins) << 20) & 0xFFF00000) | ((off) & OFF_MASK))
-#define OP(ins) (((ins) >>20) & 0x0FF)
+#define OP(ins) (((ins) >>20) & 0xFF)
 #define OFF(ins) ((ins) & OFF_MASK)
 
 #define INSTR_NIL					 0x000 // NIL									: Do nothing.
