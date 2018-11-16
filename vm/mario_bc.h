@@ -137,7 +137,7 @@ typedef struct st_bytecode {
 #define INSTR_TRY          0x0B1 // : try
 #define INSTR_CATCH        0x0B2 // : catch
 
-#define INSTR_END	         0x0FF // END									: end of code.
+#define INSTR_END          0x0FF // END									: end of code.
 
 
 PC bc_gen(bytecode_t* bc, opr_code_t instr);
