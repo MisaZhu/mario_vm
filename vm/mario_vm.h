@@ -111,7 +111,7 @@ typedef struct st_vm {
 	var_t* var_cache[VAR_CACHE_MAX];
 	uint32_t var_cache_used;
 	#endif
-	uint16_t this_strIndex;
+	uint32_t this_strIndex;
 	var_t* var_Object;
 	var_t* var_true;
 	var_t* var_false;

@@ -488,7 +488,7 @@ bool try_cache(vm_t* vm, PC* ins, var_t* v) {
 	if((*ins) & INSTR_NEED_IMPROVE) {
 		int index = var_cache(vm, v); 
 		if(index >= 0) 
-			*ins = (INSTR_CACHE << 16 | index);
+			*ins = INS(INSTR_CACHE, index);
 		return true;
 	}
 
@@ -948,8 +948,8 @@ var_t* func_def(vm_t* vm, bool regular, bool is_static) {
 	func->is_static = is_static;
 	while(true) {
 		PC ins = vm->bc.code_buf[vm->pc++];
-		opr_code_t instr = ins >> 16;
-		opr_code_t offset = ins & 0x0000FFFF;
+		opr_code_t instr = OP(ins);
+		uint32_t offset = OFF(ins);
 		if(instr == INSTR_JMP) {
 			func->pc = vm->pc;
 			vm->pc = vm->pc + offset - 1;
@@ -1538,7 +1538,7 @@ void vm_run(vm_t* vm) {
 	do {
 		register PC ins = code[vm->pc++];
 		register opr_code_t instr = OP(ins);
-		register opr_code_t offset = ins & 0x0000FFFF;
+		register uint32_t offset = OFF(ins);
 
 		if(instr == INSTR_END)
 			break;
@@ -2140,10 +2140,10 @@ void vm_run(vm_t* vm) {
 				var_t* protoV = get_prototype(n->var);
 				//read extends
 				ins = code[vm->pc];
-				instr = ins >> 16;
+				instr = OP(ins);
 				if(instr == INSTR_EXTENDS) {
 					vm->pc++;
-					offset = ins & 0x0000FFFF;
+					offset = OFF(ins);
 					s =  bc_getstr(&vm->bc, offset);
 					doExtends(vm, protoV, s);
 				}

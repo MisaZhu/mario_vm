@@ -15,11 +15,11 @@ extern "C" {
 #define BC_BUF_SIZE  3232
 
 
-uint16_t bc_getstrindex(bytecode_t* bc, const char* str) {
-	uint16_t sz = bc->str_table.size;
-	uint16_t i;
+uint32_t bc_getstrindex(bytecode_t* bc, const char* str) {
+	uint32_t sz = bc->str_table.size;
+	uint32_t i;
 	if(str == NULL || str[0] == 0)
-		return 0xFFFF;
+		return OFF_MASK;
 
 	for(i=0; i<sz; ++i) {
 		char* s = (char*)bc->str_table.items[i];
@@ -64,21 +64,13 @@ void bc_add(bytecode_t* bc, PC ins) {
 }
 	
 PC bc_reserve(bytecode_t* bc) {
-	bc_add(bc, INS(INSTR_NIL, 0xFFFF));
+	bc_add(bc, INS(INSTR_NIL, OFF_MASK));
   return bc->cindex-1;
 }
 
-
-/*const char* bc_getstr(bytecode_t* bc, int i) {
-	if(i<0 || i == 0xFFFF ||  i>=bc->str_table.size)
-		return "";
-	return (const char*)bc->str_table.items[i];
-}	
-*/
-
 PC bc_bytecode(bytecode_t* bc, opr_code_t instr, const char* str) {
 	opr_code_t r = instr;
-	opr_code_t i = 0xFFFF;
+	uint32_t i = OFF_MASK;
 
 	if(str != NULL && str[0] != 0)
 		i = bc_getstrindex(bc, str);
@@ -95,7 +87,7 @@ PC bc_gen_int(bytecode_t* bc, opr_code_t instr, int32_t i) {
 
 PC bc_gen_short(bytecode_t* bc, opr_code_t instr, int32_t s) {
 	PC ins = bc_bytecode(bc, instr, "");
-	ins = (ins&0xFFFF0000) | (s&0x0FFFF);
+	ins = (ins&0xFFF0000) | (s&OFF_MASK);
 	bc_add(bc, ins);
 	return bc->cindex;
 }
@@ -122,7 +114,7 @@ PC bc_gen_str(bytecode_t* bc, opr_code_t instr, const char* str) {
 	bc_add(bc, ins);
 
 	if(instr == INSTR_INT) {
-		if(i < 0xFFFF) //short int
+		if(i < OFF_MASK) //short int
 			bc->code_buf[bc->cindex-1] = INS(INSTR_INT_S, i);
 		else 	
 			bc_add(bc, i);
@@ -247,13 +239,13 @@ const char* instr_str(opr_code_t ins) {
 
 PC bc_get_instr_str(bytecode_t* bc, PC i, str_t* ret) {
 	PC ins = bc->code_buf[i];
-	opr_code_t instr = (ins >> 16) & 0xFFFF;
-	opr_code_t offset = ins & 0xFFFF;
+	opr_code_t instr = OP(ins);
+	uint32_t offset = ins & OFF_MASK;
 
 	char s[64];
 	str_reset(ret);
 
-	if(offset == 0xFFFF) {
+	if(offset == OFF_MASK) {
 		sprintf(s, "  |%04d 0x%08X ; %s", i, ins, instr_str(instr));	
 		str_append(ret, s);
 	}
