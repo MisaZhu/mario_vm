@@ -637,7 +637,13 @@ bool factor(lex_t* l, bytecode_t* bc, bool member) {
 			factor_array_access(l, bc, name, member);
 		}
 		else {
-			bc_gen_str(bc, member ? INSTR_GET:INSTR_LOAD, name->cstr);	
+			if(member) 
+				bc_gen_str(bc, INSTR_GET, name->cstr);	
+			else if (l->tk == '.') 
+				bc_gen_str(bc, INSTR_LOADO, name->cstr);	
+			else 
+				bc_gen_str(bc, INSTR_LOAD, name->cstr);	
+
 			if (l->tk == '.') { // get member
 				if(!lex_chkread(l, '.')) return false;
 				factor(l, bc, true);  

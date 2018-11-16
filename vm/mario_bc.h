@@ -42,19 +42,19 @@ typedef struct st_bytecode {
 #define INSTR_VAR          0x001 // VAR x         : declare var x
 #define INSTR_CONST        0x002 // CONST x       : declare const x
 #define INSTR_LOAD         0x003 // LOAD x        : load and push x 
-#define INSTR_STORE        0x004 // STORE x       : pop and store to x
-#define INSTR_GET          0x005 // getfield
-#define INSTR_ASIGN        0x006 // ASIGN         : =
+#define INSTR_LOADO        0x004 // LOAD obj x    : load and push obj x 
+#define INSTR_STORE        0x005 // STORE x       : pop and store to x
+#define INSTR_GET          0x006 // getfield
+#define INSTR_ASIGN        0x007 // ASIGN         : =
 
-#define INSTR_INT					 0x007 // INT int       : push int
-#define INSTR_FLOAT        0x008 // FLOAT float   : push float 
-#define INSTR_STR          0x009 // STR "str"     : push str
-#define INSTR_ARRAY_AT     0x00A // ARRAT         : get array element at
-#define INSTR_ARRAY        0x00B // ARRAY         : array start
-#define INSTR_ARRAY_END    0x00C // ARRAY_END     : array end
-#define INSTR_INT_S        0x00D // SHORT_INT int : push short int
-#define INSTR_LET          0x00E // LET x         : declare let x
-#define INSTR_CACHE        0x00F // CACHE index   : load cache at 'index' and push 
+#define INSTR_INT					 0x008 // INT int       : push int
+#define INSTR_FLOAT        0x009 // FLOAT float   : push float 
+#define INSTR_STR          0x00A // STR "str"     : push str
+#define INSTR_ARRAY_AT     0x00B // ARRAT         : get array element at
+#define INSTR_ARRAY        0x00C // ARRAY         : array start
+#define INSTR_ARRAY_END    0x00D // ARRAY_END     : array end
+#define INSTR_INT_S        0x00E // SHORT_INT int : push short int
+#define INSTR_LET          0x00F // LET x         : declare let x
 
 #define INSTR_FUNC         0x010 // FUNC x        : function definetion x
 #define INSTR_FUNC_GET     0x011 // GET FUNC x    : class get function definetion x
@@ -122,6 +122,7 @@ typedef struct st_bytecode {
 #define INSTR_UNDEF        0x063 // undefined
 
 #define INSTR_NEW          0x070 // new
+#define INSTR_CACHE        0x071 // CACHE index   : load cache at 'index' and push 
 
 #define INSTR_POP          0x080 // pop and release
 

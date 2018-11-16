@@ -1572,22 +1572,34 @@ void vm_run(vm_t* vm) {
 				break;
 			}
 			case INSTR_LOAD: 
+			case INSTR_LOADO: 
 			{
 				bool loaded = false;
-
-				if(!loaded) {
-					if(offset == vm->this_strIndex) {
-						var_t* thisV = vm_this_in_scopes(vm);
-						if(thisV != NULL) {
-							vm_push(vm, thisV);	
-							loaded = true;	
-						}
+				if(offset == vm->this_strIndex) {
+					var_t* thisV = vm_this_in_scopes(vm);
+					if(thisV != NULL) {
+						vm_push(vm, thisV);	
+						loaded = true;	
 					}
 				}
 				if(!loaded) {
 					const char* s = bc_getstr(&vm->bc, offset);
-					node_t* n = vm_load_node(vm, s, true); //load variable, create if not exist.
-					vm_push_node(vm, n);
+					node_t* n = NULL;
+					if(instr == INSTR_LOAD) {
+						n = vm_load_node(vm, s, true); //load variable, create if not exist.
+						vm_push_node(vm, n);
+					}
+					else { // LOAD obj
+						n = vm_load_node(vm, s, false); //load variable, warning if not exist.
+						if(n != NULL) 
+							vm_push_node(vm, n);
+						else {
+							_err("Error: object '");
+							_err(s);
+							_err("' undefined!\n");
+							vm_push(vm, var_new());
+						}
+					}
 				}
 				break;
 			}

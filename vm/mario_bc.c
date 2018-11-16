@@ -171,6 +171,7 @@ const char* instr_str(opr_code_t ins) {
 		case  INSTR_ARRAY				: return "ARR";
 		case  INSTR_ARRAY_END		: return "ARRE";
 		case  INSTR_LOAD				: return "LOAD";
+		case  INSTR_LOADO				: return "LOADO";
 		case  INSTR_STORE				: return "STORE";
 		case  INSTR_JMP					: return "JMP";
 		case  INSTR_NJMP				: return "NJMP";
