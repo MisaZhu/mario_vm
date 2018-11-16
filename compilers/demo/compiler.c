@@ -247,8 +247,8 @@ bool compile(bytecode_t *bc, const char* input) {
 
 	handle_gotos(bc);
 
-	array_clean(&_gotos, NULL, NULL);
-	array_clean(&_lines, NULL, NULL);
+	array_clean(&_gotos, NULL);
+	array_clean(&_lines, NULL);
 	return ret;
 }
 
