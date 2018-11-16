@@ -11,12 +11,6 @@ extern "C" {
 
 /** vm var-----------------------------*/
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/** vm var-----------------------------*/
-
 node_t* node_new(const char* name) {
 	node_t* node = (node_t*)_malloc(sizeof(node_t));
 	node->magic = 1;
@@ -30,26 +24,17 @@ node_t* node_new(const char* name) {
 	return node;
 }
 
-#ifdef MARIO_CACHE
-void node_uncache(vm_t* vm, node_t* node);
-#endif
-
-void node_free(void* p, void* extra) {
+void node_free(void* p) {
 	node_t* node = (node_t*)p;
-	vm_t* vm = (vm_t*)extra;
 	if(node == NULL)
 		return;
 
-#ifdef MARIO_CACHE
-	node_uncache(vm, node);
-#endif
-
 	_free(node->name);
-	var_unref(vm, node->var, true);
+	var_unref(node->var, true);
 	_free(node);
 }
 
-inline var_t* node_replace(vm_t* vm, node_t* node, var_t* v) {
+inline var_t* node_replace(node_t* node, var_t* v) {
 	if(node->var->type == V_INT && v->type == V_INT) {
 		*(int*)(node->var->value) = *(int*)(v->value);
 	}
@@ -59,14 +44,14 @@ inline var_t* node_replace(vm_t* vm, node_t* node, var_t* v) {
 	else {
 		var_t* old = node->var;
 		node->var = var_ref(v);
-		var_unref(vm, old, true);
+		var_unref(old, true);
 	}
 	return node->var;
 }
 
-inline void var_remove_all(vm_t* vm, var_t* var) {
+inline void var_remove_all(var_t* var) {
 	/*free children*/
-	array_clean(&var->children, node_free, vm);
+	array_clean(&var->children, node_free);
 }
 
 node_t* var_add(vm_t* vm, var_t* var, const char* name, var_t* add) {
@@ -82,7 +67,7 @@ node_t* var_add(vm_t* vm, var_t* var, const char* name, var_t* add) {
 	}
 
 	if(add != NULL)
-		node_replace(vm, node, add);
+		node_replace(node, add);
 
 	return node;
 }
@@ -126,28 +111,27 @@ node_t* var_get(vm_t* vm, var_t* var, int32_t index) {
 	return node;
 }
 
-void func_free(void* p, void* extra);
+void func_free(void* p);
 
-inline void var_free(void* p, void* extra) {
+inline void var_free(void* p) {
 	var_t* var = (var_t*)p;
-	vm_t* vm = (vm_t*)extra;
 	if(var == NULL || var->refs > 0)
 		return;
 
 	/*free children*/
 	if(var->children.size > 0)
-		var_remove_all(vm, var);	
+		var_remove_all(var);	
 
 	/*free value*/
 	if(var->value != NULL) {
 		if(var->free_func != NULL) 
-			var->free_func(var->value, vm);
+			var->free_func(var->value);
 		else
 			_free(var->value);
 	}
 
 	if(var->on_destroy != NULL) {
-		var->on_destroy(var, vm);
+		var->on_destroy(var);
 	}
 	_free(var);
 }
@@ -158,13 +142,13 @@ inline var_t* var_ref(var_t* var) {
 	return var;
 }
 
-inline void var_unref(vm_t* vm, var_t* var, bool del) {
+inline void var_unref(var_t* var, bool del) {
 	//	if(var != NULL) {
 	if(var->refs > 0)
 		--var->refs;
 
 	if(var->refs == 0 && del)
-		var_free(var, vm);
+		var_free(var);
 	//	}
 }
 
@@ -486,7 +470,7 @@ void var_cache_free(vm_t* vm) {
 	uint32_t i;
 	for(i=0; i<vm->var_cache_used; ++i) {
 		var_t* v = vm->var_cache[i];
-		var_unref(vm, v, true);
+		var_unref(v, true);
 		vm->var_cache[i] = NULL;
 	}
 	vm->var_cache_used = 0;	
@@ -510,44 +494,6 @@ bool try_cache(vm_t* vm, PC* ins, var_t* v) {
 
 	*ins = (*ins) | INSTR_NEED_IMPROVE;
 	return false;
-}
-
-void node_cache_init(vm_t* vm) {
-	int i; 
-	for(i=0; i<NODE_CACHE_MAX; ++i) {
-		vm->node_cache[i].node = NULL;
-		vm->node_cache[i].sc_var = NULL;
-	}
-}
-
-int node_cache(vm_t* vm, var_t* sc_var, node_t* node, int name_id) {
-	int i; 
-
-	for(i=0; i<NODE_CACHE_MAX; ++i) {
-		if(vm->node_cache[i].node == node &&
-				vm->node_cache[i].sc_var == sc_var)
-			return i;
-	}
-
-	for(i=0; i<NODE_CACHE_MAX; ++i) {
-		if(vm->node_cache[i].node == NULL) {
-			vm->node_cache[i].node = node;
-			vm->node_cache[i].sc_var = sc_var;
-			vm->node_cache[i].name_id = name_id;
-			return i;
-		}
-	}
-	return -1;
-}
-
-void node_uncache(vm_t* vm, node_t* node) {
-	int i; 
-	for(i=0; i<NODE_CACHE_MAX; ++i) {
-		if(vm->node_cache[i].node == node) {
-			vm->node_cache[i].node = NULL;
-			vm->node_cache[i].sc_var = NULL;
-		}
-	}
 }
 
 #endif
@@ -623,7 +569,7 @@ static inline void vm_pop(vm_t* vm) {
 		str_free(s);
 	}
 
-	var_unref(vm, v, true);
+	var_unref(v, true);
 }
 
 static inline node_t* vm_pop2node(vm_t* vm) {
@@ -673,27 +619,34 @@ var_t* vm_stack_pick(vm_t* vm, int depth) {
 typedef struct st_scope {
 	struct st_scope* prev;
 	var_t* var;
-	PC pc; //stack pc
+	PC pc_start; // continue anchor for loop
+	PC pc; // try cache anchor , or break anchor for loop
+	int32_t is_func: 16;
+	int32_t is_try: 8;
+	int32_t is_loop: 8;
 	//continue and break anchor for loop(while/for)
 } scope_t;
 
-scope_t* scope_new(var_t* var, PC pc) {
+scope_t* scope_new(var_t* var) {
 	scope_t* sc = (scope_t*)_malloc(sizeof(scope_t));
 	sc->prev = NULL;
 
 	if(var != NULL)
 		sc->var = var_ref(var);
-	sc->pc = pc;
+	sc->pc = 0;
+	sc->pc_start = 0;
+	sc->is_func = false;
+	sc->is_try = false;
+	sc->is_loop = false;
 	return sc;
 }
 
-void scope_free(void* p, void* extra) {
+void scope_free(void* p) {
 	scope_t* sc = (scope_t*)p;
-	vm_t* vm = (vm_t*)extra;
 	if(sc == NULL)
 		return;
 	if(sc->var != NULL)
-		var_unref(vm, sc->var, true);
+		var_unref(sc->var, true);
 	_free(sc);
 }
 
@@ -728,9 +681,9 @@ PC vm_pop_scope(vm_t* vm) {
 	if(sc == NULL)
 		return 0;
 
-	if(sc->pc != 0xFFFFFFFF)
+	if(sc->is_func)
 		pc = sc->pc;
-	array_del(&vm->scopes, vm->scopes.size-1, scope_free, vm);
+	array_del(&vm->scopes, vm->scopes.size-1, scope_free);
 	return pc;
 }
 
@@ -738,11 +691,11 @@ void vm_stack_free(vm_t* vm, void* p) {
 	int8_t magic = *(int8_t*)p;
 	if(magic == 1) {//node
 		node_t* node = (node_t*)p;
-		node_free(node, vm);
+		node_free(node);
 	}
 	else {
 		var_t* var = (var_t*)p;
-		var_free(var, vm);
+		var_free(var);
 	}
 }
 
@@ -883,9 +836,9 @@ func_t* func_new() {
 	return func;
 }
 
-void func_free(void* p, void* extra) {
+void func_free(void* p) {
 	func_t* func = (func_t*)p;
-	array_clean(&func->args, NULL, NULL);
+	array_clean(&func->args, NULL);
 	_free(p);
 }
 
@@ -957,7 +910,7 @@ bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 		}	
 		if(v != NULL) {
 			var_add(vm, env, arg_name, v);
-			var_unref(vm, v, true);
+			var_unref(v, true);
 		}
 	}
 
@@ -974,11 +927,13 @@ bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 		if(ret == NULL)
 			ret = var_new();
 		vm_push(vm, ret);
-		var_unref(vm, env, true);
+		var_unref(env, true);
 		return true;
 	}
 
-	scope_t* sc = scope_new(env, vm->pc);
+	scope_t* sc = scope_new(env);
+	sc->pc = vm->pc;
+	sc->is_func = true;
 	vm_push_scope(vm, sc);
 
 	//script function
@@ -1354,7 +1309,7 @@ var_t* new_obj(vm_t* vm, const char* name, int arg_num) {
 	if(constructor != NULL) {
 		func_call(vm, obj, constructor, arg_num);
 		obj = vm_pop2(vm);
-		var_unref(vm, obj, false);
+		var_unref(obj, false);
 	}
 	return obj;
 }
@@ -1426,7 +1381,7 @@ static bool interrupt_raw(vm_t* vm, var_t* obj, const char* func_name, var_t* fu
 	if(vm->isignal_num >= MAX_ISIGNAL) {
 		_err("Too many interrupt signals!\n");
 		if(args != NULL)
-			var_unref(vm, args, true);
+			var_unref(args, true);
 		pthread_mutex_unlock(&vm->interrupt_lock);
 		return false;
 	}
@@ -1435,7 +1390,7 @@ static bool interrupt_raw(vm_t* vm, var_t* obj, const char* func_name, var_t* fu
 	if(is == NULL) {
 		_err("Interrupt signal input error!\n");
 		if(args != NULL)
-			var_unref(vm, args, true);
+			var_unref(args, true);
 		pthread_mutex_unlock(&vm->interrupt_lock);
 		return false;
 	}
@@ -1530,14 +1485,14 @@ void tryInterrupter(vm_t* vm) {
 	var_t* ret = call_m_func(vm, sig->obj, func, sig->args);
 
 	if(ret != NULL)
-		var_unref(vm, ret, true);
+		var_unref(ret, true);
 
-	var_unref(vm, sig->obj, true);
-	var_unref(vm, func, true);
+	var_unref(sig->obj, true);
+	var_unref(func, true);
 	if(sig->handle_func_name != NULL)
 		str_free(sig->handle_func_name);
 	if(sig->args != NULL)
-		var_unref(vm, sig->args, true);
+		var_unref(sig->args, true);
 	_free(sig);
 	vm->isignal_num--;
 	vm->interrupted = false;
@@ -1600,34 +1555,25 @@ void vm_run(vm_t* vm) {
 				break;
 			}
 			case INSTR_NJMP: 
+			case INSTR_NJMPB: 
 			{
 				var_t* v = vm_pop2(vm);
 				if(v != NULL) {
 					if(v->type == V_UNDEF ||
 							v->value == NULL ||
-							*(int*)(v->value) == 0)
-						vm->pc = vm->pc + offset - 1;
-					var_unref(vm, v, true);
+							*(int*)(v->value) == 0) {
+						if(instr == INSTR_NJMP) 
+							vm->pc = vm->pc + offset - 1;
+						else
+							vm->pc = vm->pc - offset - 1;
+					}
+					var_unref(v, true);
 				}
 				break;
 			}
 			case INSTR_LOAD: 
 			{
 				bool loaded = false;
-
-				#ifdef MARIO_CACHE
-				var_t* sc_var = vm_get_scope_var(vm, true);
-				if((ins & INSTR_NEED_IMPROVE) != 0) { //try cached.
-					node_t* n = vm->node_cache[offset].node;
-					if(vm->node_cache[offset].sc_var == sc_var) { //cached
-						vm_push_node(vm, n);
-						loaded = true;
-					}
-					else {
-						offset = vm->node_cache[offset].name_id;
-					}
-				}
-				#endif
 
 				if(!loaded) {
 					if(offset == vm->this_strIndex) {
@@ -1638,18 +1584,10 @@ void vm_run(vm_t* vm) {
 						}
 					}
 				}
-
 				if(!loaded) {
 					const char* s = bc_getstr(&vm->bc, offset);
 					node_t* n = vm_load_node(vm, s, true); //load variable, create if not exist.
 					vm_push_node(vm, n);
-
-					#ifdef MARIO_CACHE
-					int cache_id = node_cache(vm, sc_var, n, offset);
-					if(cache_id >= 0) {
-						code[vm->pc-1] = INSTR_NEED_IMPROVE | ( INSTR_LOAD << 16 ) | cache_id;
-					}
-					#endif
 				}
 				break;
 			}
@@ -1666,31 +1604,63 @@ void vm_run(vm_t* vm) {
 				var_t* v1 = vm_pop2(vm);
 				if(v1 != NULL && v2 != NULL) {
 					compare(vm, instr, v1, v2);
-					var_unref(vm, v1, true);
-					var_unref(vm, v2, true);
+					var_unref(v1, true);
+					var_unref(v2, true);
 				}
 				break;
 			}
-			case INSTR_NIL: {	break; }
+			case INSTR_NIL: 
+			{	break; }
 			case INSTR_BLOCK: 
+			case INSTR_BLOCK_LOOP: 
+			case INSTR_BLOCK_TRY: 
 			{
-				scope_t* bl = vm_get_scope(vm);
 				scope_t* sc = NULL;
-				if(bl != NULL)
-					sc = scope_new(var_new_block(), bl->pc);
-				else
-					sc = scope_new(var_new_block(), 0xFFFFFFFF);
+				sc = scope_new(var_new_block());
+				if(instr == INSTR_BLOCK_LOOP) {
+					sc->is_loop = true;
+					sc->pc_start = vm->pc+1;
+					sc->pc = vm->pc+2;
+				}
+				else if(instr == INSTR_BLOCK_TRY) {
+					sc->is_try = true;
+					sc->pc = vm->pc+1;
+				}
 				vm_push_scope(vm, sc);
 				break;
 			}
 			case INSTR_BLOCK_END: 
 			{
-				uint32_t i;
-				for(i=0; i<offset; i++) {
-					vm_pop_scope(vm);
-				}	
+				vm_pop_scope(vm);
 				break;
 			}
+			case INSTR_BREAK: 
+			{
+				while(true) {
+					scope_t* sc = vm_get_scope(vm);
+					if(sc == NULL) break;
+					if(sc->is_loop) {
+						vm->pc = sc->pc;
+						break;
+					}
+					vm_pop_scope(vm);
+				}
+				break;
+			}
+			case INSTR_CONTINUE:
+			{
+				while(true) {
+					scope_t* sc = vm_get_scope(vm);
+					if(sc == NULL) break;
+					if(sc->is_loop) {
+						vm->pc = sc->pc_start;
+						break;
+					}
+					vm_pop_scope(vm);
+				}
+				break;
+			}
+
 			#ifdef MARIO_CACHE
 			case INSTR_CACHE: 
 			{	
@@ -1734,7 +1704,7 @@ void vm_run(vm_t* vm) {
 						n = -n;
 						vm_push(vm, var_new_float(n));
 					}
-					var_unref(vm, v, true);
+					var_unref(v, true);
 				}
 				break;
 			}
@@ -1745,7 +1715,7 @@ void vm_run(vm_t* vm) {
 					bool i = false;
 					if(v->type == V_UNDEF || *(int*)v->value == 0)
 						i = true;
-					var_unref(vm, v, true);
+					var_unref(v, true);
 					vm_push(vm, i ? vm->var_true:vm->var_false);
 				}
 				break;
@@ -1766,8 +1736,8 @@ void vm_run(vm_t* vm) {
 						r = (i1 != 0) || (i2 != 0);
 					vm_push(vm, r ? vm->var_true:vm->var_false);
 
-					var_unref(vm, v1, true);
-					var_unref(vm, v2, true);
+					var_unref(v1, true);
+					var_unref(v2, true);
 				}
 				break;
 			}
@@ -1790,8 +1760,8 @@ void vm_run(vm_t* vm) {
 				var_t* v1 = vm_pop2(vm);
 				if(v1 != NULL && v2 != NULL) {
 					math_op(vm, instr, v1, v2);
-					var_unref(vm, v1, true);
-					var_unref(vm, v2, true);
+					var_unref(v1, true);
+					var_unref(v2, true);
 				}
 				break;
 			}
@@ -1812,7 +1782,7 @@ void vm_run(vm_t* vm) {
 					else {
 						vm_push(vm, v);
 					}
-					var_unref(vm, v, true);
+					var_unref(v, true);
 				}
 				break;
 			}
@@ -1830,7 +1800,7 @@ void vm_run(vm_t* vm) {
 							else { 
 								code[vm->pc] = INSTR_NIL; 
 								code[vm->pc-1] |= INSTR_NEED_IMPROVE;
-								var_unref(vm, v2, true);
+								var_unref(v2, true);
 							}
 						}
 						(*i)--;
@@ -1838,7 +1808,7 @@ void vm_run(vm_t* vm) {
 					else {
 						vm_push(vm, v);
 					}
-					var_unref(vm, v, true);
+					var_unref(v, true);
 				}
 				break;
 			}
@@ -1860,7 +1830,7 @@ void vm_run(vm_t* vm) {
 					else {
 						vm_push(vm, v);
 					}
-					var_unref(vm, v, true);
+					var_unref(v, true);
 				}
 				break;
 
@@ -1879,7 +1849,7 @@ void vm_run(vm_t* vm) {
 							else { 
 								code[vm->pc] = INSTR_NIL;
 								code[vm->pc-1] |= INSTR_NEED_IMPROVE; 
-								var_unref(vm, v2, true);
+								var_unref(v2, true);
 							}
 						}
 
@@ -1888,24 +1858,29 @@ void vm_run(vm_t* vm) {
 					else {
 						vm_push(vm, v);
 					}
-					var_unref(vm, v, true);
+					var_unref(v, true);
 				}
 				break;
 			}
 			case INSTR_RETURN:  //return without value
 			case INSTR_RETURNV: 
 			{ //return with value
-				scope_t* sc = vm_get_scope(vm);
-				if(sc != NULL) {
-					if(instr == INSTR_RETURN) {//return without value, push "this" to stack
-						var_t* thisV = vm_this_in_scopes(vm);
-						if(thisV != NULL)
-							vm_push(vm, thisV);
-						else
-							vm_push(vm, var_new());
-					}
+				if(instr == INSTR_RETURN) {//return without value, push "this" to stack
+					var_t* thisV = vm_this_in_scopes(vm);
+					if(thisV != NULL)
+						vm_push(vm, thisV);
+					else
+						vm_push(vm, var_new());
+				}
 
-					vm->pc = sc->pc;
+				while(true) {
+					scope_t* sc = vm_get_scope(vm);
+					if(sc == NULL) break;
+					if(sc->is_func) {
+						vm->pc = sc->pc;
+						vm_pop_scope(vm);
+						break;
+					}
 					vm_pop_scope(vm);
 				}
 				return;
@@ -1991,15 +1966,15 @@ void vm_run(vm_t* vm) {
 				node_t* n = vm_pop2node(vm);
 				if(v != NULL && n != NULL) {
 					bool modi = (!n->be_const || n->var->type == V_UNDEF);
-					var_unref(vm, n->var, true);
+					var_unref(n->var, true);
 					if(modi) 
-						node_replace(vm, n, v);
+						node_replace(n, v);
 					else {
 						_err("Can not change a const variable: '");
 						_err(n->name);
 						_err("'!\n");
 					}
-					var_unref(vm, v, true);
+					var_unref(v, true);
 
 					if((ins & INSTR_NEED_IMPROVE) == 0) {
 						if(OP(code[vm->pc]) != INSTR_POP) {
@@ -2016,7 +1991,7 @@ void vm_run(vm_t* vm) {
 				var_t* v = vm_pop2(vm);
 				if(v != NULL) {
 					do_get(vm, v, s);
-					var_unref(vm, v, true);
+					var_unref(v, true);
 				}
 				else {
 					vm_push(vm, var_new());
@@ -2078,7 +2053,7 @@ void vm_run(vm_t* vm) {
 				str_free(name);
 
 				if(unrefObj && obj != NULL)
-					var_unref(vm, obj, true);
+					var_unref(obj, true);
 
 				//check and do interrupter.
 				#ifdef MARIO_THREAD
@@ -2103,7 +2078,7 @@ void vm_run(vm_t* vm) {
 						var_add(vm, var, s, v);
 					}	
 
-					var_unref(vm, v, true);
+					var_unref(v, true);
 				}
 				break;
 			}
@@ -2130,7 +2105,7 @@ void vm_run(vm_t* vm) {
 				}
 				else
 					obj = var_new_array();
-				scope_t* sc = scope_new(obj, 0xFFFFFFFF);
+				scope_t* sc = scope_new(obj);
 				vm_push_scope(vm, sc);
 				break;
 			}
@@ -2148,13 +2123,13 @@ void vm_run(vm_t* vm) {
 				var_t* v1 = vm_pop2(vm);
 				if(v1 != NULL && v2 != NULL) {
 					int at = var_get_int(v2);
-					var_unref(vm, v2, true);
+					var_unref(v2, true);
 
 					node_t* n = var_get(vm, v1, at);
 					if(n != NULL) {
 						vm_push_node(vm, n);
 					}
-					var_unref(vm, v1, true);
+					var_unref(v1, true);
 				}
 				break;
 			}
@@ -2173,7 +2148,7 @@ void vm_run(vm_t* vm) {
 					doExtends(vm, protoV, s);
 				}
 
-				scope_t* sc = scope_new(protoV, 0xFFFFFFFF);
+				scope_t* sc = scope_new(protoV);
 				vm_push_scope(vm, sc);
 				break;
 			}
@@ -2191,37 +2166,29 @@ void vm_run(vm_t* vm) {
 				vm_push(vm, v);
 				break;
 			}
-			/*
-			case INSTR_THROW: {
-				BC_var *var = reinterpret_cast<BC_var*>(pop2());
-				exception = var->ref();
-
-				// walk through scopes to find exception handle
-				VMScope* sc = scope();
-				while(sc != NULL) {
-					PC target = bcode->getTryTarget(pc);
-					if(target != ILLEGAL_PC) {
-						pc = target;
+			case INSTR_THROW: 
+			{
+				while(true) {
+					scope_t* sc = vm_get_scope(vm);
+					if(sc == NULL) break;
+					if(sc->is_try) {
+						vm->pc = sc->pc;
 						break;
 					}
-					pc = sc->pc;
-					popScope();
-					sc = scope();
+					vm_pop_scope(vm);
 				}
-				if(sc == NULL) {
-					ERR("uncaught exception:%s\n", exception->get_string().c_str());
-					return;
-				}
+				break;
+			}
+			case INSTR_CATCH: 
+			{
+				const char* s = bc_getstr(&vm->bc, offset);
+				var_t* v = vm_pop2(vm);
+				var_t* sc_var = vm_get_scope_var(vm, false);
+				var_add(vm, sc_var, s, v);
+				var_unref(v, true);
+				break;
+			}
 
-				break;
-			}
-			case INSTR_MOV_EXCP: {
-				BC_node *node = reinterpret_cast<BC_node*>(pop2());
-				node->replace(VAR(exception));
-				exception = NULL;
-				break;
-			}
-			*/
 		}
 	}
 	while(vm->pc < code_size);
@@ -2281,11 +2248,11 @@ void vm_close(vm_t* vm) {
 		native_init_t* it = (native_init_t*)array_get(&vm->close_natives, i);
 		it->func(it->data);
 	}
-	array_clean(&vm->close_natives, NULL, NULL);	
+	array_clean(&vm->close_natives, NULL);
 
-	var_unref(vm, vm->root, true);
-	var_unref(vm, vm->var_true, true);
-	var_unref(vm, vm->var_false, true);
+	var_unref(vm->root, true);
+	var_unref(vm->var_true, true);
+	var_unref(vm->var_false, true);
 
 
 	#ifdef MARIO_THREAD
@@ -2296,8 +2263,8 @@ void vm_close(vm_t* vm) {
 	var_cache_free(vm);
 	#endif
 
-	array_clean(&vm->scopes, NULL, NULL);	
-	array_clean(&vm->init_natives, NULL, NULL);	
+	array_clean(&vm->scopes, NULL);
+	array_clean(&vm->init_natives, NULL);
 
 
 	bc_release(&vm->bc);
@@ -2479,7 +2446,6 @@ vm_t* vm_new(bool compiler(bytecode_t *bc, const char* input)) {
 
 	#ifdef MARIO_CACHE
 	var_cache_init(vm);
-	node_cache_init(vm);
 	#endif
 
 	#ifdef MARIO_THREAD

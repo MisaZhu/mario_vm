@@ -47,9 +47,9 @@ extern void* _raw_realloc(void* p, uint32_t old_size, uint32_t new_size, const c
 
 #define STATIC_STR_MAX 32
 
-typedef void (*free_func_t)(void* p, void* extra);
+typedef void (*free_func_t)(void* p);
 
-extern void _free_none(void*p, void* extra);
+extern void _free_none(void*p);
 
 extern void (*_out_func)(const char*);
 extern bool _debug_mode;
@@ -70,9 +70,9 @@ void* array_set(m_array_t* array, uint32_t index, void* p);
 void* array_tail(m_array_t* array);
 void* array_head(m_array_t* array);
 void* array_remove(m_array_t* array, uint32_t index);
-void array_del(m_array_t* array, uint32_t index, free_func_t fr, void* extra);
+void array_del(m_array_t* array, uint32_t index, free_func_t fr);
 void array_remove_all(m_array_t* array);
-void array_clean(m_array_t* array, free_func_t fr, void* extra);
+void array_clean(m_array_t* array, free_func_t fr);
 #define array_tail(array) (((array)->items == NULL || (array)->size == 0) ? NULL: (array)->items[(array)->size-1]);
 
 typedef struct st_str {

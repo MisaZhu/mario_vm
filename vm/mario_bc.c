@@ -42,7 +42,7 @@ void bc_init(bytecode_t* bc) {
 }
 
 void bc_release(bytecode_t* bc) {
-	array_clean(&bc->str_table, NULL, NULL);
+	array_clean(&bc->str_table, NULL);
 	if(bc->code_buf != NULL)
 		_free(bc->code_buf);
 }
@@ -235,6 +235,8 @@ const char* instr_str(opr_code_t ins) {
 		case  INSTR_NEW					: return "NEW";
 		case  INSTR_GET					: return "GET";
 		case  INSTR_BLOCK				: return "BLOCK";
+		case  INSTR_BLOCK_LOOP	: return "BLOCKL";
+		case  INSTR_BLOCK_TRY		: return "BLOCKT";
 		case  INSTR_BLOCK_END		: return "BLOCKE";
 		case  INSTR_THROW				: return "THROW";
 		case  INSTR_TRY					: return "TRY";
@@ -260,8 +262,7 @@ PC bc_get_instr_str(bytecode_t* bc, PC i, str_t* ret) {
 				instr == INSTR_NJMP || 
 				instr == INSTR_NJMPB ||
 				instr == INSTR_JMPB ||
-				instr == INSTR_INT_S ||
-				instr == INSTR_BLOCK_END) {
+				instr == INSTR_INT_S) {
 			sprintf(s, "  |%04d 0x%08X ; %s\t%d", i, ins, instr_str(instr), offset);	
 			str_append(ret, s);
 		}

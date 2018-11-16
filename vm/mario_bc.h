@@ -118,7 +118,9 @@ typedef struct st_bytecode {
 #define INSTR_OBJ_END			 0x0091 // : object end for JSON 
 
 #define INSTR_BLOCK				 0x00A0 // : block 
-#define INSTR_BLOCK_END		 0x00A1 // : block end 
+#define INSTR_BLOCK_LOOP	 0x00A1 // : block loop
+#define INSTR_BLOCK_TRY	   0x00A2 // : block try
+#define INSTR_BLOCK_END		 0x00A3 // : block end 
 
 #define INSTR_THROW				 0x00B0 // : throw
 #define INSTR_TRY					 0x00B1 // : try

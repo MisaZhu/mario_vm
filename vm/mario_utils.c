@@ -6,7 +6,7 @@
 extern "C" {
 #endif
 
-void _free_none(void* p, void* extra) { (void)p; (void)extra; }
+void _free_none(void* p) { (void)p; }
 
 void default_out(const char* s) {
 	printf("%s", s);
@@ -194,11 +194,11 @@ inline void* array_remove(m_array_t* array, uint32_t index) { //remove out but n
 	return p;
 }
 
-inline void array_del(m_array_t* array, uint32_t index, free_func_t fr, void* extra) { // remove out and free.
+inline void array_del(m_array_t* array, uint32_t index, free_func_t fr) { // remove out and free.
 	void* p = array_remove(array, index);
 	if(p != NULL) {
 		if(fr != NULL)
-			fr(p, extra);
+			fr(p);
 		else
 			_free(p);
 	}
@@ -212,14 +212,14 @@ inline void array_remove_all(m_array_t* array) { //remove all items bot not free
 	array->max = array->size = 0;
 }
 
-inline void array_clean(m_array_t* array, free_func_t fr, void* extra) { //remove all items and free them.
+inline void array_clean(m_array_t* array, free_func_t fr) { //remove all items and free them.
 	if(array->items != NULL) {
 		uint32_t i;
 		for(i=0; i<array->size; i++) {
 			void* p = array->items[i];
 			if(p != NULL) {
 				if(fr != NULL)
-					fr(p, extra);
+					fr(p);
 				else
 					_free(p);
 			}

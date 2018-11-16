@@ -79,12 +79,6 @@ typedef struct st_isignal {
 
 #ifdef MARIO_CACHE
 #define VAR_CACHE_MAX 32
-#define NODE_CACHE_MAX 16
-typedef struct st_node_cache_t {
-	node_t* node;
-	var_t* sc_var;
-	int name_id;
-} node_cache_t;
 #endif
 
 #define VM_STACK_MAX 32
@@ -116,8 +110,6 @@ typedef struct st_vm {
 	#ifdef MARIO_CACHE
 	var_t* var_cache[VAR_CACHE_MAX];
 	uint32_t var_cache_used;
-
-	node_cache_t node_cache[NODE_CACHE_MAX];
 	#endif
 	uint16_t this_strIndex;
 	var_t* var_Object;
@@ -127,21 +119,21 @@ typedef struct st_vm {
 
 
 node_t* node_new(const char* name);
-void node_free(void* p, void* extra);
-var_t* node_replace(vm_t* vm, node_t* node, var_t* v);
+void node_free(void* p);
+var_t* node_replace(node_t* node, var_t* v);
 
 void var_dump(var_t* var);
-void var_remove_all(vm_t* vm, var_t* var);
+void var_remove_all(var_t* var);
 node_t* var_add(vm_t* vm, var_t* var, const char* name, var_t* add);
 node_t* var_find(var_t* var, const char*name);
 var_t* var_find_var(var_t* var, const char*name);
 node_t* var_find_create(vm_t* vm, var_t* var, const char*name);
 node_t* var_get(vm_t* vm, var_t* var, int32_t index);
 
-void var_free(void* p, void* extra);
+void var_free(void* p);
 
 var_t* var_ref(var_t* var);
-void var_unref(vm_t* vm, var_t* var, bool del);
+void var_unref(var_t* var, bool del);
 
 //#define var_ref(var) ({ ++(var)->refs; var; })
 //#define var_unref(var, del) ({ --(var)->refs; if((var)->refs <= 0 && (del)) var_free((var)); })
