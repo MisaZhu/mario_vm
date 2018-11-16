@@ -771,7 +771,7 @@ static inline node_t* vm_find_in_scopes(vm_t* vm, const char* name) {
 	return var_find(vm->root, name);
 }
 
-inline node_t* vm_load_node(vm_t* vm, const char* name, bool create) {
+static inline node_t* vm_load_node(vm_t* vm, const char* name, bool create) {
 	var_t* var = vm_get_scope_var(vm, true);
 
 	node_t* n;

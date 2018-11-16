@@ -174,7 +174,6 @@ void vm_run(vm_t* vm);
 void vm_close(vm_t* vm);
 
 var_t* new_obj(vm_t* vm, const char* cls_name, int arg_num);
-node_t* vm_load_node(vm_t* vm, const char* name, bool create);
 node_t* vm_find(vm_t* vm, const char* name);
 node_t* vm_find_in_class(var_t* var, const char* name);
 node_t* vm_reg_var(vm_t* vm, const char* cls, const char* name, var_t* var, bool be_const);
