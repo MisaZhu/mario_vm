@@ -2188,7 +2188,10 @@ void vm_run(vm_t* vm) {
 			{
 				while(true) {
 					scope_t* sc = vm_get_scope(vm);
-					if(sc == NULL) break;
+					if(sc == NULL) {
+						_err("Error: 'throw' not in any try...catch!\n");
+						break;
+					}
 					if(sc->is_try) {
 						vm->pc = sc->pc;
 						break;
