@@ -1650,7 +1650,10 @@ void vm_run(vm_t* vm) {
 			{
 				while(true) {
 					scope_t* sc = vm_get_scope(vm);
-					if(sc == NULL) break;
+					if(sc == NULL) {
+						_err("Error: 'break' not in any loop!\n");
+						break;
+					}
 					if(sc->is_loop) {
 						vm->pc = sc->pc;
 						break;
@@ -1663,7 +1666,10 @@ void vm_run(vm_t* vm) {
 			{
 				while(true) {
 					scope_t* sc = vm_get_scope(vm);
-					if(sc == NULL) break;
+					if(sc == NULL) {
+						_err("Error: 'continue' not in any loop!\n");
+						break;
+					}
 					if(sc->is_loop) {
 						vm->pc = sc->pc_start;
 						break;
