@@ -551,7 +551,10 @@ static inline var_t* vm_pop2(vm_t* vm) {
 })
 */
 
-static inline void vm_pop(vm_t* vm) {
+static inline bool vm_pop(vm_t* vm) {
+	if(vm->stack_top == 0)
+		return false;
+
 	vm->stack_top--;
 	void *p = vm->stack[vm->stack_top];
 	int8_t magic = *(int8_t*)p;
@@ -562,14 +565,10 @@ static inline void vm_pop(vm_t* vm) {
 	else { //node
 		node_t* node = (node_t*)p;
 		v = node->var;
-		str_t* s = str_new("");
-		var_to_str(vm, v, s);
-		str_add(s, '\n');
-		_out_func(s->cstr);
-		str_free(s);
 	}
 
 	var_unref(v, true);
+	return true;
 }
 
 static inline node_t* vm_pop2node(vm_t* vm) {
@@ -1291,7 +1290,7 @@ var_t* new_obj(vm_t* vm, const char* name, int arg_num) {
 		_err("Error: There is no class: '");
 		_err(name);
 		_err("'!\n");
-		return var_new();
+		return NULL;
 	}
 
 	var_t* protoV = get_prototype(n->var);
@@ -1330,14 +1329,17 @@ int parse_func_name(const char* full, str_t* name) {
 }
 
 /** create object and try constructor */
-void do_new(vm_t* vm, const char* full) {
+bool do_new(vm_t* vm, const char* full) {
 	str_t* name = str_new("");
 	int arg_num = parse_func_name(full, name);
 
 	var_t* obj = new_obj(vm, name->cstr, arg_num);
 	str_free(name);
 
+	if(obj == NULL)
+		return false;
 	vm_push(vm, obj);
+	return true;
 }
 
 var_t* call_m_func(vm_t* vm, var_t* obj, var_t* func, var_t* args) {
@@ -1530,6 +1532,20 @@ node_t* vm_new_class(vm_t* vm, const char* cls) {
 	return cls_node;
 }
 
+void vm_terminate(vm_t* vm) {
+	while(true) { //clear stack
+		if(!vm_pop(vm))
+			break;
+	}
+
+	while(true) { //clear scopes
+		scope_t* sc = vm_get_scope(vm);
+		if(sc == NULL) break;
+		vm_pop_scope(vm);
+	}
+	vm->pc = vm->bc.cindex;
+}
+
 void vm_run(vm_t* vm) {
 	//int32_t scDeep = vm->scopes.size;
 	register PC code_size = vm->bc.cindex;
@@ -1594,10 +1610,10 @@ void vm_run(vm_t* vm) {
 						if(n != NULL) 
 							vm_push_node(vm, n);
 						else {
-							_err("Error: object '");
+							_err("Error: object or class '");
 							_err(s);
 							_err("' undefined!\n");
-							vm_push(vm, var_new());
+							vm_terminate(vm);
 						}
 					}
 				}
@@ -1652,6 +1668,7 @@ void vm_run(vm_t* vm) {
 					scope_t* sc = vm_get_scope(vm);
 					if(sc == NULL) {
 						_err("Error: 'break' not in any loop!\n");
+						vm_terminate(vm);
 						break;
 					}
 					if(sc->is_loop) {
@@ -1668,6 +1685,7 @@ void vm_run(vm_t* vm) {
 					scope_t* sc = vm_get_scope(vm);
 					if(sc == NULL) {
 						_err("Error: 'continue' not in any loop!\n");
+						vm_terminate(vm);
 						break;
 					}
 					if(sc->is_loop) {
@@ -1930,7 +1948,7 @@ void vm_run(vm_t* vm) {
 					_err("Error: let '");
 					_err(s);
 					_err("' has already existed!\n");
-					vm->pc = code_size; //exit.
+					vm_terminate(vm);
 				}
 				else {
 					node = var_add(vm, v, s, NULL);
@@ -2022,7 +2040,8 @@ void vm_run(vm_t* vm) {
 			case INSTR_NEW: 
 			{
 				const char* s = bc_getstr(&vm->bc, offset);
-				do_new(vm, s);
+				if(!do_new(vm, s)) 
+					vm_terminate(vm);
 				break;
 			}
 			case INSTR_CALL: 
@@ -2083,11 +2102,9 @@ void vm_run(vm_t* vm) {
 			case INSTR_MEMBERN: 
 			{
 				const char* s = (instr == INSTR_MEMBER ? "" :  bc_getstr(&vm->bc, offset));
-
 				var_t* v = vm_pop2(vm);
 				if(v != NULL) {
 					var_t *var = vm_get_scope_var(vm, true);
-
 					if(v->is_func) {
 						func_t* func = (func_t*)v->value;
 						func->owner = var;
@@ -2095,7 +2112,6 @@ void vm_run(vm_t* vm) {
 					if(var != NULL) {
 						var_add(vm, var, s, v);
 					}	
-
 					var_unref(v, true);
 				}
 				break;
@@ -2190,6 +2206,7 @@ void vm_run(vm_t* vm) {
 					scope_t* sc = vm_get_scope(vm);
 					if(sc == NULL) {
 						_err("Error: 'throw' not in any try...catch!\n");
+						vm_terminate(vm);
 						break;
 					}
 					if(sc->is_try) {
