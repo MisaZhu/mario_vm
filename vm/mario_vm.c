@@ -54,7 +54,7 @@ inline void var_remove_all(var_t* var) {
 	array_clean(&var->children, node_free);
 }
 
-node_t* var_add(vm_t* vm, var_t* var, const char* name, var_t* add) {
+node_t* var_add(var_t* var, const char* name, var_t* add) {
 	node_t* node = NULL;
 
 	if(name[0] != 0) 
@@ -93,18 +93,18 @@ inline var_t* var_find_var(var_t* var, const char*name) {
 	return node->var;
 }
 
-inline node_t* var_find_create(vm_t* vm, var_t* var, const char*name) {
+inline node_t* var_find_create(var_t* var, const char*name) {
 	node_t* n = var_find(var, name);
 	if(n != NULL)
 		return n;
-	n = var_add(vm, var, name, NULL);
+	n = var_add(var, name, NULL);
 	return n;
 }
 
-node_t* var_get(vm_t* vm, var_t* var, int32_t index) {
+node_t* var_get(var_t* var, int32_t index) {
 	int32_t i;
 	for(i=var->children.size; i<=index; i++) {
-		var_add(vm, var, "", NULL);
+		var_add(var, "", NULL);
 	}
 
 	node_t* node = (node_t*)array_get(&var->children, index);
@@ -294,7 +294,7 @@ void get_m_str(const char* str, str_t* ret) {
 	str_add(ret, '"');
 }
 
-void var_to_str(vm_t* vm, var_t* var, str_t* ret) {
+void var_to_str(var_t* var, str_t* ret) {
 	str_reset(ret);
 	if(var == NULL) {
 		str_cpy(ret, "undefined");
@@ -313,7 +313,7 @@ void var_to_str(vm_t* vm, var_t* var, str_t* ret) {
 		str_cpy(ret, var_get_str(var));
 		break;
 	case V_OBJECT:
-		var_to_json_str(vm, var, ret, 0);
+		var_to_json_str(var, ret, 0);
 		break;
 	case V_BOOL:
 		str_cpy(ret, var_get_int(var) == 1 ? "true":"false");
@@ -324,11 +324,11 @@ void var_to_str(vm_t* vm, var_t* var, str_t* ret) {
 	}
 }
 
-void get_parsable_str(vm_t* vm, var_t* var, str_t* ret) {
+void get_parsable_str(var_t* var, str_t* ret) {
 	str_reset(ret);
 
 	str_t* s = str_new("");
-	var_to_str(vm, var, s);
+	var_to_str(var, s);
 	if(var->type == V_STRING)
 		get_m_str(s->cstr, ret);
 	else
@@ -345,7 +345,7 @@ void append_json_spaces(str_t* ret, int level) {
 }
 
 static bool _done_arr_inited = false;
-void var_to_json_str(vm_t* vm, var_t* var, str_t* ret, int level) {
+void var_to_json_str(var_t* var, str_t* ret, int level) {
 	str_reset(ret);
 
 	uint32_t i;
@@ -377,10 +377,10 @@ void var_to_json_str(vm_t* vm, var_t* var, str_t* ret, int level) {
 
 		int i;
 		for (i=0;i<len;i++) {
-			node_t* n = var_get(vm, var, i);
+			node_t* n = var_get(var, i);
 
 			str_t* s = str_new("");
-			var_to_json_str(vm, n->var, s, level);
+			var_to_json_str(n->var, s, level);
 			str_append(ret, s->cstr);
 			str_free(s);
 
@@ -418,7 +418,9 @@ void var_to_json_str(vm_t* vm, var_t* var, str_t* ret, int level) {
 
 		int i;
 		for(i=0; i<sz; ++i) {
-			node_t* n = var_get(vm, var, i);
+			node_t* n = var_get(var, i);
+			if(strcmp(n->name, "prototype") == 0)
+				continue;
 			append_json_spaces(ret, level);
 			str_add(ret, '"');
 			str_append(ret, n->name);
@@ -426,7 +428,7 @@ void var_to_json_str(vm_t* vm, var_t* var, str_t* ret, int level) {
 			str_append(ret, ": ");
 
 			str_t* s = str_new("");
-			var_to_json_str(vm, n->var, s, level+1);
+			var_to_json_str(n->var, s, level+1);
 			str_append(ret, s->cstr);
 			str_free(s);
 
@@ -444,7 +446,7 @@ void var_to_json_str(vm_t* vm, var_t* var, str_t* ret, int level) {
 	else {
 		// no children or a function... just write value directly
 		str_t* s = str_new("");
-		get_parsable_str(vm, var, s);
+		get_parsable_str(var, s);
 		str_append(ret, s->cstr);
 		str_free(s);
 	}
@@ -797,7 +799,7 @@ static inline node_t* vm_load_node(vm_t* vm, const char* name, bool create) {
 	if(var == NULL)
 		return NULL;
 
-	n =var_add(vm, var, name, NULL);	
+	n =var_add(var, name, NULL);	
 	return n;
 }
 
@@ -805,12 +807,12 @@ static inline node_t* vm_load_node(vm_t* vm, const char* name, bool create) {
 
 var_t* add_prototype(vm_t* vm, var_t* var, var_t* father) {
 	var_t* v = var_new_obj(NULL, NULL);
-	node_t* protoN = var_add(vm, var, PROTOTYPE, v); //add prototype object
+	node_t* protoN = var_add(var, PROTOTYPE, v); //add prototype object
 
 	if(father != NULL) {
 		v = get_obj(father, PROTOTYPE); //get father's prototype.
 		if(v != NULL) {
-			var_add(vm, protoN->var, SUPER, v);
+			var_add(protoN->var, SUPER, v);
 		}
 	}
 
@@ -859,7 +861,7 @@ var_t* var_new_func_from(vm_t* vm, var_t* func_var) {
 	var->value = var_get_func(func_var);
 
 	var_t* protoV = get_prototype(func_var);
-	var_add(vm, var, PROTOTYPE, protoV);
+	var_add(var, PROTOTYPE, protoV);
 
 	//var_t* protoV = add_prototype(var, func_var);
 	//var_add(protoV, CONSTRUCTOR, var);
@@ -908,7 +910,7 @@ bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 			v = vm_pop2(vm);	
 		}	
 		if(v != NULL) {
-			var_add(vm, env, arg_name, v);
+			var_add(env, arg_name, v);
 			var_unref(v, true);
 		}
 	}
@@ -916,7 +918,7 @@ bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 	if(func->owner != NULL) {
 		node_t* superN = var_find(func->owner, SUPER);
 		if(superN != NULL)
-			var_add(vm, env, SUPER, superN->var);
+			var_add(env, SUPER, superN->var);
 	}
 
 	//native function
@@ -1253,7 +1255,7 @@ void do_get(vm_t* vm, var_t* v, const char* name) {
 			v->type = V_OBJECT;
 
 		if(v->type == V_OBJECT)
-			n = var_add(vm, v, name, NULL);
+			n = var_add(v, name, NULL);
 		else {
 			_err("Can not get member '");
 			_err(name);
@@ -1278,7 +1280,7 @@ void doExtends(vm_t* vm, var_t* clsProto, const char* super_name) {
 
 	var_t* protoV = get_prototype(n->var);
 	if(protoV != NULL)
-		var_add(vm, clsProto, SUPER, protoV);
+		var_add(clsProto, SUPER, protoV);
 }
 
 /** create object by classname or function */
@@ -1295,7 +1297,7 @@ var_t* new_obj(vm_t* vm, const char* name, int arg_num) {
 
 	var_t* protoV = get_prototype(n->var);
 	obj = var_new_obj(NULL, NULL);
-	var_add(vm, obj, PROTOTYPE, protoV);
+	var_add(obj, PROTOTYPE, protoV);
 
 	var_t* constructor = NULL;
 	if(n->var->is_func) { // new object built by function call
@@ -1933,7 +1935,7 @@ void vm_run(vm_t* vm) {
 				else {
 					var_t* v = vm_get_scope_var(vm, true);
 					if(v != NULL) {
-						node = var_add(vm, v, s, NULL);
+						node = var_add(v, s, NULL);
 					}
 				}
 				break;
@@ -1951,7 +1953,7 @@ void vm_run(vm_t* vm) {
 					vm_terminate(vm);
 				}
 				else {
-					node = var_add(vm, v, s, NULL);
+					node = var_add(v, s, NULL);
 					if(node != NULL && instr == INSTR_CONST)
 						node->be_const = true;
 				}
@@ -2110,7 +2112,7 @@ void vm_run(vm_t* vm) {
 						func->owner = var;
 					}
 					if(var != NULL) {
-						var_add(vm, var, s, v);
+						var_add(var, s, v);
 					}	
 					var_unref(v, true);
 				}
@@ -2135,7 +2137,7 @@ void vm_run(vm_t* vm) {
 				var_t* obj;
 				if(instr == INSTR_OBJ) {
 					obj = var_new_obj(NULL, NULL);
-					var_add(vm, obj, PROTOTYPE, get_prototype(vm->var_Object));
+					var_add(obj, PROTOTYPE, get_prototype(vm->var_Object));
 				}
 				else
 					obj = var_new_array();
@@ -2159,7 +2161,7 @@ void vm_run(vm_t* vm) {
 					int at = var_get_int(v2);
 					var_unref(v2, true);
 
-					node_t* n = var_get(vm, v1, at);
+					node_t* n = var_get(v1, at);
 					if(n != NULL) {
 						vm_push_node(vm, n);
 					}
@@ -2222,7 +2224,7 @@ void vm_run(vm_t* vm) {
 				const char* s = bc_getstr(&vm->bc, offset);
 				var_t* v = vm_pop2(vm);
 				var_t* sc_var = vm_get_scope_var(vm, false);
-				var_add(vm, sc_var, s, v);
+				var_add(sc_var, s, v);
 				var_unref(v, true);
 				break;
 			}
@@ -2337,7 +2339,7 @@ node_t* vm_reg_var(vm_t* vm, const char* cls, const char* name, var_t* var, bool
 		//cls_var = clsnode->var;
 	}
 
-	node_t* node = var_add(vm, cls_var, name, var);
+	node_t* node = var_add(cls_var, name, var);
 	node->be_const = be_const;
 	return node;
 }
@@ -2380,7 +2382,7 @@ node_t* vm_reg_native(vm_t* vm, const char* cls, const char* decl, native_func_t
 	str_free(arg);
 
 	var_t* var = var_new_func(vm, func);
-	node_t* node = var_add(vm, cls_var, name->cstr, var);
+	node_t* node = var_add(cls_var, name->cstr, var);
 	str_free(name);
 
 	return node;
@@ -2430,11 +2432,11 @@ var_t* get_obj_member(var_t* env, const char* name) {
 	return var_find_var(obj, name);
 }
 
-var_t* set_obj_member(vm_t* vm, var_t* env, const char* name, var_t* var) {
+var_t* set_obj_member(var_t* env, const char* name, var_t* var) {
 	var_t* obj = get_obj(env, THIS);
 	if(obj == NULL)
 		return NULL;
-	var_add(vm, obj, name, var);
+	var_add(obj, name, var);
 	return var;
 }
 
@@ -2443,7 +2445,7 @@ var_t* native_debug(vm_t* vm, var_t* env, void* data) {
 
 	var_t* v = var_find_var(env, "v");
 	str_t* s = str_new("");
-	var_to_str(vm, v, s);
+	var_to_str(v, s);
 	str_add(s, '\n');
 	_out_func(s->cstr);
 	str_free(s);

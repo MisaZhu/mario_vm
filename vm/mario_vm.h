@@ -124,11 +124,11 @@ var_t* node_replace(node_t* node, var_t* v);
 
 void var_dump(var_t* var);
 void var_remove_all(var_t* var);
-node_t* var_add(vm_t* vm, var_t* var, const char* name, var_t* add);
+node_t* var_add(var_t* var, const char* name, var_t* add);
 node_t* var_find(var_t* var, const char*name);
 var_t* var_find_var(var_t* var, const char*name);
-node_t* var_find_create(vm_t* vm, var_t* var, const char*name);
-node_t* var_get(vm_t* vm, var_t* var, int32_t index);
+node_t* var_find_create(var_t* var, const char*name);
+node_t* var_get(var_t* var, int32_t index);
 
 void var_free(void* p);
 
@@ -152,9 +152,8 @@ bool var_get_bool(var_t* var);
 float var_get_float(var_t* var);
 func_t* var_get_func(var_t* var);
 
-void var_to_json_str(vm_t* vm, var_t*, str_t*, int);
-void var_to_str(vm_t* vm, var_t*, str_t*);
-var_t* json_parse(vm_t* vm, const char* str);
+void var_to_json_str(var_t*, str_t*, int);
+void var_to_str(var_t*, str_t*);
 
 void vm_push(vm_t* vm, var_t* var);
 void vm_push_node(vm_t* vm, node_t* node);
@@ -189,7 +188,7 @@ int get_int(var_t* obj, const char* name);
 float get_float(var_t* obj, const char* name);
 bool get_bool(var_t* obj, const char* name);
 var_t* get_obj_member(var_t* obj, const char* name);
-var_t* set_obj_member(vm_t* vm, var_t* obj, const char* name, var_t* var);
+var_t* set_obj_member(var_t* obj, const char* name, var_t* var);
 
 var_t* call_m_func(vm_t* vm, var_t* obj, var_t* func, var_t* args);
 var_t* call_m_func_by_name(vm_t* vm, var_t* obj, const char* func_name, var_t* args);
