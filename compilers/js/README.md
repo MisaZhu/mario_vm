@@ -1,2 +1,0 @@
-# Mario JS
-JS compiler

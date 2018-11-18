@@ -11,6 +11,7 @@ very tiny js engine in single file.
 extern "C" {
 #endif
 
+extern const char* _mario_lang;
 bool compile(bytecode_t *bc, const char* input);
 
 //script var

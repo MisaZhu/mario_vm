@@ -10,7 +10,7 @@
 #define ERR_MAX 1023
 char _err_info[ERR_MAX+1];
 
-bool load_js(vm_t* vm, const char* fname, bool verify) {
+bool load_script(vm_t* vm, const char* fname, bool verify) {
 	int fd = open(fname, O_RDONLY);
 	if(fd < 0) {
 		snprintf(_err_info, ERR_MAX, "Can not open file '%s'\n", fname);
@@ -67,7 +67,7 @@ int main(int argc, char** argv) {
 	vm_init(vm, NULL, NULL);
 
 	if(fname[0] != 0) {
-		if(load_js(vm, fname, verify)) {
+		if(load_script(vm, fname, verify)) {
 			if(verify)
 				vm_dump(vm);
 		}

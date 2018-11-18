@@ -9,6 +9,8 @@ demo mario_vm compiler.
 extern "C" {
 #endif
 
+
+const char* _mario_lang = "demo";
 /** Script Lex. -----------------------------*/
 
 typedef enum {
