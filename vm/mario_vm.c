@@ -227,12 +227,42 @@ inline var_t* var_new_float(float i) {
 	return var;
 }
 
-inline var_t* var_new_str(const char* s) {
+var_t* get_prototype(var_t* var) {
+	return get_obj(var, PROTOTYPE);
+}
+
+inline var_t* var_new_str(vm_t* vm, const char* s) {
 	var_t* var = var_new();
 	var->type = V_STRING;
 	var->size = strlen(s);
 	var->value = _malloc(var->size + 1);
 	memcpy(var->value, s, var->size + 1);
+
+	node_t* n = vm_load_node(vm, "String", false); //load String class;
+	if(n != NULL) {
+		var_t* protoV = get_prototype(n->var);
+		if(protoV != NULL)
+		var_add(var, PROTOTYPE, protoV);
+	}
+	return var;
+}
+
+inline var_t* var_new_str2(vm_t* vm, const char* s, uint32_t len) {
+	var_t* var = var_new();
+	var->type = V_STRING;
+	var->size = strlen(s);
+	if(var->size > len)
+		var->size = len;
+	var->value = _malloc(var->size + 1);
+	memcpy(var->value, s, var->size + 1);
+	((char*)(var->value))[var->size] = 0;
+
+	node_t* n = vm_load_node(vm, "String", false); //load String class;
+	if(n != NULL) {
+		var_t* protoV = get_prototype(n->var);
+		if(protoV != NULL)
+		var_add(var, PROTOTYPE, protoV);
+	}
 	return var;
 }
 
@@ -772,7 +802,7 @@ static inline node_t* vm_find_in_scopes(vm_t* vm, const char* name) {
 	return var_find(vm->root, name);
 }
 
-static inline node_t* vm_load_node(vm_t* vm, const char* name, bool create) {
+inline node_t* vm_load_node(vm_t* vm, const char* name, bool create) {
 	var_t* var = vm_get_scope_var(vm, true);
 
 	node_t* n;
@@ -817,10 +847,6 @@ var_t* add_prototype(vm_t* vm, var_t* var, var_t* father) {
 	}
 
 	return protoN->var;
-}
-
-var_t* get_prototype(var_t* var) {
-	return get_obj(var, PROTOTYPE);
 }
 
 func_t* func_new() {
@@ -1116,7 +1142,7 @@ static inline void math_op(vm_t* vm, opr_code_t op, var_t* v1, var_t* v2) {
 				_free(p);
 		}
 		else {
-			v = var_new_str(s->cstr);
+			v = var_new_str(vm, s->cstr);
 		}
 		str_free(s);
 		vm_push(vm, v);
@@ -1991,7 +2017,7 @@ void vm_run(vm_t* vm) {
 			case INSTR_STR: 
 			{
 				const char* s = bc_getstr(&vm->bc, offset);
-				var_t* v = var_new_str(s);
+				var_t* v = var_new_str(vm, s);
 				#ifdef MARIO_CACHE	
 				try_cache(vm, &code[vm->pc-1], v);
 				#endif
@@ -2198,7 +2224,7 @@ void vm_run(vm_t* vm) {
 			case INSTR_TYPEOF: 
 			{
 				var_t* var = vm_pop2(vm);
-				var_t* v = var_new_str(get_typeof(var));
+				var_t* v = var_new_str(vm, get_typeof(var));
 				vm_push(vm, v);
 				break;
 			}
@@ -2396,23 +2422,23 @@ node_t* vm_reg_static(vm_t* vm, const char* cls, const char* decl, native_func_t
 }
 
 const char* get_str(var_t* var, const char* name) {
-	node_t* n = var_find(var, name);
-	return n == NULL ? "" : var_get_str(n->var);
+	var_t* v = get_obj(var, name);
+	return v == NULL ? "" : var_get_str(v);
 }
 
 int get_int(var_t* var, const char* name) {
-	node_t* n = var_find(var, name);
-	return n == NULL ? 0 : var_get_int(n->var);
+	var_t* v = get_obj(var, name);
+	return v == NULL ? 0 : var_get_int(v);
 }
 
 bool get_bool(var_t* var, const char* name) {
-	node_t* n = var_find(var, name);
-	return n == NULL ? false : var_get_bool(n->var);
+	var_t* v = get_obj(var, name);
+	return v == NULL ? 0 : var_get_bool(v);
 }
 
 float get_float(var_t* var, const char* name) {
-	node_t* n = var_find(var, name);
-	return n == NULL ? 0.0 : var_get_float(n->var);
+	var_t* v = get_obj(var, name);
+	return v == NULL ? 0 : var_get_float(v);
 }
 
 var_t* get_obj(var_t* var, const char* name) {

@@ -146,7 +146,8 @@ var_t* var_new_int(int i);
 var_t* var_new_bool(bool b);
 var_t* var_new_obj(void*p, free_func_t fr);
 var_t* var_new_float(float i);
-var_t* var_new_str(const char* s);
+var_t* var_new_str(vm_t* vm, const char* s);
+var_t* var_new_str2(vm_t* vm, const char* s, uint32_t len);
 const char* var_get_str(var_t* var);
 int var_get_int(var_t* var);
 bool var_get_bool(var_t* var);
@@ -159,6 +160,7 @@ void var_to_str(var_t*, str_t*);
 void vm_push(vm_t* vm, var_t* var);
 void vm_push_node(vm_t* vm, node_t* node);
 vm_t* vm_new(bool (*compiler)(bytecode_t *bc, const char* input));
+node_t* vm_load_node(vm_t* vm, const char* name, bool create);
 
 void vm_init(vm_t* vm,
 	void (*on_init)(struct st_vm* vm),
@@ -166,6 +168,7 @@ void vm_init(vm_t* vm,
 );
 
 vm_t* vm_from(vm_t* vm);
+
 bool vm_load(vm_t* vm, const char* s);
 bool vm_load_run(vm_t* vm, const char* s);
 bool vm_load_run_native(vm_t* vm, const char* s);
