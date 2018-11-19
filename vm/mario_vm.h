@@ -131,6 +131,7 @@ var_t* var_find_var(var_t* var, const char*name);
 node_t* var_find_create(var_t* var, const char*name);
 node_t* var_get(var_t* var, int32_t index);
 
+void var_clean(var_t* var);
 void var_free(void* p);
 
 var_t* var_ref(var_t* var);

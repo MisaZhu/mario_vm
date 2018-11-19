@@ -113,9 +113,8 @@ node_t* var_get(var_t* var, int32_t index) {
 
 void func_free(void* p);
 
-inline void var_free(void* p) {
-	var_t* var = (var_t*)p;
-	if(var == NULL || var->refs > 0)
+inline void var_clean(var_t* var) {
+	if(var == NULL)
 		return;
 
 	/*free children*/
@@ -128,11 +127,19 @@ inline void var_free(void* p) {
 			var->free_func(var->value);
 		else
 			_free(var->value);
+		var->value = NULL;
 	}
 
 	if(var->on_destroy != NULL) {
 		var->on_destroy(var);
 	}
+}
+
+inline void var_free(void* p) {
+	var_t* var = (var_t*)p;
+	if(var == NULL || var->refs > 0)
+		return;
+	var_clean(var);
 	_free(var);
 }
 
@@ -913,7 +920,8 @@ var_t* find_func(vm_t* vm, var_t* obj, const char* fname) {
 bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 	var_t *env;
 	func_t* func = var_get_func(func_var);
-	if(obj == NULL || func->is_static) {
+	//if(obj == NULL || func->is_static) {
+	if(obj == NULL) {
 		obj = vm_this_in_scopes(vm);
 		if(obj == vm->root) 
 			obj = var_new_func_from(vm, func_var);
