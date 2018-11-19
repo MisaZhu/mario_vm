@@ -56,6 +56,9 @@ extern bool _debug_mode;
 void _debug(const char* s);
 void _err(const char* s);
 
+/**
+array functions.
+*/
 typedef struct st_array {
 	void** items;
 	uint32_t max: 16;
@@ -75,6 +78,9 @@ void array_remove_all(m_array_t* array);
 void array_clean(m_array_t* array, free_func_t fr);
 #define array_tail(array) (((array)->items == NULL || (array)->size == 0) ? NULL: (array)->items[(array)->size-1]);
 
+/**
+string functions.
+*/
 typedef struct st_str {
 	char* cstr;
 	uint32_t max: 16;
@@ -95,7 +101,27 @@ int str_to_int(const char* str);
 float str_to_float(const char* str);
 void str_split(const char* str, char c, m_array_t* array);
 
-int32_t utf8_word(const char* src, int32_t offset, str_t* dst);
+/**
+utf8 string functions
+*/
+
+typedef struct st_utf8_reader {
+	const char* str;
+	uint32_t offset;
+} utf8_reader_t;
+
+typedef m_array_t utf8_t;
+
+void utf8_reader_init(utf8_reader_t* reader, const char* s, uint32_t offset);
+bool utf8_read(utf8_reader_t* reader, str_t* dst);
+
+utf8_t* utf8_new(const char* s);
+void utf8_free(utf8_t* utf8);
+void utf8_append(utf8_t* utf8, const char* s);
+uint32_t utf8_len(utf8_t* utf8);
+str_t* utf8_at(utf8_t* utf8, uint32_t at);
+void utf8_set(utf8_t* utf8, uint32_t at, const char* s);
+void utf8_to_str(utf8_t* utf8, str_t* str);
 
 #ifdef __cplusplus
 }

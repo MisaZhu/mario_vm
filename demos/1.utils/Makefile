@@ -1,0 +1,34 @@
+ifneq ($(CROSS_COMPILE),)
+$(info CROSS_COMPILE=$(CROSS_COMPILE))
+endif
+
+ifeq ($(MARIO_VM),)
+MARIO_VM = ../../vm
+endif
+
+NATIVE_PATH = builtin
+
+CC := $(CROSS_COMPILE)gcc
+CXX := $(CROSS_COMPILE)g++
+AR := $(CROSS_COMPILE)ar
+LD := $(CROSS_COMPILE)gcc
+
+mario_OBJS= $(MARIO_VM)/mario_utils.o 
+
+OBJS = demo.o $(mario_OBJS)
+
+CFLAGS =  -g -I$(MARIO_VM) -I$(MARIO_COMP) -Wall -fPIC -DMARIO_DEBUG -DMARIO_CACHE -DMARIO_THREAD
+LDFLAGS =  -lm -ldl -lpthread
+
+TARGET=demo
+INST_DST=/usr/local/mario
+
+all: $(OBJS)
+	$(LD) -o $(TARGET) $(OBJS) $(LDFLAGS)
+
+clean:
+	rm -fr $(TARGET) $(OBJS) *.dSYM
+
+install:
+	mkdir -p $(INST_DST)/bin
+	cp $(TARGET) $(INST_DST)/bin

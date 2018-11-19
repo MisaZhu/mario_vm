@@ -3,7 +3,7 @@ $(info CROSS_COMPILE=$(CROSS_COMPILE))
 endif
 
 ifeq ($(MARIO_VM),)
-MARIO_VM = ../vm
+MARIO_VM = ../../vm
 endif
 
 NATIVE_PATH = builtin
