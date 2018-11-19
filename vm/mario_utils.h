@@ -95,6 +95,8 @@ int str_to_int(const char* str);
 float str_to_float(const char* str);
 void str_split(const char* str, char c, m_array_t* array);
 
+int32_t utf8_word(const char* src, int32_t offset, str_t* dst);
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

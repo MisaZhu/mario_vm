@@ -375,6 +375,45 @@ void str_split(const char* str, char c, m_array_t* array) {
 	}
 }
 
+#define isASCII(b)  ((b & 0x80) == 0)
+
+/**Read single word with UTF-8 encode
+@return offset index of the input string.
+*/
+int32_t utf8_word(const char* src, int32_t offset, str_t* dst) {
+	str_reset(dst);
+
+	uint8_t b;
+	b = src[offset++];
+	if(b == 0)//end of input
+		return -1;
+
+	str_add(dst, b);
+	if(!isASCII(b)) { //not ASCII
+		uint8_t count = 0;
+		if((b >> 4) == 0x0E) { //3 bytes encode like UTF-8 Chinese
+			count = 2;
+		}
+		else if((b >> 3) == 0x1E) { //4 bytes encode
+			count = 3;
+		}
+		else if((b >> 2) == 0x3E) { //5 bytes encode
+			count = 4;
+		}
+		else if((b >> 1) == 0x7E) { //6 bytes encode
+			count = 5;
+		}
+
+		while(count > 0) {
+			b = src[offset++];
+			if(b == 0)
+				return -1; //wrong encode.
+			str_add(dst, b);
+			count--;
+		}
+	}
+	return offset;
+}
 
 #ifdef __cplusplus
 }
