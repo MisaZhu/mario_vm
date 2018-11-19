@@ -2451,6 +2451,13 @@ var_t* get_obj(var_t* var, const char* name) {
 	return n->var;
 }
 
+void* get_raw(var_t* var, const char* name) {
+	var_t* v = get_obj(var, name);
+	if(v == NULL)
+		return NULL;
+	return v->value;
+}
+
 var_t* get_obj_member(var_t* env, const char* name) {
 	var_t* obj = get_obj(env, THIS);
 	if(obj == NULL)

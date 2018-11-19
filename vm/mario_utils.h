@@ -117,6 +117,7 @@ bool utf8_read(utf8_reader_t* reader, str_t* dst);
 
 utf8_t* utf8_new(const char* s);
 void utf8_free(utf8_t* utf8);
+void utf8_append_raw(utf8_t* utf8, const char* s);
 void utf8_append(utf8_t* utf8, const char* s);
 uint32_t utf8_len(utf8_t* utf8);
 str_t* utf8_at(utf8_t* utf8, uint32_t at);

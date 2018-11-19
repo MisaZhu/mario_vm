@@ -428,8 +428,6 @@ bool utf8_read(utf8_reader_t* reader, str_t* dst) {
 utf8_t* utf8_new(const char* s) {
 	utf8_t* ret = (utf8_t*)_malloc(sizeof(utf8_t));
 	array_init(ret);
-	int32_t index = 0;
-
 	utf8_reader_t reader;
 	utf8_reader_init(&reader, s, 0);
 	while(true) {
@@ -474,7 +472,7 @@ void utf8_set(utf8_t* utf8, uint32_t at, const char* s) {
 	str_cpy(str, s);
 }
 
-void utf8_append(utf8_t* utf8, const char* s) {
+void utf8_append_raw(utf8_t* utf8, const char* s) {
 	if(utf8 == NULL || s == NULL || s[0] == 0)
 		return;
 
@@ -491,6 +489,11 @@ void utf8_append(utf8_t* utf8, const char* s) {
 	utf8_free(u);
 }
 
+void utf8_append(utf8_t* utf8, const char* s) {
+	if(utf8 == NULL || s == NULL || s[0] == 0)
+		return;
+	array_add(utf8, str_new(s));
+}
 
 void utf8_to_str(utf8_t* utf8, str_t* str) {
 	str_reset(str);

@@ -187,6 +187,7 @@ void vm_reg_close(vm_t* vm, void (*func)(void*), void* data);
 
 node_t* find_member(var_t* obj, const char* name);
 var_t* get_obj(var_t* obj, const char* name);
+void* get_raw(var_t* obj, const char* name);
 const char* get_str(var_t* obj, const char* name);
 int get_int(var_t* obj, const char* name);
 float get_float(var_t* obj, const char* name);
