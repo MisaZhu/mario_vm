@@ -30,10 +30,11 @@ bool compile(bytecode_t *bc, const char* input);
 
 typedef struct st_var {
 	uint32_t magic: 8; //0 for var; 1 for node
-	uint32_t refs:18;
-	uint32_t type:4;
+	uint32_t refs:16;
+	uint32_t type:5;
 	uint32_t is_array:1;
 	uint32_t is_func:1;
+	uint32_t is_class:1;
 	uint32_t size;  // size for bytes type of value;
 
 	void* value;
@@ -87,7 +88,7 @@ typedef struct st_vm {
 	bytecode_t bc;
 	bool (*compiler)(bytecode_t *bc, const char* input);
 
-	m_array_t scopes;
+	m_array_t *scopes;
 	void* stack[VM_STACK_MAX];
 	int32_t stack_top;
 	PC pc;
@@ -117,7 +118,6 @@ typedef struct st_vm {
 	var_t* var_true;
 	var_t* var_false;
 } vm_t;
-
 
 node_t* node_new(const char* name);
 void node_free(void* p);

@@ -140,6 +140,12 @@ inline void array_init(m_array_t* array) {
 	array->max = 0; 
 }
 
+m_array_t* array_new() {
+	m_array_t* ret = (m_array_t*)_malloc(sizeof(m_array_t));
+	array_init(ret);
+	return ret;
+}
+
 inline void array_add(m_array_t* array, void* item) {
 	uint32_t new_size = array->size + 1; 
 	if(array->max <= new_size) { 
@@ -210,6 +216,11 @@ inline void array_remove_all(m_array_t* array) { //remove all items bot not free
 		array->items = NULL;
 	}
 	array->max = array->size = 0;
+}
+
+inline void array_free(m_array_t* array, free_func_t fr) {
+	array_clean(array, fr);
+	_free(array);
 }
 
 inline void array_clean(m_array_t* array, free_func_t fr) { //remove all items and free them.

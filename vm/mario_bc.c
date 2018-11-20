@@ -228,11 +228,12 @@ const char* instr_str(opr_code_t ins) {
 		case  INSTR_NEW					: return "NEW";
 		case  INSTR_GET					: return "GET";
 		case  INSTR_BLOCK				: return "BLOCK";
-		case  INSTR_BLOCK_LOOP	: return "BLOCKL";
-		case  INSTR_BLOCK_TRY		: return "BLOCKT";
 		case  INSTR_BLOCK_END		: return "BLOCKE";
-		case  INSTR_THROW				: return "THROW";
+		case  INSTR_LOOP				: return "LOOP";
+		case  INSTR_LOOP_END		: return "LOOPE";
 		case  INSTR_TRY					: return "TRY";
+		case  INSTR_TRY_END			: return "TRYE";
+		case  INSTR_THROW				: return "THROW";
 		case  INSTR_CATCH				: return "CATCH";
 		default									: return "";
 	}
