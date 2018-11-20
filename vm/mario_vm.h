@@ -55,6 +55,7 @@ typedef struct st_func {
 	void *data;
 	m_array_t args; //argument names
 	var_t* owner;
+	m_array_t *scopes;
 } func_t;
 
 //script node for var member children
@@ -183,6 +184,7 @@ node_t* vm_find_in_class(var_t* var, const char* name);
 node_t* vm_reg_var(vm_t* vm, const char* cls, const char* name, var_t* var, bool be_const);
 node_t* vm_reg_static(vm_t* vm, const char* cls, const char* decl, native_func_t native, void* data);
 node_t* vm_reg_native(vm_t* vm, const char* cls, const char* decl, native_func_t native, void* data);
+void vm_mark_func_scopes(vm_t* vm, var_t* func);
 void vm_reg_init(vm_t* vm, void (*func)(void*), void* data);
 void vm_reg_close(vm_t* vm, void (*func)(void*), void* data);
 

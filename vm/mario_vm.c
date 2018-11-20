@@ -682,6 +682,15 @@ scope_t* scope_new(var_t* var) {
 	return sc;
 }
 
+scope_t* scope_clone(scope_t* src) {
+	scope_t* sc = (scope_t*)_malloc(sizeof(scope_t));
+	memcpy(sc, src, sizeof(scope_t));
+	if(src->var != NULL)
+		sc->var = var_ref(src->var);
+	sc->prev = NULL;
+	return sc;
+}
+
 void scope_free(void* p) {
 	scope_t* sc = (scope_t*)p;
 	if(sc == NULL)
@@ -864,6 +873,7 @@ func_t* func_new() {
 	func->pc = 0;
 	func->data = NULL;
 	func->owner = NULL;
+	func->scopes = NULL;
 	array_init(&func->args);
 	return func;
 }
@@ -871,6 +881,8 @@ func_t* func_new() {
 void func_free(void* p) {
 	func_t* func = (func_t*)p;
 	array_clean(&func->args, NULL);
+	if(func->scopes != NULL)
+		array_free(func->scopes, scope_free);
 	_free(p);
 }
 
@@ -982,6 +994,24 @@ var_t* func_def(vm_t* vm, bool regular, bool is_static) {
 	return ret;
 }
 
+void vm_mark_func_scopes(vm_t* vm, var_t* func) {
+	func_t* f = var_get_func(func);
+	if(f == NULL)
+		return;
+
+	if(f->scopes != NULL)
+		array_free(f->scopes, scope_free);
+	
+	f->scopes = array_new();
+	int32_t i;
+	scope_t* prev = NULL;
+	for(i=0; i<vm->scopes->size; ++i) {
+		scope_t* sc = scope_clone((scope_t*)array_get(vm->scopes, i));
+		array_add(f->scopes, sc);
+		sc->prev = prev;
+		prev = sc;
+	}
+}
 
 static inline void math_op(vm_t* vm, opr_code_t op, var_t* v1, var_t* v2) {
 	/*if(v1->value == NULL || v2->value == NULL) {
@@ -1456,7 +1486,7 @@ bool interrupt(vm_t* vm, var_t* obj, var_t* func, var_t* args) {
 	return interrupt_raw(vm, obj, NULL, func, args);
 }
 
-void tryInterrupter(vm_t* vm) {
+void try_interrupter(vm_t* vm) {
 	if(vm->isignal_head == NULL || vm->interrupted) {
 		return;
 	}
@@ -1501,7 +1531,12 @@ void tryInterrupter(vm_t* vm) {
 	else
 		sig->next->prev = sig->prev;
 
+	m_array_t* sc = vm->scopes;
+	func_t* f = var_get_func(func);
+	if(f != NULL && f->scopes != NULL)
+		vm->scopes = f->scopes;
 	var_t* ret = call_m_func(vm, sig->obj, func, sig->args);
+	vm->scopes = sc;
 
 	if(ret != NULL)
 		var_unref(ret, true);
@@ -2116,7 +2151,7 @@ void vm_run(vm_t* vm) {
 
 				//check and do interrupter.
 				#ifdef MARIO_THREAD
-				tryInterrupter(vm);
+				try_interrupter(vm);
 				#endif
 				break;
 			}
@@ -2323,7 +2358,7 @@ void vm_close(vm_t* vm) {
 	var_cache_free(vm);
 	#endif
 
-	array_free(vm->scopes, NULL);
+	array_free(vm->scopes, scope_free);
 	array_clean(&vm->init_natives, NULL);
 
 
