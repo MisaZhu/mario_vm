@@ -799,7 +799,7 @@ void vm_stack_free(vm_t* vm, void* p) {
 }
 
 node_t* vm_find(vm_t* vm, const char* name) {
-	var_t* var = vm_get_scope_var(vm, true);
+	var_t* var = vm_get_scope_var(vm, false);
 	if(var == NULL)
 		return NULL;
 	return var_find(var, name);	
@@ -857,7 +857,7 @@ static inline var_t* vm_this_in_scopes(vm_t* vm) {
 }
 
 inline node_t* vm_load_node(vm_t* vm, const char* name, bool create) {
-	var_t* var = vm_get_scope_var(vm, true);
+	var_t* var = vm_get_scope_var(vm, false);
 
 	node_t* n;
 	if(var != NULL) {
@@ -2203,7 +2203,7 @@ void vm_run(vm_t* vm) {
 				const char* s = (instr == INSTR_MEMBER ? "" :  bc_getstr(&vm->bc, offset));
 				var_t* v = vm_pop2(vm);
 				if(v != NULL) {
-					var_t *var = vm_get_scope_var(vm, true);
+					var_t *var = vm_get_scope_var(vm, false);
 					if(var->is_array)
 						var = get_obj(var, "_ARRAY_");
 
@@ -2248,7 +2248,7 @@ void vm_run(vm_t* vm) {
 			case INSTR_ARRAY_END: 
 			case INSTR_OBJ_END: 
 			{
-				var_t* obj = vm_get_scope_var(vm, true);
+				var_t* obj = vm_get_scope_var(vm, false);
 				vm_push(vm, obj); //that actually means currentObj->ref() for push and unref for unasign.
 				vm_pop_scope(vm);
 				break;
@@ -2288,7 +2288,7 @@ void vm_run(vm_t* vm) {
 			}
 			case INSTR_CLASS_END: 
 			{
-				var_t* var = vm_get_scope_var(vm, true);
+				var_t* var = vm_get_scope_var(vm, false);
 				vm_push(vm, var);
 				vm_pop_scope(vm);
 				break;
