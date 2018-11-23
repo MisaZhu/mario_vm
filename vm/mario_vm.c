@@ -820,37 +820,28 @@ node_t* vm_find_in_class(var_t* var, const char* name) {
 
 node_t* find_member(var_t* obj, const char* name) {
 	node_t* node = var_find(obj, name);
-	if(node == NULL) { 
-		node = vm_find_in_class(obj, name);
-	}
-	return node;
+	if(node != NULL)
+		return node;
+
+	return vm_find_in_class(obj, name);
 }
 
 static inline node_t* vm_find_in_scopes(vm_t* vm, const char* name) {
 	node_t* ret = NULL;
 	scope_t* sc = vm_get_scope(vm);
 	
-	/*
-	if(sc != NULL && sc->var != NULL) {
-		ret = var_find(sc->var, name);
-		if(ret != NULL)
-			return ret;
-
-		node_t* n = var_find(sc->var, THIS);
-		if(n != NULL)  {
-			ret = find_member(n->var, name);
-			if(ret != NULL)
-				return ret;
-		}
-		sc = sc->prev;
-	}
-	*/
-
 	while(sc != NULL) {
 		if(sc->var != NULL) {
 			ret = var_find(sc->var, name);
 			if(ret != NULL)
 				return ret;
+			
+			var_t* obj = get_obj(sc->var, THIS);
+			if(obj != NULL) {
+				ret = find_member(obj, name);
+				if(ret != NULL)
+					return ret;
+			}
 		}
 		sc = sc->prev;
 	}
