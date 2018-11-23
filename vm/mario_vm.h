@@ -116,6 +116,8 @@ typedef struct st_vm {
 	#endif
 	uint32_t this_strIndex;
 	var_t* var_Object;
+	var_t* var_String;
+	var_t* var_Array;
 	var_t* var_true;
 	var_t* var_false;
 } vm_t;
@@ -131,6 +133,9 @@ node_t* var_find(var_t* var, const char*name);
 var_t* var_find_var(var_t* var, const char*name);
 node_t* var_find_create(var_t* var, const char*name);
 node_t* var_get(var_t* var, int32_t index);
+node_t* var_array_get(var_t* var, int32_t index);
+node_t* var_array_set(var_t* var, int32_t index, var_t* set_var);
+uint32_t var_array_size(var_t* var);
 
 void var_clean(var_t* var);
 void var_free(void* p);

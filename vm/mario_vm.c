@@ -102,13 +102,36 @@ inline node_t* var_find_create(var_t* var, const char*name) {
 }
 
 node_t* var_get(var_t* var, int32_t index) {
-	int32_t i;
-	for(i=var->children.size; i<=index; i++) {
-		var_add(var, "", NULL);
-	}
-
 	node_t* node = (node_t*)array_get(&var->children, index);
 	return node;
+}
+
+node_t* var_array_get(var_t* var, int32_t index) {
+	var_t* arr_var = var_find_var(var, "_ARRAY_");
+	if(arr_var == NULL)
+		return NULL;
+
+	int32_t i;
+	for(i=arr_var->children.size; i<=index; i++) {
+		var_add(arr_var, "", NULL);
+	}
+
+	node_t* node = (node_t*)array_get(&arr_var->children, index);
+	return node;
+}
+
+node_t* var_array_set(var_t* var, int32_t index, var_t* set_var) {
+	node_t* node = var_array_get(var, index);
+	if(node != NULL)
+		node_replace(node, set_var);
+	return node;
+}
+
+uint32_t var_array_size(var_t* var) {
+	var_t* arr_var = var_find_var(var, "_ARRAY_");
+	if(arr_var == NULL)
+		return 0;
+	return arr_var->children.size;
 }
 
 void func_free(void* p);
@@ -202,6 +225,8 @@ inline var_t* var_new_block() {
 inline var_t* var_new_array() {
 	var_t* var = var_new_obj(NULL, NULL);
 	var->is_array = 1;
+	var_t* members = var_new_obj(NULL, NULL);
+	var_add(var, "_ARRAY_", members);
 	return var;
 }
 
@@ -398,12 +423,12 @@ void var_to_json_str(var_t* var, str_t* ret, int level) {
 
 	if (var->is_array) {
 		str_add(ret, '[');
-		int len = (int)var->children.size;
+		uint32_t len = var_array_size(var);
 		if (len>100) len=100; // we don't want to get stuck here!
 
-		int i;
+		uint32_t i;
 		for (i=0;i<len;i++) {
-			node_t* n = var_get(var, i);
+			node_t* n = var_array_get(var, i);
 
 			str_t* s = str_new("");
 			var_to_json_str(n->var, s, level);
@@ -482,18 +507,34 @@ void var_to_json_str(var_t* var, str_t* ret, int level) {
 	}
 }
 
-var_t* var_build_basic_prototype(vm_t* vm, var_t* var) {
-	node_t* n = NULL;
-	if(var->type == V_STRING) {
-		n = vm_load_node(vm, "String", false); //load String class;
+static inline var_t* vm_load_var(vm_t* vm, const char* name, bool create) {
+	node_t* n = vm_load_node(vm, name, create);
+	if(n != NULL)
+		return n->var;
+	return NULL;
+}
+
+static inline void vm_load_basic_classes(vm_t* vm) {
+	vm->var_String = vm_load_var(vm, "String", false);
+	vm->var_Array = vm_load_var(vm, "Array", false);
+}
+
+static inline var_t* var_build_basic_prototype(vm_t* vm, var_t* var) {
+	var_t* protoV = get_prototype(var);
+	if(protoV != NULL)
+		return var;
+
+	var_t* cls_var = NULL;
+	if(var->type == V_STRING) { //get basic native class
+		cls_var  = vm->var_String;
+	}
+	else if(var->is_array) {
+		cls_var  = vm->var_Array;
 	}
 
-	if(n != NULL) {
-		var_t* protoV = get_prototype(var);
-		if(protoV == NULL) {
-			protoV = get_prototype(n->var);
-			var_add(var, PROTOTYPE, protoV);
-		}
+	if(cls_var != NULL) {
+		protoV = get_prototype(cls_var); //set prototype of var
+		var_add(var, PROTOTYPE, protoV);
 	}
 	return var;
 }
@@ -2166,13 +2207,16 @@ void vm_run(vm_t* vm) {
 				var_t* v = vm_pop2(vm);
 				if(v != NULL) {
 					var_t *var = vm_get_scope_var(vm, true);
-					if(v->is_func) {
-						func_t* func = (func_t*)v->value;
-						func->owner = var;
-					}
+					if(var->is_array)
+						var = get_obj(var, "_ARRAY_");
+
 					if(var != NULL) {
+						if(v->is_func) {
+							func_t* func = (func_t*)v->value;
+							func->owner = var;
+						}
 						var_add(var, s, v);
-					}	
+					}
 					var_unref(v, true);
 				}
 				break;
@@ -2219,11 +2263,9 @@ void vm_run(vm_t* vm) {
 				if(v1 != NULL && v2 != NULL) {
 					int at = var_get_int(v2);
 					var_unref(v2, true);
-
-					node_t* n = var_get(v1, at);
-					if(n != NULL) {
+					node_t* n = var_array_get(v1, at);
+					if(n != NULL) 
 						vm_push_node(vm, n);
-					}
 					var_unref(v1, true);
 				}
 				break;
@@ -2591,6 +2633,8 @@ void vm_init(vm_t* vm,
 		native_init_t* it = (native_init_t*)array_get(&vm->init_natives, i);
 		it->func(it->data);
 	}
+
+	vm_load_basic_classes(vm);
 }
 
 #ifdef __cplusplus
