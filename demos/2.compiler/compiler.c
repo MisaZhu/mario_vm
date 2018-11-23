@@ -203,7 +203,7 @@ bool statement(lex_t* l, bytecode_t* bc) {
 	}
 	else if (l->tk == LEX_R_PRINT) {
 		if(!lex_chkread(l, LEX_R_PRINT)) return false;
-		factor_func(l, bc, "debug");
+		factor_func(l, bc, "print");
 		if(!lex_chkread(l, '\n')) return false;
 	}
 	else {

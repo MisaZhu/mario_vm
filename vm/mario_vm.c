@@ -2606,9 +2606,7 @@ vm_t* vm_new(bool compiler(bytecode_t *bc, const char* input)) {
 	var_ref(vm->root);
 
 	vm_new_class(vm, "Object");
-
-	vm_reg_native(vm, "", "yield()", native_yield, NULL);
-
+	vm_reg_static(vm, "", "yield()", native_yield, NULL);
 	return vm;
 }
 
