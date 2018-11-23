@@ -127,6 +127,12 @@ node_t* var_array_set(var_t* var, int32_t index, var_t* set_var) {
 	return node;
 }
 
+void var_array_add(var_t* var, var_t* add_var) {
+	var_t* arr_var = var_find_var(var, "_ARRAY_");
+	if(arr_var != NULL)
+		var_add(arr_var, "", add_var);
+}
+
 uint32_t var_array_size(var_t* var) {
 	var_t* arr_var = var_find_var(var, "_ARRAY_");
 	if(arr_var == NULL)
@@ -2547,18 +2553,6 @@ var_t* set_obj_member(var_t* env, const char* name, var_t* var) {
 	return var;
 }
 
-var_t* native_debug(vm_t* vm, var_t* env, void* data) {
-	(void)vm; (void)data;
-
-	var_t* v = var_find_var(env, "v");
-	str_t* s = str_new("");
-	var_to_str(v, s);
-	str_add(s, '\n');
-	_out_func(s->cstr);
-	str_free(s);
-	return NULL;
-}
-
 /**yield */
 var_t* native_yield(vm_t* vm, var_t* env, void* data) {
 	(void)vm; (void)data; (void)env;
@@ -2613,7 +2607,6 @@ vm_t* vm_new(bool compiler(bytecode_t *bc, const char* input)) {
 
 	vm_new_class(vm, "Object");
 
-	vm_reg_native(vm, "", "debug(v)", native_debug, NULL);
 	vm_reg_native(vm, "", "yield()", native_yield, NULL);
 
 	return vm;
