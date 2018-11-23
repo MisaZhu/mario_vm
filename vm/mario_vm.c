@@ -241,23 +241,16 @@ var_t* get_prototype(var_t* var) {
 	return get_obj(var, PROTOTYPE);
 }
 
-inline var_t* var_new_str(vm_t* vm, const char* s) {
+inline var_t* var_new_str(const char* s) {
 	var_t* var = var_new();
 	var->type = V_STRING;
 	var->size = strlen(s);
 	var->value = _malloc(var->size + 1);
 	memcpy(var->value, s, var->size + 1);
-
-	node_t* n = vm_load_node(vm, "String", false); //load String class;
-	if(n != NULL) {
-		var_t* protoV = get_prototype(n->var);
-		if(protoV != NULL)
-		var_add(var, PROTOTYPE, protoV);
-	}
 	return var;
 }
 
-inline var_t* var_new_str2(vm_t* vm, const char* s, uint32_t len) {
+inline var_t* var_new_str2(const char* s, uint32_t len) {
 	var_t* var = var_new();
 	var->type = V_STRING;
 	var->size = strlen(s);
@@ -266,13 +259,6 @@ inline var_t* var_new_str2(vm_t* vm, const char* s, uint32_t len) {
 	var->value = _malloc(var->size + 1);
 	memcpy(var->value, s, var->size + 1);
 	((char*)(var->value))[var->size] = 0;
-
-	node_t* n = vm_load_node(vm, "String", false); //load String class;
-	if(n != NULL) {
-		var_t* protoV = get_prototype(n->var);
-		if(protoV != NULL)
-		var_add(var, PROTOTYPE, protoV);
-	}
 	return var;
 }
 
@@ -494,6 +480,22 @@ void var_to_json_str(var_t* var, str_t* ret, int level) {
 	if(level == 0) {
 		array_remove_all(&done);
 	}
+}
+
+var_t* var_build_basic_prototype(vm_t* vm, var_t* var) {
+	node_t* n = NULL;
+	if(var->type == V_STRING) {
+		n = vm_load_node(vm, "String", false); //load String class;
+	}
+
+	if(n != NULL) {
+		var_t* protoV = get_prototype(var);
+		if(protoV == NULL) {
+			protoV = get_prototype(n->var);
+			var_add(var, PROTOTYPE, protoV);
+		}
+	}
+	return var;
 }
 
 /** var cache for const value --------------*/
@@ -1161,7 +1163,7 @@ static inline void math_op(vm_t* vm, opr_code_t op, var_t* v1, var_t* v2) {
 				_free(p);
 		}
 		else {
-			v = var_new_str(vm, s->cstr);
+			v = var_new_str(s->cstr);
 		}
 		str_free(s);
 		vm_push(vm, v);
@@ -2043,7 +2045,7 @@ void vm_run(vm_t* vm) {
 			case INSTR_STR: 
 			{
 				const char* s = bc_getstr(&vm->bc, offset);
-				var_t* v = var_new_str(vm, s);
+				var_t* v = var_new_str(s);
 				#ifdef MARIO_CACHE	
 				try_cache(vm, &code[vm->pc-1], v);
 				#endif
@@ -2080,6 +2082,7 @@ void vm_run(vm_t* vm) {
 				const char* s = bc_getstr(&vm->bc, offset);
 				var_t* v = vm_pop2(vm);
 				if(v != NULL) {
+					var_build_basic_prototype(vm, v);
 					do_get(vm, v, s);
 					var_unref(v, true);
 				}
@@ -2110,6 +2113,7 @@ void vm_run(vm_t* vm) {
 				
 				if(instr == INSTR_CALLO) {
 					obj = vm_stack_pick(vm, arg_num+1);
+					var_build_basic_prototype(vm, obj);
 					unrefObj = true;
 				}
 				else {
@@ -2253,7 +2257,7 @@ void vm_run(vm_t* vm) {
 			case INSTR_TYPEOF: 
 			{
 				var_t* var = vm_pop2(vm);
-				var_t* v = var_new_str(vm, get_typeof(var));
+				var_t* v = var_new_str(get_typeof(var));
 				vm_push(vm, v);
 				break;
 			}
