@@ -1322,7 +1322,7 @@ void do_get(vm_t* vm, var_t* v, const char* name) {
 		return;
 	}
 	else if(v->is_array && strcmp(name, "length") == 0) {
-		int len = v->children.size;
+		int len = var_array_size(v);
 		vm_push(vm, var_new_int(len));
 		return;
 	}	
