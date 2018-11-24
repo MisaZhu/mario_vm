@@ -69,6 +69,7 @@ m_array_t* array_new();
 void array_free(m_array_t* array, free_func_t fr);
 void array_init(m_array_t* array);
 void array_add(m_array_t* array, void* item);
+void array_add_head(m_array_t* array, void* item);
 void* array_add_buf(m_array_t* array, void* s, uint32_t sz);
 void* array_get(m_array_t* array, uint32_t index);
 void* array_set(m_array_t* array, uint32_t index, void* p);

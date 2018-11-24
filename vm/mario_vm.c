@@ -72,6 +72,24 @@ node_t* var_add(var_t* var, const char* name, var_t* add) {
 	return node;
 }
 
+node_t* var_add_head(var_t* var, const char* name, var_t* add) {
+	node_t* node = NULL;
+
+	if(name[0] != 0) 
+		node = var_find(var, name);
+
+	if(node == NULL) {
+		node = node_new(name);
+		var_ref(node->var);
+		array_add_head(&var->children, node);
+	}
+
+	if(add != NULL)
+		node_replace(node, add);
+
+	return node;
+}
+
 inline node_t* var_find(var_t* var, const char*name) {
 	uint32_t i;
 
@@ -131,6 +149,12 @@ void var_array_add(var_t* var, var_t* add_var) {
 	var_t* arr_var = var_find_var(var, "_ARRAY_");
 	if(arr_var != NULL)
 		var_add(arr_var, "", add_var);
+}
+
+void var_array_add_head(var_t* var, var_t* add_var) {
+	var_t* arr_var = var_find_var(var, "_ARRAY_");
+	if(arr_var != NULL)
+		var_add_head(arr_var, "", add_var);
 }
 
 uint32_t var_array_size(var_t* var) {
@@ -956,6 +980,8 @@ var_t* find_func(vm_t* vm, var_t* obj, const char* fname) {
 
 bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 	var_t *env = var_new();
+	var_t* args = var_new_array();
+	var_add(env, "_args", args);
 	var_ref(env);
 	func_t* func = var_get_func(func_var);
 	if(obj == NULL) {
@@ -965,7 +991,9 @@ bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 
 	int32_t i;
 	for(i=arg_num; i>func->args.size; i--) {
-		vm_pop(vm);
+		var_t* v = vm_pop2(vm);
+		var_array_add_head(args, v);
+		var_unref(v, true);
 	}
 
 	for(i=(int32_t)func->args.size-1; i>=0; i--) {
@@ -979,6 +1007,7 @@ bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 			v = vm_pop2(vm);	
 		}	
 		if(v != NULL) {
+			var_array_add_head(args, v);
 			var_add(env, arg_name, v);
 			var_unref(v, true);
 		}
@@ -2542,6 +2571,10 @@ var_t* set_obj_member(var_t* env, const char* name, var_t* var) {
 		return NULL;
 	var_add(obj, name, var);
 	return var;
+}
+
+var_t* get_func_args(var_t* env) {
+	return get_obj(env, "_args");
 }
 
 /**yield */

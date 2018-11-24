@@ -158,6 +158,22 @@ inline void array_add(m_array_t* array, void* item) {
 	array->items[array->size] = NULL; 
 }
 
+inline void array_add_head(m_array_t* array, void* item) {
+	uint32_t new_size = array->size + 1; 
+	if(array->max <= new_size) { 
+		new_size = array->size + ARRAY_BUF;
+		array->items = (void**)_realloc(array->items, array->max*sizeof(void*), new_size*sizeof(void*)); 
+		array->max = new_size; 
+	} 
+	int32_t i;
+	for(i=array->size; i>0; i--) {
+		array->items[i] = array->items[i-1];
+	}
+	array->items[0] = item; 
+	array->size++; 
+	array->items[array->size] = NULL; 
+}
+
 void* array_add_buf(m_array_t* array, void* s, uint32_t sz) {
 	void* item = _malloc(sz);
 	if(s != NULL)
