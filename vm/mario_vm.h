@@ -135,6 +135,7 @@ var_t* var_find_var(var_t* var, const char*name);
 node_t* var_find_create(var_t* var, const char*name);
 node_t* var_get(var_t* var, int32_t index);
 node_t* var_array_get(var_t* var, int32_t index);
+var_t* var_array_get_var(var_t* var, int32_t index);
 void var_array_add(var_t* var, var_t* add);
 void var_array_add_head(var_t* var, var_t* add);
 node_t* var_array_set(var_t* var, int32_t index, var_t* set_var);
@@ -207,6 +208,12 @@ var_t* get_obj_member(var_t* obj, const char* name);
 var_t* set_obj_member(var_t* obj, const char* name, var_t* var);
 
 var_t* get_func_args(var_t* env);
+uint32_t get_func_args_num(var_t* env);
+var_t* get_func_arg(var_t* env, uint32_t index);
+int get_func_arg_int(var_t* env, uint32_t index);
+bool get_func_arg_bool(var_t* env, uint32_t index);
+float get_func_arg_float(var_t* env, uint32_t index);
+const char* get_func_arg_str(var_t* env, uint32_t index);
 var_t* call_m_func(vm_t* vm, var_t* obj, var_t* func, var_t* args);
 var_t* call_m_func_by_name(vm_t* vm, var_t* obj, const char* func_name, var_t* args);
 

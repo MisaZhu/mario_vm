@@ -138,6 +138,13 @@ node_t* var_array_get(var_t* var, int32_t index) {
 	return node;
 }
 
+var_t* var_array_get_var(var_t* var, int32_t index) {
+	node_t* n = var_array_get(var, index);
+	if(n != NULL)
+		return n->var;
+	return NULL;
+}
+
 node_t* var_array_set(var_t* var, int32_t index, var_t* set_var) {
 	node_t* node = var_array_get(var, index);
 	if(node != NULL)
@@ -2575,6 +2582,32 @@ var_t* set_obj_member(var_t* env, const char* name, var_t* var) {
 
 var_t* get_func_args(var_t* env) {
 	return get_obj(env, "_args");
+}
+
+uint32_t get_func_args_num(var_t* env) {
+	var_t* args = get_func_args(env);
+	return var_array_size(args);
+}
+
+var_t* get_func_arg(var_t* env, uint32_t index) {
+	var_t* args = get_func_args(env);
+	return var_array_get_var(args, index);
+}
+
+int get_func_arg_int(var_t* env, uint32_t index) {
+	return var_get_int(get_func_arg(env, index));
+}
+
+bool get_func_arg_bool(var_t* env, uint32_t index) {
+	return var_get_bool(get_func_arg(env, index));
+}
+
+float get_func_arg_float(var_t* env, uint32_t index) {
+	return var_get_float(get_func_arg(env, index));
+}
+
+const char* get_func_arg_str(var_t* env, uint32_t index) {
+	return var_get_str(get_func_arg(env, index));
 }
 
 /**yield */
