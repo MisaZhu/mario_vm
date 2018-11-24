@@ -2417,6 +2417,9 @@ void vm_dump(vm_t* vm) {
 
 void vm_close(vm_t* vm) {
 	vm->terminated = true;
+	if(vm->on_close != NULL)
+		vm->on_close(vm);
+
 	int i;
 	for(i=0; i<vm->close_natives.size; i++) {
 		native_init_t* it = (native_init_t*)array_get(&vm->close_natives, i);
@@ -2424,7 +2427,6 @@ void vm_close(vm_t* vm) {
 	}
 	array_clean(&vm->close_natives, NULL);
 
-	var_unref(vm->root, true);
 	var_unref(vm->var_true, true);
 	var_unref(vm->var_false, true);
 
@@ -2440,12 +2442,10 @@ void vm_close(vm_t* vm) {
 	array_free(vm->scopes, scope_free);
 	array_clean(&vm->init_natives, NULL);
 
-
+	var_unref(vm->root, true);
 	bc_release(&vm->bc);
 	vm->stack_top = 0;
 
-	if(vm->on_close != NULL)
-		vm->on_close(vm);
 	_free(vm);
 }	
 
