@@ -36,17 +36,9 @@ void node_free(void* p) {
 }
 
 inline var_t* node_replace(node_t* node, var_t* v) {
-	if(node->var->type == V_INT && v->type == V_INT) {
-		*(int*)(node->var->value) = *(int*)(v->value);
-	}
-	else if(node->var->type == V_FLOAT && v->type == V_FLOAT) {
-		*(float*)(node->var->value) = *(float*)(v->value);
-	}
-	else {
-		var_t* old = node->var;
-		node->var = var_ref(v);
-		var_unref(old, true);
-	}
+	var_t* old = node->var;
+	node->var = var_ref(v);
+	var_unref(old, true);
 	return node->var;
 }
 
@@ -936,6 +928,7 @@ static void var_clone_members(var_t* var, var_t* src) {
 		if(node != NULL && !node->var->is_func && node->name[0] != 0) { //don't clone functions.
 			if(strcmp(node->name, THIS) == 0 ||
 					strcmp(node->name, SUPER) == 0 ||
+					strcmp(node->name, PROTOTYPE) == 0 ||
 					strcmp(node->name, CONSTRUCTOR) == 0) 
 				continue;
 			var_add(var, node->name, node->var);	
@@ -949,8 +942,20 @@ void var_set_prototype(var_t* var, var_t* proto) {
 	var_add(var, PROTOTYPE, proto);
 }
 
+void var_from_prototype(var_t* var, var_t* proto) {
+	if(var == NULL || proto == NULL)
+		return;
+	var_set_prototype(var, proto);
+	var_clone_members(var, proto);
+}
+
 void var_instance_from(var_t* var, var_t* src) {
+	if(var == NULL || src == NULL)
+		return;
+
 	var_t* proto = get_prototype(src);
+	if(proto == NULL)
+		proto = src;
 	var_set_prototype(var, proto);
 	var_clone_members(var, proto);
 }
@@ -1480,7 +1485,7 @@ var_t* new_obj(vm_t* vm, const char* name, int arg_num) {
 	obj = var_new_obj(NULL, NULL);
 	var_instance_from(obj, n->var);
 
-	var_t* protoV = get_prototype(n->var);
+	var_t* protoV = get_prototype(obj);
 	var_t* constructor = NULL;
 
 	if(n->var->is_func) { // new object built by function call
@@ -1712,7 +1717,7 @@ node_t* vm_new_class(vm_t* vm, const char* cls) {
 	if(get_prototype(cls_node->var) == NULL) {
 		if(strcmp(cls, "Object") == 0) {
 			vm->var_Object = cls_node->var;
-			var_set_prototype(vm->var_Object, NULL);
+			var_set_prototype(vm->var_Object, var_new_obj(NULL, NULL));
 		}
 		else {
 			var_set_father(cls_node->var, vm->var_Object);
