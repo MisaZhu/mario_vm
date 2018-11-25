@@ -2700,6 +2700,30 @@ const char* get_func_arg_str(var_t* env, uint32_t index) {
 	return var_get_str(get_func_arg(env, index));
 }
 
+var_t* native_debug(vm_t* vm, var_t* env, void* data) {
+	(void)vm; (void)data;
+
+	var_t* args = get_func_args(env); 
+	str_t* ret = str_new("");
+	str_t* str = str_new("");
+	uint32_t sz = var_array_size(args);
+	uint32_t i;
+	for(i=0; i<sz; ++i) {
+		node_t* n = var_array_get(args, i);
+		if(n != NULL) {
+			var_to_str(n->var, str);
+			if(i > 0)
+				str_add(ret, ' ');
+			str_append(ret, str->cstr);
+		}
+	}
+	str_free(str);
+	str_add(ret, '\n');
+	_out_func(ret->cstr);
+	str_free(ret);
+	return NULL;
+}
+
 /**yield */
 var_t* native_yield(vm_t* vm, var_t* env, void* data) {
 	(void)vm; (void)data; (void)env;
@@ -2755,6 +2779,7 @@ vm_t* vm_new(bool compiler(bytecode_t *bc, const char* input)) {
 
 	vm_new_class(vm, "Object");
 	vm_reg_static(vm, "", "yield()", native_yield, NULL);
+	vm_reg_static(vm, "", "debug()", native_debug, NULL);
 	return vm;
 }
 
