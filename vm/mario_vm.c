@@ -30,7 +30,8 @@ void node_free(void* p) {
 		return;
 
 	_free(node->name);
-	var_unref(node->var, true);
+	if(node->var != NULL)
+		var_unref(node->var, true);
 	_free(node);
 }
 
@@ -64,24 +65,6 @@ node_t* var_add(var_t* var, const char* name, var_t* add) {
 		node = node_new(name);
 		var_ref(node->var);
 		array_add(&var->children, node);
-	}
-
-	if(add != NULL)
-		node_replace(node, add);
-
-	return node;
-}
-
-node_t* var_add_head(var_t* var, const char* name, var_t* add) {
-	node_t* node = NULL;
-
-	if(name[0] != 0) 
-		node = var_find(var, name);
-
-	if(node == NULL) {
-		node = node_new(name);
-		var_ref(node->var);
-		array_add_head(&var->children, node);
 	}
 
 	if(add != NULL)
@@ -158,17 +141,39 @@ void var_array_add(var_t* var, var_t* add_var) {
 		var_add(arr_var, "", add_var);
 }
 
-void var_array_add_head(var_t* var, var_t* add_var) {
-	var_t* arr_var = var_find_var(var, "_ARRAY_");
-	if(arr_var != NULL)
-		var_add_head(arr_var, "", add_var);
-}
-
 uint32_t var_array_size(var_t* var) {
 	var_t* arr_var = var_find_var(var, "_ARRAY_");
 	if(arr_var == NULL)
 		return 0;
 	return arr_var->children.size;
+}
+
+void var_array_reverse(var_t* arr) {
+	uint32_t sz = var_array_size(arr);
+	uint32_t i;
+	for(i=0; i<sz/2; ++i) {
+		node_t* n1 = var_array_get(arr, i);
+		node_t* n2 = var_array_get(arr, sz-i-1);
+		if(n1 != NULL && n2 != NULL) {
+			var_t* tmp = n1->var;
+			n1->var = n2->var;
+			n2->var = tmp;
+		}
+	}
+}
+
+node_t* var_array_remove(var_t* var, int32_t index) {
+	var_t* arr_var = var_find_var(var, "_ARRAY_");
+	if(arr_var == NULL)
+		return NULL;
+	return (node_t*)array_remove(&arr_var->children, index);
+}
+
+void var_array_del(var_t* var, int32_t index) {
+	var_t* arr_var = var_find_var(var, "_ARRAY_");
+	if(arr_var == NULL)
+		return;
+	array_del(&arr_var->children, index, node_free);
 }
 
 void func_free(void* p);
@@ -578,7 +583,7 @@ static inline var_t* var_build_basic_prototype(vm_t* vm, var_t* var) {
 
 /** var cache for const value --------------*/
 
-#ifdef MARIO_CACHE
+/*#ifdef MARIO_CACHE
 
 void var_cache_init(vm_t* vm) {
 	uint32_t i;
@@ -619,6 +624,7 @@ bool try_cache(vm_t* vm, PC* ins, var_t* v) {
 }
 
 #endif
+*/
 
 
 /** Interpreter-----------------------------*/
@@ -999,7 +1005,7 @@ bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 	int32_t i;
 	for(i=arg_num; i>func->args.size; i--) {
 		var_t* v = vm_pop2(vm);
-		var_array_add_head(args, v);
+		var_array_add(args, v);
 		var_unref(v, true);
 	}
 
@@ -1014,11 +1020,12 @@ bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 			v = vm_pop2(vm);	
 		}	
 		if(v != NULL) {
-			var_array_add_head(args, v);
+			var_array_add(args, v);
 			var_add(env, arg_name, v);
 			var_unref(v, true);
 		}
 	}
+	var_array_reverse(args); // reverse the args array coz stack index.
 
 	if(func->owner != NULL) {
 		node_t* superN = var_find(func->owner, SUPER);
@@ -1826,8 +1833,7 @@ void vm_run(vm_t* vm) {
 				}
 				break;
 			}
-
-			#ifdef MARIO_CACHE
+			/*#ifdef MARIO_CACHE
 			case INSTR_CACHE: 
 			{	
 				var_t* v = vm->var_cache[offset];
@@ -1835,6 +1841,7 @@ void vm_run(vm_t* vm) {
 				break;
 			}
 			#endif
+			*/
 			case INSTR_TRUE: 
 			{
 				vm_push(vm, vm->var_true);
@@ -1938,12 +1945,15 @@ void vm_run(vm_t* vm) {
 					int *i = (int*)v->value;
 					if(i != NULL) {
 						(*i)--;
+						/*
 						if((ins & INSTR_OPT_CACHE) == 0) {
 							if(OP(code[vm->pc]) != INSTR_POP) { 
 								vm_push(vm, v);
 							}
 							else { code[vm->pc] = INSTR_NIL; code[vm->pc-1] |= INSTR_OPT_CACHE; }
 						}
+						*/
+						vm_push(vm, v);
 					}
 					else {
 						vm_push(vm, v);
@@ -1958,6 +1968,9 @@ void vm_run(vm_t* vm) {
 				if(v != NULL) {
 					int *i = (int*)v->value;
 					if(i != NULL) {
+						var_t* v2 = var_new_int(*i);
+						vm_push(vm, v2);
+						/*
 						if((ins & INSTR_OPT_CACHE) == 0) {
 							var_t* v2 = var_new_int(*i);
 							if(OP(code[vm->pc]) != INSTR_POP) {
@@ -1969,6 +1982,7 @@ void vm_run(vm_t* vm) {
 								var_unref(v2, true);
 							}
 						}
+						*/
 						(*i)--;
 					}
 					else {
@@ -1985,13 +1999,15 @@ void vm_run(vm_t* vm) {
 					int *i = (int*)v->value;
 					if(i != NULL) {
 						(*i)++;
-
+						/*	
 						if((ins & INSTR_OPT_CACHE) == 0) {
 							if(OP(code[vm->pc]) != INSTR_POP) { 
 								vm_push(vm, v);
 							}
 							else { code[vm->pc] = INSTR_NIL; code[vm->pc-1] |= INSTR_OPT_CACHE; }
 						}
+						*/
+						vm_push(vm, v);
 					}
 					else {
 						vm_push(vm, v);
@@ -2007,6 +2023,9 @@ void vm_run(vm_t* vm) {
 				if(v != NULL) {
 					int *i = (int*)v->value;
 					if(i != NULL) {
+						var_t* v2 = var_new_int(*i);
+						vm_push(vm, v2);
+						/*
 						if((ins & INSTR_OPT_CACHE) == 0) {
 							var_t* v2 = var_new_int(*i);
 							if(OP(code[vm->pc]) != INSTR_POP) {
@@ -2018,7 +2037,7 @@ void vm_run(vm_t* vm) {
 								var_unref(v2, true);
 							}
 						}
-
+						*/
 						(*i)++;
 					}
 					else {
@@ -2090,29 +2109,32 @@ void vm_run(vm_t* vm) {
 			case INSTR_INT:
 			{
 				var_t* v = var_new_int((int)code[vm->pc++]);
-				#ifdef MARIO_CACHE
+				/*#ifdef MARIO_CACHE
 				if(try_cache(vm, &code[vm->pc-2], v))
 					code[vm->pc-1] = INSTR_NIL;
 				#endif
+				*/
 				vm_push(vm, v);
 				break;
 			}
 			case INSTR_INT_S:
 			{
 				var_t* v = var_new_int(offset);
-				#ifdef MARIO_CACHE
+				/*#ifdef MARIO_CACHE
 				try_cache(vm, &code[vm->pc-1], v);
 				#endif
+				*/
 				vm_push(vm, v);
 				break;
 			}
 			case INSTR_FLOAT: 
 			{
 				var_t* v = var_new_float(*(float*)(&code[vm->pc++]));
-				#ifdef MARIO_CACHE
+				/*#ifdef MARIO_CACHE
 				if(try_cache(vm, &code[vm->pc-2], v))
 					code[vm->pc-1] = INSTR_NIL;
 				#endif
+				*/
 				vm_push(vm, v);
 				break;
 			}
@@ -2120,9 +2142,10 @@ void vm_run(vm_t* vm) {
 			{
 				const char* s = bc_getstr(&vm->bc, offset);
 				var_t* v = var_new_str(s);
-				#ifdef MARIO_CACHE	
+				/*#ifdef MARIO_CACHE	
 				try_cache(vm, &code[vm->pc-1], v);
 				#endif
+				*/
 				vm_push(vm, v);
 				break;
 			}
@@ -2141,13 +2164,14 @@ void vm_run(vm_t* vm) {
 						_err("'!\n");
 					}
 					var_unref(v, true);
-
-					if((ins & INSTR_OPT_CACHE) == 0) {
+					vm_push(vm, n->var);
+					/*if((ins & INSTR_OPT_CACHE) == 0) {
 						if(OP(code[vm->pc]) != INSTR_POP) {
 							vm_push(vm, n->var);
 						}
 						else { code[vm->pc] = INSTR_NIL; code[vm->pc-1] |= INSTR_OPT_CACHE; }
 					}
+					*/
 				}
 				break;
 			}
@@ -2238,20 +2262,21 @@ void vm_run(vm_t* vm) {
 			{
 				const char* s = (instr == INSTR_MEMBER ? "" :  bc_getstr(&vm->bc, offset));
 				var_t* v = vm_pop2(vm);
-				if(v != NULL) {
-					var_t *var = vm_get_scope_var(vm, false);
-					if(var->is_array)
-						var = get_obj(var, "_ARRAY_");
-
-					if(var != NULL) {
-						if(v->is_func) {
-							func_t* func = (func_t*)v->value;
-							func->owner = var;
-						}
-						var_add(var, s, v);
-					}
-					var_unref(v, true);
+				if(v == NULL) 
+					v = var_new();
+				
+				var_t *var = vm_get_scope_var(vm, false);
+				if(var->is_array) {
+					var_array_add(var, v);
 				}
+				else {
+					if(v->is_func) {
+						func_t* func = (func_t*)v->value;
+						func->owner = var;
+					}
+					var_add(var, s, v);
+				}
+				var_unref(v, true);
 				break;
 			}
 
@@ -2435,9 +2460,10 @@ void vm_close(vm_t* vm) {
 	pthread_mutex_destroy(&vm->interrupt_lock);
 	#endif
 
-	#ifdef MARIO_CACHE
+	/*#ifdef MARIO_CACHE
 	var_cache_free(vm);
 	#endif
+	*/
 
 	array_free(vm->scopes, scope_free);
 	array_clean(&vm->init_natives, NULL);
@@ -2642,9 +2668,10 @@ vm_t* vm_new(bool compiler(bytecode_t *bc, const char* input)) {
 	vm->var_false = var_new_bool(false);
 	var_ref(vm->var_false);
 
-	#ifdef MARIO_CACHE
+	/*#ifdef MARIO_CACHE
 	var_cache_init(vm);
 	#endif
+	*/
 
 	#ifdef MARIO_THREAD
 	pthread_mutex_init(&vm->interrupt_lock, NULL);
