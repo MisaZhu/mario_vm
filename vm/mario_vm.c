@@ -73,6 +73,24 @@ node_t* var_add(var_t* var, const char* name, var_t* add) {
 	return node;
 }
 
+node_t* var_add_head(var_t* var, const char* name, var_t* add) {
+	node_t* node = NULL;
+
+	if(name[0] != 0) 
+		node = var_find(var, name);
+
+	if(node == NULL) {
+		node = node_new(name);
+		var_ref(node->var);
+		array_add_head(&var->children, node);
+	}
+
+	if(add != NULL)
+		node_replace(node, add);
+
+	return node;
+}
+
 inline node_t* var_find(var_t* var, const char*name) {
 	uint32_t i;
 
@@ -139,6 +157,12 @@ void var_array_add(var_t* var, var_t* add_var) {
 	var_t* arr_var = var_find_var(var, "_ARRAY_");
 	if(arr_var != NULL)
 		var_add(arr_var, "", add_var);
+}
+
+void var_array_add_head(var_t* var, var_t* add_var) {
+	var_t* arr_var = var_find_var(var, "_ARRAY_");
+	if(arr_var != NULL)
+		var_add_head(arr_var, "", add_var);
 }
 
 uint32_t var_array_size(var_t* var) {
