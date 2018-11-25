@@ -146,7 +146,7 @@ node_t* var_array_remove(var_t* var, int32_t index);
 void var_array_del(var_t* var, int32_t index);
 void var_array_reverse(var_t* var);
 uint32_t var_array_size(var_t* var);
-
+void var_instance_from(var_t* var, var_t* src);
 void var_clean(var_t* var);
 void var_free(void* p);
 

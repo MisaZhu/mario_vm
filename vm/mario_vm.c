@@ -585,26 +585,6 @@ static inline void vm_load_basic_classes(vm_t* vm) {
 	vm->var_Array = vm_load_var(vm, "Array", false);
 }
 
-static inline var_t* var_build_basic_prototype(vm_t* vm, var_t* var) {
-	var_t* protoV = get_prototype(var);
-	if(protoV != NULL)
-		return var;
-
-	var_t* cls_var = NULL;
-	if(var->type == V_STRING) { //get basic native class
-		cls_var  = vm->var_String;
-	}
-	else if(var->is_array) {
-		cls_var  = vm->var_Array;
-	}
-
-	if(cls_var != NULL) {
-		protoV = get_prototype(cls_var); //set prototype of var
-		var_add(var, PROTOTYPE, protoV);
-	}
-	return var;
-}
-
 /** var cache for const value --------------*/
 
 /*#ifdef MARIO_CACHE
@@ -948,22 +928,72 @@ inline node_t* vm_load_node(vm_t* vm, const char* name, bool create) {
 	return n;
 }
 
-//for function.
-
-var_t* add_prototype(vm_t* vm, var_t* var, var_t* father) {
-	var_t* v = var_new_obj(NULL, NULL);
-	node_t* protoN = var_add(var, PROTOTYPE, v); //add prototype object
-
-	if(father != NULL) {
-		v = get_obj(father, PROTOTYPE); //get father's prototype.
-		if(v != NULL) {
-			var_add(protoN->var, SUPER, v);
+static void var_clone_members(var_t* var, var_t* src) {
+	//clone member varibles.
+	uint32_t i;
+	for(i=0; i<src->children.size; i++) {
+		node_t* node = (node_t*)src->children.items[i];
+		if(node != NULL && !node->var->is_func && node->name[0] != 0) { //don't clone functions.
+			if(strcmp(node->name, THIS) == 0 ||
+					strcmp(node->name, SUPER) == 0 ||
+					strcmp(node->name, CONSTRUCTOR) == 0) 
+				continue;
+			var_add(var, node->name, node->var);	
 		}
 	}
-
-	return protoN->var;
 }
 
+void var_set_prototype(var_t* var, var_t* proto) {
+	if(var == NULL || proto == NULL)
+		return;
+	var_add(var, PROTOTYPE, proto);
+}
+
+void var_instance_from(var_t* var, var_t* src) {
+	var_t* proto = get_prototype(src);
+	var_set_prototype(var, proto);
+	var_clone_members(var, proto);
+}
+
+void var_set_father(var_t* var, var_t* father) {
+	if(var == NULL)
+		return;
+	node_t* proto_n = var_add(var, PROTOTYPE, var_new_obj(NULL, NULL)); //add prototype object
+
+	var_t* super_proto = NULL;
+	if(father != NULL) 
+		super_proto = get_prototype(father);
+	if(super_proto == NULL)
+		return;
+
+	var_add(proto_n->var, SUPER, super_proto);
+}
+
+var_t* var_get_super(var_t* var) {
+	return get_obj(var, SUPER);
+}
+
+static inline var_t* var_build_basic_prototype(vm_t* vm, var_t* var) {
+	var_t* protoV = get_prototype(var);
+	if(protoV != NULL)
+		return var;
+
+	var_t* cls_var = NULL;
+	if(var->type == V_STRING) { //get basic native class
+		cls_var  = vm->var_String;
+	}
+	else if(var->is_array) {
+		cls_var  = vm->var_Array;
+	}
+
+	if(cls_var != NULL) {
+		protoV = get_prototype(cls_var); //set prototype of var
+		var_set_prototype(var, protoV);
+	}
+	return var;
+}
+
+//for function.
 func_t* func_new() {
 	func_t* func = (func_t*)_malloc(sizeof(func_t));
 	if(func == NULL)
@@ -993,8 +1023,8 @@ var_t* var_new_func(vm_t* vm, func_t* func) {
 	var->free_func = func_free;
 	var->value = func;
 
-	add_prototype(vm, var, vm->var_Object);
-	//var_t* protoV = add_prototype(var, vm->var_Object);
+	var_set_father(var, vm->var_Object);
+	//var_t* protoV = var_add_prototype(var, vm->var_Object);
 	//var_add(protoV, CONSTRUCTOR, var);
 	return var;
 }
@@ -1052,9 +1082,9 @@ bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 	var_array_reverse(args); // reverse the args array coz stack index.
 
 	if(func->owner != NULL) {
-		node_t* superN = var_find(func->owner, SUPER);
-		if(superN != NULL)
-			var_add(env, SUPER, superN->var);
+		var_t* super_v = var_get_super(func->owner);
+		if(super_v != NULL)
+			var_add(env, SUPER, super_v);
 	}
 
 	if(func->native != NULL) { //native function
@@ -1447,9 +1477,11 @@ var_t* new_obj(vm_t* vm, const char* name, int arg_num) {
 		return NULL;
 	}
 
+	obj = var_new_obj(NULL, NULL);
+	var_instance_from(obj, n->var);
+
 	var_t* protoV = get_prototype(n->var);
 	var_t* constructor = NULL;
-	obj = var_new_obj(NULL, NULL);
 
 	if(n->var->is_func) { // new object built by function call
 		constructor = n->var;
@@ -1463,7 +1495,6 @@ var_t* new_obj(vm_t* vm, const char* name, int arg_num) {
 		obj = vm_pop2(vm);
 		var_unref(obj, false);
 	}
-	var_add(obj, PROTOTYPE, protoV);
 	return obj;
 }
 
@@ -1681,10 +1712,10 @@ node_t* vm_new_class(vm_t* vm, const char* cls) {
 	if(get_prototype(cls_node->var) == NULL) {
 		if(strcmp(cls, "Object") == 0) {
 			vm->var_Object = cls_node->var;
-			add_prototype(vm, vm->var_Object, NULL);
+			var_set_prototype(vm->var_Object, NULL);
 		}
 		else {
-			add_prototype(vm, cls_node->var, vm->var_Object);
+			var_set_father(cls_node->var, vm->var_Object);
 		}
 	}
 
@@ -2232,6 +2263,7 @@ void vm_run(vm_t* vm) {
 				const char* s = bc_getstr(&vm->bc, offset);
 				str_t* name = str_new("");
 				int arg_num = parse_func_name(s, name);
+				var_t* sc_var = vm_get_scope_var(vm, false);
 				
 				if(instr == INSTR_CALLO) {
 					obj = vm_stack_pick(vm, arg_num+1);
@@ -2240,9 +2272,12 @@ void vm_run(vm_t* vm) {
 				}
 				else {
 					obj = vm_this_in_scopes(vm);
+					func = find_func(vm, sc_var, name->cstr);
 				}
 
-				func = find_func(vm, obj, name->cstr);
+				if(func == NULL)
+					func = find_func(vm, obj, name->cstr);
+
 				if(func != NULL && !func->is_func) { //constructor like super()
 					var_t* constr = var_find_var(func, CONSTRUCTOR);	
 					if(constr == NULL) {
@@ -2322,7 +2357,7 @@ void vm_run(vm_t* vm) {
 				var_t* obj;
 				if(instr == INSTR_OBJ) {
 					obj = var_new_obj(NULL, NULL);
-					var_add(obj, PROTOTYPE, get_prototype(vm->var_Object));
+					var_set_prototype(obj, get_prototype(vm->var_Object));
 				}
 				else
 					obj = var_new_array();
