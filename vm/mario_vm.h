@@ -171,6 +171,8 @@ int var_get_int(var_t* var);
 bool var_get_bool(var_t* var);
 float var_get_float(var_t* var);
 func_t* var_get_func(var_t* var);
+var_t* var_get_prototype(var_t* var);
+bool var_instanceof(var_t* var, var_t* proto);
 
 void var_to_json_str(var_t*, str_t*, int);
 void var_to_str(var_t*, str_t*);

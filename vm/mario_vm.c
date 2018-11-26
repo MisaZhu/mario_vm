@@ -320,7 +320,7 @@ inline var_t* var_new_float(float i) {
 	return var;
 }
 
-var_t* get_prototype(var_t* var) {
+var_t* var_get_prototype(var_t* var) {
 	return get_obj(var, PROTOTYPE);
 }
 
@@ -851,6 +851,23 @@ node_t* vm_find_in_class(var_t* var, const char* name) {
 	return NULL;
 }
 
+bool var_instanceof(var_t* var, var_t* proto) {
+	var_t* v = var_get_prototype(proto);
+	if(v != NULL)
+		proto = v;
+		
+	node_t* n = var_find(var, PROTOTYPE);
+	while(n != NULL && n->var != NULL) {
+		if(n->var == proto)
+			return true;
+		var_t* v = n->var;
+		n = var_find(v, SUPER);
+		if(n == NULL)
+			n = var_find(v, PROTOTYPE);
+	}
+	return false;
+}
+
 node_t* find_member(var_t* obj, const char* name) {
 	node_t* node = var_find(obj, name);
 	if(node != NULL)
@@ -953,7 +970,7 @@ void var_instance_from(var_t* var, var_t* src) {
 	if(var == NULL || src == NULL)
 		return;
 
-	var_t* proto = get_prototype(src);
+	var_t* proto = var_get_prototype(src);
 	if(proto == NULL)
 		proto = src;
 	var_set_prototype(var, proto);
@@ -967,7 +984,7 @@ void var_set_father(var_t* var, var_t* father) {
 
 	var_t* super_proto = NULL;
 	if(father != NULL) 
-		super_proto = get_prototype(father);
+		super_proto = var_get_prototype(father);
 	if(super_proto == NULL)
 		return;
 
@@ -979,7 +996,7 @@ var_t* var_get_super(var_t* var) {
 }
 
 static inline var_t* var_build_basic_prototype(vm_t* vm, var_t* var) {
-	var_t* protoV = get_prototype(var);
+	var_t* protoV = var_get_prototype(var);
 	if(protoV != NULL)
 		return var;
 
@@ -992,7 +1009,7 @@ static inline var_t* var_build_basic_prototype(vm_t* vm, var_t* var) {
 	}
 
 	if(cls_var != NULL) {
-		protoV = get_prototype(cls_var); //set prototype of var
+		protoV = var_get_prototype(cls_var); //set prototype of var
 		var_set_prototype(var, protoV);
 	}
 	return var;
@@ -1465,7 +1482,7 @@ void doExtends(vm_t* vm, var_t* clsProto, const char* super_name) {
 		return;
 	}
 
-	var_t* protoV = get_prototype(n->var);
+	var_t* protoV = var_get_prototype(n->var);
 	if(protoV != NULL)
 		var_add(clsProto, SUPER, protoV);
 }
@@ -1485,7 +1502,7 @@ var_t* new_obj(vm_t* vm, const char* name, int arg_num) {
 	obj = var_new_obj(NULL, NULL);
 	var_instance_from(obj, n->var);
 
-	var_t* protoV = get_prototype(obj);
+	var_t* protoV = var_get_prototype(obj);
 	var_t* constructor = NULL;
 
 	if(n->var->is_func) { // new object built by function call
@@ -1714,7 +1731,7 @@ node_t* vm_new_class(vm_t* vm, const char* cls) {
 	node_t* cls_node = vm_load_node(vm, cls, true);
 	cls_node->var->type = V_OBJECT;
 
-	if(get_prototype(cls_node->var) == NULL) {
+	if(var_get_prototype(cls_node->var) == NULL) {
 		if(strcmp(cls, "Object") == 0) {
 			vm->var_Object = cls_node->var;
 			var_set_prototype(vm->var_Object, var_new_obj(NULL, NULL));
@@ -2286,7 +2303,7 @@ void vm_run(vm_t* vm) {
 				if(func != NULL && !func->is_func) { //constructor like super()
 					var_t* constr = var_find_var(func, CONSTRUCTOR);	
 					if(constr == NULL) {
-						var_t* protoV = get_prototype(func);
+						var_t* protoV = var_get_prototype(func);
 						if(protoV != NULL) 
 							func = var_find_var(protoV, CONSTRUCTOR);	
 						else
@@ -2362,7 +2379,7 @@ void vm_run(vm_t* vm) {
 				var_t* obj;
 				if(instr == INSTR_OBJ) {
 					obj = var_new_obj(NULL, NULL);
-					var_set_prototype(obj, get_prototype(vm->var_Object));
+					var_from_prototype(obj, var_get_prototype(vm->var_Object));
 				}
 				else
 					obj = var_new_array();
@@ -2396,7 +2413,7 @@ void vm_run(vm_t* vm) {
 			{
 				const char* s =  bc_getstr(&vm->bc, offset);
 				node_t* n = vm_new_class(vm, s);
-				var_t* protoV = get_prototype(n->var);
+				var_t* protoV = var_get_prototype(n->var);
 				//read extends
 				ins = code[vm->pc];
 				instr = OP(ins);
@@ -2416,6 +2433,18 @@ void vm_run(vm_t* vm) {
 				var_t* var = vm_get_scope_var(vm, false);
 				vm_push(vm, var);
 				vm_pop_scope(vm);
+				break;
+			}
+			case INSTR_INSTOF: 
+			{
+				var_t* v2 = vm_pop2(vm);
+				var_t* v1 = vm_pop2(vm);
+				if(v1 != NULL && v2 != NULL) {
+					bool res = var_instanceof(v1, v2);
+					var_unref(v2, true);
+					var_unref(v1, true);
+					vm_push(vm, var_new_bool(res));
+				}
 				break;
 			}
 			case INSTR_TYPEOF: 
@@ -2559,7 +2588,7 @@ node_t* vm_reg_var(vm_t* vm, const char* cls, const char* name, var_t* var, bool
 	var_t* cls_var = vm->root;
 	if(cls[0] != 0) {
 		node_t* clsnode = vm_new_class(vm, cls);
-		cls_var = get_prototype(clsnode->var);
+		cls_var = var_get_prototype(clsnode->var);
 		//cls_var = clsnode->var;
 	}
 
@@ -2572,7 +2601,7 @@ node_t* vm_reg_native(vm_t* vm, const char* cls, const char* decl, native_func_t
 	var_t* cls_var = vm->root;
 	if(cls[0] != 0) {
 		node_t* cls_node = vm_new_class(vm, cls);
-		cls_var = get_prototype(cls_node->var);
+		cls_var = var_get_prototype(cls_node->var);
 		//cls_var = cls_node->var;
 	}
 

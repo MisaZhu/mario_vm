@@ -235,6 +235,7 @@ const char* instr_str(opr_code_t ins) {
 		case  INSTR_TRY_END			: return "TRYE";
 		case  INSTR_THROW				: return "THROW";
 		case  INSTR_CATCH				: return "CATCH";
+		case  INSTR_INSTOF			: return "INSTOF";
 		default									: return "";
 	}
 }
