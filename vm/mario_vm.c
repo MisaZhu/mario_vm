@@ -1579,7 +1579,8 @@ static bool interrupt_raw(vm_t* vm, var_t* obj, const char* func_name, var_t* fu
 
 	is->next = NULL;
 	is->prev = NULL;
-	is->obj = var_ref(obj);
+	//is->obj = var_ref(obj);
+	is->obj = obj;
 
 	if(func != NULL)
 		is->handle_func = var_ref(func);
@@ -1674,7 +1675,7 @@ void try_interrupter(vm_t* vm) {
 	if(ret != NULL)
 		var_unref(ret, true);
 
-	var_unref(sig->obj, true);
+	//var_unref(sig->obj, true);
 	var_unref(func, true);
 	if(sig->handle_func_name != NULL)
 		str_free(sig->handle_func_name);
@@ -2261,7 +2262,7 @@ void vm_run(vm_t* vm) {
 					func = find_func(vm, sc_var, name->cstr);
 				}
 
-				if(func == NULL)
+				if(func == NULL && obj != NULL)
 					func = find_func(vm, obj, name->cstr);
 
 				if(func != NULL && !func->is_func) { //constructor like super()
