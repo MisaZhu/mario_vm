@@ -1434,8 +1434,9 @@ void do_get(vm_t* vm, var_t* v, const char* name) {
 		if(v->type == V_UNDEF)
 			v->type = V_OBJECT;
 
-		if(v->type == V_OBJECT)
+		if(v->type == V_OBJECT) {
 			n = var_add(v, name, NULL);
+		}
 		else {
 			_err("Can not get member '");
 			_err(name);
@@ -1783,14 +1784,12 @@ void vm_run(vm_t* vm) {
 						vm_push_node(vm, n);
 					}
 					else { // LOAD obj
-						n = vm_load_node(vm, s, false); //load variable, warning if not exist.
-						if(n != NULL) 
-							vm_push_node(vm, n);
-						else {
-							_err("Error: object or class '");
-							_err(s);
-							_err("' undefined!\n");
-							vm_terminate(vm);
+						n = vm_load_node(vm, s, true); //load variable, warning if not exist.
+						vm_push_node(vm, n);
+						if(n->var->type != V_OBJECT) {
+							_debug("Warning: object or class '");
+							_debug(s);
+							_debug("' undefined, object created.\n");
 						}
 					}
 				}
