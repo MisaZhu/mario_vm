@@ -2364,12 +2364,21 @@ void vm_run(vm_t* vm) {
 				var_t* v2 = vm_pop2(vm);
 				var_t* v1 = vm_pop2(vm);
 				if(v1 != NULL && v2 != NULL) {
-					int at = var_get_int(v2);
-					var_unref(v2, true);
-					node_t* n = var_array_get(v1, at);
+					node_t* n = NULL;
+					if(v2->type == V_STRING) {
+						const char* s = var_get_str(v2);
+						n = var_find(v1, s);
+					}
+					else {
+						int at = var_get_int(v2);
+						n = var_array_get(v1, at);
+					}
 					if(n != NULL) 
 						vm_push_node(vm, n);
+					else
+						vm_push(vm, var_new());
 					var_unref(v1, true);
+					var_unref(v2, true);
 				}
 				break;
 			}
