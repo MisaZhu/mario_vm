@@ -68,7 +68,7 @@ void gen_func_name(const char* name, int arg_num, str_t* full) {
 	if(arg_num > 0) {
 		str_append(full, "$");
 		char s[STATIC_STR_MAX];
-		str_append(full, str_from_int(arg_num, s));
+		str_append(full, str_from_int(arg_num, s, 10));
 	}
 }
 
