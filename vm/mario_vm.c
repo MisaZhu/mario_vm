@@ -413,7 +413,7 @@ void var_to_str(var_t* var, str_t* ret) {
 	char s[STATIC_STR_MAX];
 	switch(var->type) {
 	case V_INT:
-		str_cpy(ret, str_from_int(var_get_int(var), s));
+		str_cpy(ret, str_from_int(var_get_int(var), s, 10));
 		break;
 	case V_FLOAT:
 		str_cpy(ret, str_from_float(var_get_float(var), s));
@@ -575,6 +575,7 @@ static inline var_t* vm_load_var(vm_t* vm, const char* name, bool create) {
 static inline void vm_load_basic_classes(vm_t* vm) {
 	vm->var_String = vm_load_var(vm, "String", false);
 	vm->var_Array = vm_load_var(vm, "Array", false);
+	vm->var_Number = vm_load_var(vm, "Number", false);
 }
 
 /** var cache for const value --------------*/
@@ -999,6 +1000,9 @@ static inline var_t* var_build_basic_prototype(vm_t* vm, var_t* var) {
 	}
 	else if(var->is_array) {
 		cls_var  = vm->var_Array;
+	}
+	else if(var->type == V_INT || var->type == V_FLOAT) {
+		cls_var  = vm->var_Number;
 	}
 
 	if(cls_var != NULL) {

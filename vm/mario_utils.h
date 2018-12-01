@@ -97,7 +97,7 @@ str_t* str_new(const char* s);
 char* str_append(str_t* str, const char* src);
 char* str_add(str_t* str, char c);
 void str_free(str_t* str);
-const char* str_from_int(int i, char* s);
+const char* str_from_int(int i, char* s, int base);
 const char* str_from_float(float i, char* s);
 const char* str_from_bool(bool b);
 int str_to_int(const char* str);

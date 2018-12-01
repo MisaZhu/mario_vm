@@ -119,6 +119,7 @@ typedef struct st_vm {
 	uint32_t this_strIndex;
 	var_t* var_Object;
 	var_t* var_String;
+	var_t* var_Number;
 	var_t* var_Array;
 	var_t* var_true;
 	var_t* var_false;
