@@ -185,7 +185,7 @@ void lex_get_basic_token(lex_t* lex) {
 			str_add(lex->tk_str, lex->curr_ch);
 			lex_get_nextch(lex);
 		}
-		if (!isHex && lex->curr_ch=='.') {
+		if (!isHex && lex->curr_ch=='.' && is_numeric(lex->next_ch)) {
 			lex->tk = LEX_FLOAT;
 			str_add(lex->tk_str, '.');
 			lex_get_nextch(lex);
