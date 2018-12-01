@@ -352,6 +352,19 @@ inline const char* var_get_str(var_t* var) {
 	return (const char*)var->value;
 }
 
+inline var_t* var_set_str(var_t* var, const char* v) {
+	if(v == NULL)
+		return var;
+
+	var->type = V_STRING;
+	if(var->value != NULL)
+		_free(var->value);
+	int len = strlen(v)+1;	
+	var->value = _malloc(len);
+	memcpy(var->value, v, len);
+	return var;
+}
+
 inline bool var_get_bool(var_t* var) {
 	if(var == NULL || var->value == NULL)
 		return false;
@@ -367,6 +380,15 @@ inline int var_get_int(var_t* var) {
 	return *(int*)var->value;
 }
 
+inline var_t* var_set_int(var_t* var, int v) {
+	var->type = V_INT;
+	if(var->value != NULL)
+		_free(var->value);
+	var->value = _malloc(sizeof(int));
+	*((int*)var->value) = v;
+	return var;
+}
+
 inline float var_get_float(var_t* var) {
 	if(var == NULL || var->value == NULL)
 		return 0.0;
@@ -374,6 +396,15 @@ inline float var_get_float(var_t* var) {
 	if(var->type == V_INT)	
 		return (float)(*(int*)var->value);
 	return *(float*)var->value;
+}
+
+inline var_t* var_set_float(var_t* var, float v) {
+	var->type = V_FLOAT;
+	if(var->value != NULL)
+		_free(var->value);
+	var->value = _malloc(sizeof(int));
+	*((float*)var->value) = v;
+	return var;
 }
 
 inline func_t* var_get_func(var_t* var) {
