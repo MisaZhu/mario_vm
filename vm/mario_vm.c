@@ -1098,7 +1098,7 @@ var_t* find_func(vm_t* vm, var_t* obj, const char* fname) {
 bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 	var_t *env = var_new();
 	var_t* args = var_new_array();
-	var_add(env, "_args", args);
+	var_add(env, "arguments", args);
 	var_ref(env);
 	func_t* func = var_get_func(func_var);
 	if(obj == NULL) {
@@ -2706,7 +2706,7 @@ var_t* set_obj_member(var_t* env, const char* name, var_t* var) {
 }
 
 var_t* get_func_args(var_t* env) {
-	return get_obj(env, "_args");
+	return get_obj(env, "arguments");
 }
 
 uint32_t get_func_args_num(var_t* env) {
