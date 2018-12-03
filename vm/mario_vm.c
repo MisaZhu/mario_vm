@@ -2133,6 +2133,11 @@ void vm_run(vm_t* vm) {
 					else
 						vm_push(vm, var_new());
 				}
+				else { //return with value;
+					var_t* ret = vm_pop2(vm); // if node in stack, just restore the var value.
+					vm_push(vm, ret);
+					var_unref(ret, true);
+				}
 
 				while(true) {
 					scope_t* sc = vm_get_scope(vm);
