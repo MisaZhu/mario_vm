@@ -145,16 +145,20 @@ node_t* var_array_set(var_t* var, int32_t index, var_t* set_var) {
 	return node;
 }
 
-void var_array_add(var_t* var, var_t* add_var) {
+node_t* var_array_add(var_t* var, var_t* add_var) {
+	node_t* ret = NULL;
 	var_t* arr_var = var_find_var(var, "_ARRAY_");
 	if(arr_var != NULL)
-		var_add(arr_var, "", add_var);
+		ret = var_add(arr_var, "", add_var);
+	return ret;
 }
 
-void var_array_add_head(var_t* var, var_t* add_var) {
+node_t* var_array_add_head(var_t* var, var_t* add_var) {
+	node_t* ret = NULL;
 	var_t* arr_var = var_find_var(var, "_ARRAY_");
 	if(arr_var != NULL)
-		var_add_head(arr_var, "", add_var);
+		ret = var_add_head(arr_var, "", add_var);
+	return ret;
 }
 
 uint32_t var_array_size(var_t* var) {
@@ -275,8 +279,7 @@ inline var_t* var_new() {
 }
 
 inline var_t* var_new_block() {
-	var_t* var = var_new();
-	var->type = V_BLOCK;
+	var_t* var = var_new_obj(NULL, NULL);
 	return var;
 }
 
@@ -815,8 +818,16 @@ void scope_free(void* p) {
 }
 
 #define vm_get_scope(vm) (scope_t*)array_tail((vm)->scopes)
-
-#define vm_get_scope_var(vm, skipBlock) ({ \
+#define vm_get_scope_var(vm) ({ \
+	scope_t* sc = (scope_t*)array_tail((vm)->scopes); \
+	var_t* ret; \
+	if(sc == NULL) \
+		ret = (vm)->root; \
+	else \
+		ret = sc->var; \
+	ret; \
+})
+/*#define vm_get_scope_var(vm, skipBlock) ({ \
 	scope_t* sc = (scope_t*)array_tail((vm)->scopes); \
 	if((skipBlock) && sc != NULL && sc->var->type == V_BLOCK) \
 		sc = sc->prev; \
@@ -827,6 +838,7 @@ void scope_free(void* p) {
 		ret = sc->var; \
 	ret; \
 })
+*/
 
 void vm_push_scope(vm_t* vm, scope_t* sc) {
 	scope_t* prev = NULL;
@@ -864,7 +876,7 @@ void vm_stack_free(vm_t* vm, void* p) {
 }
 
 node_t* vm_find(vm_t* vm, const char* name) {
-	var_t* var = vm_get_scope_var(vm, false);
+	var_t* var = vm_get_scope_var(vm);
 	if(var == NULL)
 		return NULL;
 	return var_find(var, name);	
@@ -904,9 +916,32 @@ node_t* find_member(var_t* obj, const char* name) {
 	return vm_find_in_class(obj, name);
 }
 
+static inline node_t* vm_find_in_closure(var_t* closure, const char* name) {
+	int sz = var_array_size(closure);
+	int i;
+	node_t* ret = NULL;
+	for(i=0; i<sz; ++i) {
+		var_t* var = var_array_get_var(closure, i);
+		ret = var_find(var, name);
+		if(ret != NULL)
+			break;
+	}
+	return ret;
+}
+
+#define CLOSURE "__closure"
+
 static inline node_t* vm_find_in_scopes(vm_t* vm, const char* name) {
 	node_t* ret = NULL;
 	scope_t* sc = vm_get_scope(vm);
+	if(sc != NULL && sc->is_func) {
+		var_t* closure = get_obj(sc->var, CLOSURE);
+		if(closure != NULL) {
+			ret = vm_find_in_closure(closure, name);	
+			if(ret != NULL)
+				return ret;
+		}
+	}
 	
 	while(sc != NULL) {
 		if(sc->var != NULL) {
@@ -935,7 +970,7 @@ static inline var_t* vm_this_in_scopes(vm_t* vm) {
 }
 
 inline node_t* vm_load_node(vm_t* vm, const char* name, bool create) {
-	var_t* var = vm_get_scope_var(vm, false);
+	var_t* var = vm_get_scope_var(vm);
 
 	node_t* n;
 	if(var != NULL) {
@@ -1054,7 +1089,6 @@ func_t* func_new() {
 	func->pc = 0;
 	func->data = NULL;
 	func->owner = NULL;
-	func->scopes = NULL;
 	array_init(&func->args);
 	return func;
 }
@@ -1062,8 +1096,6 @@ func_t* func_new() {
 void func_free(void* p) {
 	func_t* func = (func_t*)p;
 	array_clean(&func->args, NULL);
-	if(func->scopes != NULL)
-		array_free(func->scopes, scope_free);
 	_free(p);
 }
 
@@ -1095,6 +1127,25 @@ var_t* find_func(vm_t* vm, var_t* obj, const char* fname) {
 	return NULL;
 }
 
+var_t* func_get_closure(var_t* var) {
+	return get_obj(var, CLOSURE);
+}
+
+void func_mark_closure(vm_t* vm, var_t* func) { //function closure
+	if(vm->scopes->size <=0)
+		return;
+	if(func_get_closure(func) != NULL)
+		return;
+
+	var_t* closure = var_new_array();
+	var_add(func, CLOSURE, closure);
+	int i;
+	for(i=0; i<vm->scopes->size; ++i) {
+		scope_t* sc = (scope_t*)array_get(vm->scopes, i);
+		var_array_add(closure, sc->var);
+	}
+}
+
 bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 	var_t *env = var_new();
 	var_t* args = var_new_array();
@@ -1105,6 +1156,10 @@ bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 		obj = vm->root;
 	}
 	var_add(env, THIS, obj);
+	
+	var_t* closure = func_get_closure(func_var);
+	if(closure != NULL)
+		var_add(env, CLOSURE, closure);
 
 	int32_t i;
 	for(i=arg_num; i>func->args.size; i--) {
@@ -1179,25 +1234,6 @@ var_t* func_def(vm_t* vm, bool regular, bool is_static) {
 
 	var_t* ret = var_new_func(vm, func);
 	return ret;
-}
-
-void vm_mark_func_scopes(vm_t* vm, var_t* func) {
-	func_t* f = var_get_func(func);
-	if(f == NULL)
-		return;
-
-	if(f->scopes != NULL)
-		array_free(f->scopes, scope_free);
-	
-	f->scopes = array_new();
-	int32_t i;
-	scope_t* prev = NULL;
-	for(i=0; i<vm->scopes->size; ++i) {
-		scope_t* sc = scope_clone((scope_t*)array_get(vm->scopes, i));
-		array_add(f->scopes, sc);
-		sc->prev = prev;
-		prev = sc;
-	}
 }
 
 static inline void math_op(vm_t* vm, opr_code_t op, var_t* v1, var_t* v2) {
@@ -1701,12 +1737,7 @@ void try_interrupter(vm_t* vm) {
 	else
 		sig->next->prev = sig->prev;
 
-	m_array_t* sc = vm->scopes;
-	func_t* f = var_get_func(func);
-	if(f != NULL && f->scopes != NULL)
-		vm->scopes = f->scopes;
 	var_t* ret = call_m_func(vm, sig->obj, func, sig->args);
-	vm->scopes = sc;
 
 	if(ret != NULL)
 		var_unref(ret, true);
@@ -2161,7 +2192,7 @@ void vm_run(vm_t* vm) {
 					_err("' has already existed!\n");
 				}
 				else {
-					var_t* v = vm_get_scope_var(vm, true);
+					var_t* v = vm_get_scope_var(vm);
 					if(v != NULL) {
 						node = var_add(v, s, NULL);
 					}
@@ -2172,7 +2203,7 @@ void vm_run(vm_t* vm) {
 			case INSTR_CONST: 
 			{
 				const char* s = bc_getstr(&vm->bc, offset);
-				var_t* v = vm_get_scope_var(vm, false);
+				var_t* v = vm_get_scope_var(vm);
 				node_t *node = var_find(v, s);
 				if(node != NULL) { //find just in current scope
 					_err("Error: let '");
@@ -2289,7 +2320,7 @@ void vm_run(vm_t* vm) {
 				const char* s = bc_getstr(&vm->bc, offset);
 				str_t* name = str_new("");
 				int arg_num = parse_func_name(s, name);
-				var_t* sc_var = vm_get_scope_var(vm, false);
+				var_t* sc_var = vm_get_scope_var(vm);
 				
 				if(instr == INSTR_CALLO) {
 					obj = vm_stack_pick(vm, arg_num+1);
@@ -2350,13 +2381,14 @@ void vm_run(vm_t* vm) {
 				if(v == NULL) 
 					v = var_new();
 				
-				var_t *var = vm_get_scope_var(vm, false);
+				var_t *var = vm_get_scope_var(vm);
 				if(var->is_array) {
 					var_array_add(var, v);
 				}
 				else {
 					if(v->is_func) {
 						func_t* func = (func_t*)v->value;
+						func_mark_closure(vm, v);
 						func->owner = var;
 					}
 					var_add(var, s, v);
@@ -2394,7 +2426,7 @@ void vm_run(vm_t* vm) {
 			case INSTR_ARRAY_END: 
 			case INSTR_OBJ_END: 
 			{
-				var_t* obj = vm_get_scope_var(vm, false);
+				var_t* obj = vm_get_scope_var(vm);
 				vm_push(vm, obj); //that actually means currentObj->ref() for push and unref for unasign.
 				vm_pop_scope(vm);
 				break;
@@ -2443,7 +2475,7 @@ void vm_run(vm_t* vm) {
 			}
 			case INSTR_CLASS_END: 
 			{
-				var_t* var = vm_get_scope_var(vm, false);
+				var_t* var = vm_get_scope_var(vm);
 				vm_push(vm, var);
 				vm_pop_scope(vm);
 				break;
@@ -2488,7 +2520,7 @@ void vm_run(vm_t* vm) {
 			{
 				const char* s = bc_getstr(&vm->bc, offset);
 				var_t* v = vm_pop2(vm);
-				var_t* sc_var = vm_get_scope_var(vm, false);
+				var_t* sc_var = vm_get_scope_var(vm);
 				var_add(sc_var, s, v);
 				var_unref(v, true);
 				break;

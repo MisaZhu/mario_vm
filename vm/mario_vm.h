@@ -20,8 +20,7 @@ bool compile(bytecode_t *bc, const char* input);
 #define V_FLOAT  2
 #define V_STRING 3
 #define V_OBJECT 4
-#define V_BLOCK  5
-#define V_BOOL   6 
+#define V_BOOL   5
 
 #define THIS "this"
 #define PROTOTYPE "prototype"
@@ -55,7 +54,6 @@ typedef struct st_func {
 	void *data;
 	m_array_t args; //argument names
 	var_t* owner;
-	m_array_t *scopes;
 } func_t;
 
 //script node for var member children
@@ -140,8 +138,8 @@ node_t* var_get(var_t* var, int32_t index);
 
 node_t* var_array_get(var_t* var, int32_t index);
 var_t* var_array_get_var(var_t* var, int32_t index);
-void var_array_add(var_t* var, var_t* add);
-void var_array_add_head(var_t* var, var_t* add);
+node_t* var_array_add(var_t* var, var_t* add);
+node_t* var_array_add_head(var_t* var, var_t* add);
 node_t* var_array_set(var_t* var, int32_t index, var_t* set_var);
 node_t* var_array_remove(var_t* var, int32_t index);
 void var_array_del(var_t* var, int32_t index);
