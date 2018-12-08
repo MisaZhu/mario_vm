@@ -20,6 +20,8 @@ node_t* node_new(const char* name) {
 	memcpy(node->name, name, len+1);
 
 	node->be_const = false;
+	node->non_ref = false;
+	node->owner = NULL;
 	node->var = var_new();	
 	return node;
 }
@@ -30,15 +32,54 @@ void node_free(void* p) {
 		return;
 
 	_free(node->name);
-	if(node->var != NULL)
-		var_unref(node->var, true);
+	if(node->var != NULL) {
+		if(node->non_ref == false)
+			var_unref(node->var, true);
+		else
+			node->var = NULL;
+	}
 	_free(node);
+}
+
+static inline bool var_has(var_t* var, var_t* v) {
+	if(var == NULL || v == NULL)
+		return false;
+	var->is_dirty = true;
+
+	uint32_t i;
+	bool ret = false;
+	for(i=0; i<var->children.size; i++) {
+		node_t* node = (node_t*)var->children.items[i];
+		if(node != NULL) {
+			if(node->var == v) {
+				ret = true;
+				break;
+			}
+			if(node-var->is_dirty == false) {
+				if(var_has(node->var, v)) {
+					ret = true;
+					break;
+				}
+			}
+		}
+	}
+	var->is_dirty = false;
+	return ret;
 }
 
 inline var_t* node_replace(node_t* node, var_t* v) {
 	var_t* old = node->var;
-	node->var = var_ref(v);
-	var_unref(old, true);
+	bool non_ref = node->non_ref;
+	if(var_has(v, node->owner)) {
+		node->var = v;
+		node->non_ref = true;
+	}
+	else  {
+		node->var = var_ref(v);
+	}
+
+	if(non_ref == false)
+		var_unref(old, true);
 	return node->var;
 }
 
@@ -57,6 +98,7 @@ node_t* var_add(var_t* var, const char* name, var_t* add) {
 		node = node_new(name);
 		var_ref(node->var);
 		array_add(&var->children, node);
+		node->owner = var;
 	}
 
 	if(add != NULL)
@@ -75,6 +117,7 @@ node_t* var_add_head(var_t* var, const char* name, var_t* add) {
 		node = node_new(name);
 		var_ref(node->var);
 		array_add_head(&var->children, node);
+		node->owner = var;
 	}
 
 	if(add != NULL)
@@ -271,9 +314,10 @@ inline var_t* var_new() {
 	var->value = NULL;
 	var->free_func = NULL;
 	var->on_destroy = NULL;
-	var->is_class = 0;
-	var->is_array = 0;
-	var->is_func = 0;
+	var->is_class = false;
+	var->is_array = false;
+	var->is_func = false;
+	var->is_dirty = false;
 	array_init(&var->children);
 	return var;
 }
@@ -685,8 +729,12 @@ static inline var_t* vm_pop2(vm_t* vm) {
 
 	//node
 	node_t* node = (node_t*)p;
-	if(node != NULL)
-		return node->var;
+	if(node != NULL) {
+		var_t* ret = node->var;
+		if(node->non_ref)
+			var_ref(ret);
+		return ret;
+	}
 
 	return NULL;
 }
@@ -720,13 +768,14 @@ static inline bool vm_pop(vm_t* vm) {
 	var_t* v;
 	if(magic == 0) { //var
 		v = (var_t*)p;
+		var_unref(v, true);
 	}
 	else { //node
 		node_t* node = (node_t*)p;
 		v = node->var;
+		if(node->non_ref == false)
+			var_unref(v, true);
 	}
-
-	var_unref(v, true);
 	return true;
 }
 
@@ -2276,6 +2325,7 @@ void vm_run(vm_t* vm) {
 						_err("'!\n");
 					}
 					var_unref(v, true);
+			
 					vm_push(vm, n->var);
 					/*if((ins & INSTR_OPT_CACHE) == 0) {
 						if(OP(code[vm->pc]) != INSTR_POP) {
@@ -2391,7 +2441,9 @@ void vm_run(vm_t* vm) {
 						func_mark_closure(vm, v);
 						func->owner = var;
 					}
-					var_add(var, s, v);
+					node_t* n = var_add(var, s, v);
+					if(n->non_ref)
+						var_ref(v);
 				}
 				var_unref(v, true);
 				break;

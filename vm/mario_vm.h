@@ -30,10 +30,11 @@ bool compile(bytecode_t *bc, const char* input);
 typedef struct st_var {
 	uint32_t magic: 8; //0 for var; 1 for node
 	uint32_t refs:16;
-	uint32_t type:5;
+	uint32_t type:4;
 	uint32_t is_array:1;
 	uint32_t is_func:1;
 	uint32_t is_class:1;
+	uint32_t is_dirty:1;
 	uint32_t size;  // size for bytes type of value;
 
 	void* value;
@@ -59,9 +60,11 @@ typedef struct st_func {
 //script node for var member children
 typedef struct st_node {
 	int16_t magic: 8; //1 for node
-  int16_t be_const : 8;
+  int16_t be_const : 4;
+  int16_t non_ref  : 4;
 	char* name;
 	var_t* var;
+	var_t* owner;
 } node_t;
 
 
