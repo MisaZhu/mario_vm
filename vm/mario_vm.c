@@ -55,7 +55,7 @@ static inline bool var_has(var_t* var, var_t* v) {
 				ret = true;
 				break;
 			}
-			if(node-var->is_dirty == false) {
+			if(node->var->is_dirty == false) {
 				if(var_has(node->var, v)) {
 					ret = true;
 					break;
@@ -76,6 +76,7 @@ inline var_t* node_replace(node_t* node, var_t* v) {
 	}
 	else  {
 		node->var = var_ref(v);
+		node->non_ref = false;
 	}
 
 	if(non_ref == false)
@@ -731,8 +732,8 @@ static inline var_t* vm_pop2(vm_t* vm) {
 	node_t* node = (node_t*)p;
 	if(node != NULL) {
 		var_t* ret = node->var;
-		if(node->non_ref)
-			var_ref(ret);
+		//if(node->non_ref)
+		//	var_ref(ret);
 		return ret;
 	}
 
@@ -828,9 +829,10 @@ typedef struct st_scope {
 	var_t* var;
 	PC pc_start; // continue anchor for loop
 	PC pc; // try cache anchor , or break anchor for loop
-	int32_t is_func: 16;
-	int32_t is_try: 8;
-	int32_t is_loop: 8;
+	uint32_t is_func: 8;
+	uint32_t is_block: 8;
+	uint32_t is_try: 8;
+	uint32_t is_loop: 8;
 	//continue and break anchor for loop(while/for)
 } scope_t;
 
@@ -842,6 +844,7 @@ scope_t* scope_new(var_t* var) {
 		sc->var = var_ref(var);
 	sc->pc = 0;
 	sc->pc_start = 0;
+	sc->is_block = false;
 	sc->is_func = false;
 	sc->is_try = false;
 	sc->is_loop = false;
@@ -1180,19 +1183,23 @@ var_t* func_get_closure(var_t* var) {
 	return get_obj(var, CLOSURE);
 }
 
-void func_mark_closure(vm_t* vm, var_t* func) { //function closure
+void func_mark_closure(vm_t* vm, var_t* func) { //try mark function closure
 	if(vm->scopes->size <=0)
 		return;
 	if(func_get_closure(func) != NULL)
 		return;
 
 	var_t* closure = var_new_array();
-	var_add(func, CLOSURE, closure);
 	int i;
 	for(i=0; i<vm->scopes->size; ++i) {
 		scope_t* sc = (scope_t*)array_get(vm->scopes, i);
 		var_array_add(closure, sc->var);
+		if(sc->is_func) { //is closure
+			var_add(func, CLOSURE, closure);
+			return;
+		}
 	}
+	var_unref(closure, true); //not a closure.
 }
 
 bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
@@ -1202,9 +1209,11 @@ bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 	var_ref(env);
 	func_t* func = var_get_func(func_var);
 	if(obj == NULL) {
-		obj = vm->root;
+		//obj = vm->root;
 	}
-	var_add(env, THIS, obj);
+	else {
+		var_add(env, THIS, obj);
+	}
 	
 	var_t* closure = func_get_closure(func_var);
 	if(closure != NULL)
@@ -1936,6 +1945,7 @@ void vm_run(vm_t* vm) {
 			{
 				scope_t* sc = NULL;
 				sc = scope_new(var_new_block());
+				sc->is_block = true;
 				if(instr == INSTR_LOOP) {
 					sc->is_loop = true;
 					sc->pc_start = vm->pc+1;
@@ -2324,9 +2334,9 @@ void vm_run(vm_t* vm) {
 						_err(n->name);
 						_err("'!\n");
 					}
+					vm_push(vm, n->var);
 					var_unref(v, true);
 			
-					vm_push(vm, n->var);
 					/*if((ins & INSTR_OPT_CACHE) == 0) {
 						if(OP(code[vm->pc]) != INSTR_POP) {
 							vm_push(vm, n->var);
@@ -2441,11 +2451,9 @@ void vm_run(vm_t* vm) {
 						func_mark_closure(vm, v);
 						func->owner = var;
 					}
-					node_t* n = var_add(var, s, v);
-					if(n->non_ref)
-						var_ref(v);
+					var_add(var, s, v);
 				}
-				var_unref(v, true);
+				var_unref(v, false);
 				break;
 			}
 
