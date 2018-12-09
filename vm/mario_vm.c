@@ -1191,15 +1191,18 @@ void func_mark_closure(vm_t* vm, var_t* func) { //try mark function closure
 
 	var_t* closure = var_new_array();
 	int i;
+	bool mark = false;
 	for(i=0; i<vm->scopes->size; ++i) {
 		scope_t* sc = (scope_t*)array_get(vm->scopes, i);
-		var_array_add(closure, sc->var);
-		if(sc->is_func) { //is closure
+		if(sc->is_func) { //enter closure
+			mark = true;
 			var_add(func, CLOSURE, closure);
-			return;
 		}
+		if(mark)
+			var_array_add(closure, sc->var);
 	}
-	var_unref(closure, true); //not a closure.
+	if(!mark)
+		var_unref(closure, true); //not a closure.
 }
 
 bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
