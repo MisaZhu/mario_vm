@@ -11,18 +11,15 @@ extern "C" {
 
 /** vm var-----------------------------*/
 
-node_t* node_new(const char* name) {
+node_t* node_new(vm_t* vm, const char* name) {
 	node_t* node = (node_t*)_malloc(sizeof(node_t));
-	node->magic = 1;
+	memset(node, 0, sizeof(node_t));
 
+	node->magic = 1;
 	uint32_t len = strlen(name);
 	node->name = (char*)_malloc(len+1);
 	memcpy(node->name, name, len+1);
-
-	node->be_const = false;
-	node->non_ref = false;
-	node->owner = NULL;
-	node->var = var_new();	
+	node->var = var_new(vm);	
 	return node;
 }
 
@@ -33,54 +30,15 @@ void node_free(void* p) {
 
 	_free(node->name);
 	if(node->var != NULL) {
-		if(node->non_ref == false)
-			var_unref(node->var, true);
-		else
-			node->var = NULL;
+		var_unref(node->var);
 	}
 	_free(node);
 }
 
-static inline bool var_has(var_t* var, var_t* v) {
-	if(var == NULL || v == NULL)
-		return false;
-	var->is_dirty = true;
-
-	uint32_t i;
-	bool ret = false;
-	for(i=0; i<var->children.size; i++) {
-		node_t* node = (node_t*)var->children.items[i];
-		if(node != NULL) {
-			if(node->var == v) {
-				ret = true;
-				break;
-			}
-			if(node->var->is_dirty == false) {
-				if(var_has(node->var, v)) {
-					ret = true;
-					break;
-				}
-			}
-		}
-	}
-	var->is_dirty = false;
-	return ret;
-}
-
 inline var_t* node_replace(node_t* node, var_t* v) {
 	var_t* old = node->var;
-	bool non_ref = node->non_ref;
-	if(var_has(v, node->owner)) {
-		node->var = v;
-		node->non_ref = true;
-	}
-	else  {
-		node->var = var_ref(v);
-		node->non_ref = false;
-	}
-
-	if(non_ref == false)
-		var_unref(old, true);
+	node->var = var_ref(v);
+	var_unref(old);
 	return node->var;
 }
 
@@ -96,10 +54,10 @@ node_t* var_add(var_t* var, const char* name, var_t* add) {
 		node = var_find(var, name);
 
 	if(node == NULL) {
-		node = node_new(name);
+		node = node_new(var->vm, name);
 		var_ref(node->var);
-		array_add(&var->children, node);
 		node->owner = var;
+		array_add(&var->children, node);
 	}
 
 	if(add != NULL)
@@ -115,10 +73,10 @@ node_t* var_add_head(var_t* var, const char* name, var_t* add) {
 		node = var_find(var, name);
 
 	if(node == NULL) {
-		node = node_new(name);
+		node = node_new(var->vm, name);
 		var_ref(node->var);
-		array_add_head(&var->children, node);
 		node->owner = var;
+		array_add(&var->children, node);
 	}
 
 	if(add != NULL)
@@ -261,31 +219,74 @@ inline void var_clean(var_t* var) {
 
 	if(var->on_destroy != NULL) {
 		var->on_destroy(var);
+		var->on_destroy = NULL;
 	}
+	memset(var, 0, sizeof(var_t));
 }
 
 inline void var_free(void* p) {
 	var_t* var = (var_t*)p;
 	if(var == NULL || var->refs > 0)
 		return;
+	vm_t* vm = var->vm;
+
+	//remove from vm->vars list;
+	if(var->in_vars_list) {
+		if(var->prev != NULL)
+			var->prev->next = var->next;
+		else
+			vm->vars = var->next;
+		if(var->next)
+			var->next->prev = var->prev;
+	}
+
+	//clean var.
 	var_clean(var);
-	_free(var);
+	var->type = V_UNDEF;
+	var->vm = vm;
+
+	//add to vm->free_vars list for reusing.
+	if(vm->free_vars != NULL) 
+		vm->free_vars->prev = var;
+	var->next = vm->free_vars;
+	vm->free_vars = var;
 }
 
 inline var_t* var_ref(var_t* var) {
-	//	if(var != NULL)
 	++var->refs;
+	//remove from vm->vars list.(will put back when unref).
+	if(var->in_vars_list) {
+		vm_t* vm = var->vm;
+		if(var->prev != NULL)
+			var->prev->next = var->next;
+		else
+			vm->vars = var->next;
+		if(var->next != NULL)
+			var->next->prev = var->prev;
+		var->prev = var->next = NULL;
+		var->in_vars_list = false;
+	}
 	return var;
 }
 
-inline void var_unref(var_t* var, bool del) {
-	//	if(var != NULL) {
+inline void var_unref(var_t* var) {
+	if(var == NULL)
+		return;
 	if(var->refs > 0)
 		--var->refs;
 
-	if(var->refs == 0 && del)
+	if(var->refs == 0) {
 		var_free(var);
-	//	}
+	}
+	else if(!var->in_vars_list) { //put back to vm->vars list.
+		vm_t* vm = var->vm;
+		var->next = vm->vars;
+		var->prev = NULL;
+		if(vm->vars != NULL)
+			vm->vars->prev = var;
+		vm->vars = var;
+		var->in_vars_list = true;
+	}
 }
 
 const char* get_typeof(var_t* var) {
@@ -305,63 +306,66 @@ const char* get_typeof(var_t* var) {
 	return "undefined";
 }
 
-inline var_t* var_new() {
-	var_t* var = (var_t*)_malloc(sizeof(var_t));
-	var->magic = 0;
-	var->refs = 0;
-	var->type = V_UNDEF;
-	var->size = 0;
+inline var_t* var_new(vm_t* vm) {
+	var_t* var = vm->free_vars;
+	if(var != NULL) {
+		vm->free_vars = var->next;
+		var->prev = var->next = NULL;
+	}
+	else {
+		var = (var_t*)_malloc(sizeof(var_t));
+		memset(var, 0, sizeof(var_t));
+		var->type = V_UNDEF;
+		var->vm = vm;
+	}
 
-	var->value = NULL;
-	var->free_func = NULL;
-	var->on_destroy = NULL;
-	var->is_class = false;
-	var->is_array = false;
-	var->is_func = false;
-	var->is_dirty = false;
-	array_init(&var->children);
+	if(vm->vars != NULL)
+		vm->vars->prev = var;
+	var->next = vm->vars;
+	vm->vars = var;
+	var->in_vars_list= true;
 	return var;
 }
 
-inline var_t* var_new_block() {
-	var_t* var = var_new_obj(NULL, NULL);
+inline var_t* var_new_block(vm_t* vm) {
+	var_t* var = var_new_obj(vm, NULL, NULL);
 	return var;
 }
 
-inline var_t* var_new_array() {
-	var_t* var = var_new_obj(NULL, NULL);
+inline var_t* var_new_array(vm_t* vm) {
+	var_t* var = var_new_obj(vm, NULL, NULL);
 	var->is_array = 1;
-	var_t* members = var_new_obj(NULL, NULL);
+	var_t* members = var_new_obj(vm, NULL, NULL);
 	var_add(var, "_ARRAY_", members);
 	return var;
 }
 
-inline var_t* var_new_int(int i) {
-	var_t* var = var_new();
+inline var_t* var_new_int(vm_t* vm, int i) {
+	var_t* var = var_new(vm);
 	var->type = V_INT;
 	var->value = _malloc(sizeof(int));
 	*((int*)var->value) = i;
 	return var;
 }
 
-inline var_t* var_new_bool(bool b) {
-	var_t* var = var_new();
+inline var_t* var_new_bool(vm_t* vm, bool b) {
+	var_t* var = var_new(vm);
 	var->type = V_BOOL;
 	var->value = _malloc(sizeof(int));
 	*((int*)var->value) = b;
 	return var;
 }
 
-inline var_t* var_new_obj(void*p, free_func_t fr) {
-	var_t* var = var_new();
+inline var_t* var_new_obj(vm_t* vm, void*p, free_func_t fr) {
+	var_t* var = var_new(vm);
 	var->type = V_OBJECT;
 	var->value = p;
 	var->free_func = fr;
 	return var;
 }
 
-inline var_t* var_new_float(float i) {
-	var_t* var = var_new();
+inline var_t* var_new_float(vm_t* vm, float i) {
+	var_t* var = var_new(vm);
 	var->type = V_FLOAT;
 	var->value = _malloc(sizeof(float));
 	*((float*)var->value) = i;
@@ -372,8 +376,8 @@ var_t* var_get_prototype(var_t* var) {
 	return get_obj(var, PROTOTYPE);
 }
 
-inline var_t* var_new_str(const char* s) {
-	var_t* var = var_new();
+inline var_t* var_new_str(vm_t* vm, const char* s) {
+	var_t* var = var_new(vm);
 	var->type = V_STRING;
 	var->size = strlen(s);
 	var->value = _malloc(var->size + 1);
@@ -381,8 +385,8 @@ inline var_t* var_new_str(const char* s) {
 	return var;
 }
 
-inline var_t* var_new_str2(const char* s, uint32_t len) {
-	var_t* var = var_new();
+inline var_t* var_new_str2(vm_t* vm, const char* s, uint32_t len) {
+	var_t* var = var_new(vm);
 	var->type = V_STRING;
 	var->size = strlen(s);
 	if(var->size > len)
@@ -732,8 +736,6 @@ static inline var_t* vm_pop2(vm_t* vm) {
 	node_t* node = (node_t*)p;
 	if(node != NULL) {
 		var_t* ret = node->var;
-		//if(node->non_ref)
-		//	var_ref(ret);
 		return ret;
 	}
 
@@ -769,13 +771,12 @@ static inline bool vm_pop(vm_t* vm) {
 	var_t* v;
 	if(magic == 0) { //var
 		v = (var_t*)p;
-		var_unref(v, true);
+		var_unref(v);
 	}
 	else { //node
 		node_t* node = (node_t*)p;
 		v = node->var;
-		if(node->non_ref == false)
-			var_unref(v, true);
+		var_unref(v);
 	}
 	return true;
 }
@@ -865,7 +866,7 @@ void scope_free(void* p) {
 	if(sc == NULL)
 		return;
 	if(sc->var != NULL)
-		var_unref(sc->var, true);
+		var_unref(sc->var);
 	_free(sc);
 }
 
@@ -1152,12 +1153,12 @@ void func_free(void* p) {
 }
 
 var_t* var_new_func(vm_t* vm, func_t* func) {
-	var_t* var = var_new_obj(NULL, NULL);
+	var_t* var = var_new_obj(vm, NULL, NULL);
 	var->is_func = 1;
 	var->free_func = func_free;
 	var->value = func;
 
-	var_t* proto = var_new_obj(NULL, NULL);
+	var_t* proto = var_new_obj(vm, NULL, NULL);
 	var_set_prototype(var, proto);
 	//var_add(proto, CONSTRUCTOR, var);
 	return var;
@@ -1189,7 +1190,7 @@ void func_mark_closure(vm_t* vm, var_t* func) { //try mark function closure
 	if(func_get_closure(func) != NULL)
 		return;
 
-	var_t* closure = var_new_array();
+	var_t* closure = var_new_array(vm);
 	int i;
 	bool mark = false;
 	for(i=0; i<vm->scopes->size; ++i) {
@@ -1202,12 +1203,12 @@ void func_mark_closure(vm_t* vm, var_t* func) { //try mark function closure
 			var_array_add(closure, sc->var);
 	}
 	if(!mark)
-		var_unref(closure, true); //not a closure.
+		var_unref(closure); //not a closure.
 }
 
 bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
-	var_t *env = var_new();
-	var_t* args = var_new_array();
+	var_t *env = var_new(vm);
+	var_t* args = var_new_array(vm);
 	var_add(env, "arguments", args);
 	var_ref(env);
 	func_t* func = var_get_func(func_var);
@@ -1226,14 +1227,14 @@ bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 	for(i=arg_num; i>func->args.size; i--) {
 		var_t* v = vm_pop2(vm);
 		var_array_add(args, v);
-		var_unref(v, true);
+		var_unref(v);
 	}
 
 	for(i=(int32_t)func->args.size-1; i>=0; i--) {
 		const char* arg_name = (const char*)array_get(&func->args, i);
 		var_t* v = NULL;
 		if(i >= arg_num) {
-			v = var_new();
+			v = var_new(vm);
 			var_ref(v);
 		}
 		else {
@@ -1242,7 +1243,7 @@ bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 		if(v != NULL) {
 			var_array_add(args, v);
 			var_add(env, arg_name, v);
-			var_unref(v, true);
+			var_unref(v);
 		}
 	}
 	var_array_reverse(args); // reverse the args array coz stack index.
@@ -1256,7 +1257,7 @@ bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 	if(func->native != NULL) { //native function
 		var_t* ret = func->native(vm, env, func->data);
 		if(ret == NULL)
-			ret = var_new();
+			ret = var_new(vm);
 		vm_push(vm, ret);
 	}
 	else {
@@ -1269,7 +1270,7 @@ bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 		vm->pc = func->pc;
 		vm_run(vm);
 	}
-	var_unref(env, true);
+	var_unref(env);
 	return true;
 }
 
@@ -1355,7 +1356,7 @@ static inline void math_op(vm_t* vm, opr_code_t op, var_t* v1, var_t* v2) {
 			*(int*)v->value = ret;
 		}
 		else {
-			v = var_new_int(ret);
+			v = var_new_int(vm, ret);
 		}
 		vm_push(vm, v);
 		return;
@@ -1404,7 +1405,7 @@ static inline void math_op(vm_t* vm, opr_code_t op, var_t* v1, var_t* v2) {
 			*(float*)v->value = ret;
 		}
 		else {
-			v = var_new_float(ret);
+			v = var_new_float(vm, ret);
 		}
 		vm_push(vm, v);
 		return;
@@ -1428,7 +1429,7 @@ static inline void math_op(vm_t* vm, opr_code_t op, var_t* v1, var_t* v2) {
 				_free(p);
 		}
 		else {
-			v = var_new_str(s->cstr);
+			v = var_new_str(vm, s->cstr);
 		}
 		str_free(s);
 		vm_push(vm, v);
@@ -1542,12 +1543,12 @@ static inline void compare(vm_t* vm, opr_code_t op, var_t* v1, var_t* v2) {
 void do_get(vm_t* vm, var_t* v, const char* name) {
 	if(v->type == V_STRING && strcmp(name, "length") == 0) {
 		int len = strlen(var_get_str(v));
-		vm_push(vm, var_new_int(len));
+		vm_push(vm, var_new_int(vm, len));
 		return;
 	}
 	else if(v->is_array && strcmp(name, "length") == 0) {
 		int len = var_array_size(v);
-		vm_push(vm, var_new_int(len));
+		vm_push(vm, var_new_int(vm, len));
 		return;
 	}	
 
@@ -1573,8 +1574,8 @@ void do_get(vm_t* vm, var_t* v, const char* name) {
 			_err("Can not get member '");
 			_err(name);
 			_err("'!\n");
-			n = node_new(name);
-			vm_push(vm, var_new());
+			n = node_new(vm, name);
+			vm_push(vm, var_new(vm));
 			return;
 		}
 	}
@@ -1606,7 +1607,7 @@ var_t* new_obj(vm_t* vm, const char* name, int arg_num) {
 		return NULL;
 	}
 
-	obj = var_new_obj(NULL, NULL);
+	obj = var_new_obj(vm, NULL, NULL);
 	var_instance_from(obj, n->var);
 	var_t* protoV = var_get_prototype(obj);
 	var_t* constructor = NULL;
@@ -1621,7 +1622,7 @@ var_t* new_obj(vm_t* vm, const char* name, int arg_num) {
 	if(constructor != NULL) {
 		func_call(vm, obj, constructor, arg_num);
 		obj = vm_pop2(vm);
-		var_unref(obj, false);
+		obj->refs--;
 	}
 	return obj;
 }
@@ -1696,7 +1697,7 @@ static bool interrupt_raw(vm_t* vm, var_t* obj, const char* func_name, var_t* fu
 	if(vm->isignal_num >= MAX_ISIGNAL) {
 		_err("Too many interrupt signals!\n");
 		if(args != NULL)
-			var_unref(args, true);
+			var_unref(args);
 		pthread_mutex_unlock(&vm->interrupt_lock);
 		return false;
 	}
@@ -1705,7 +1706,7 @@ static bool interrupt_raw(vm_t* vm, var_t* obj, const char* func_name, var_t* fu
 	if(is == NULL) {
 		_err("Interrupt signal input error!\n");
 		if(args != NULL)
-			var_unref(args, true);
+			var_unref(args);
 		pthread_mutex_unlock(&vm->interrupt_lock);
 		return false;
 	}
@@ -1801,14 +1802,14 @@ void try_interrupter(vm_t* vm) {
 	var_t* ret = call_m_func(vm, sig->obj, func, sig->args);
 
 	if(ret != NULL)
-		var_unref(ret, true);
+		var_unref(ret);
 
-	//var_unref(sig->obj, true);
-	var_unref(func, true);
+	//var_unref(sig->obj);
+	var_unref(func);
 	if(sig->handle_func_name != NULL)
 		str_free(sig->handle_func_name);
 	if(sig->args != NULL)
-		var_unref(sig->args, true);
+		var_unref(sig->args);
 	_free(sig);
 	vm->isignal_num--;
 	vm->interrupted = false;
@@ -1833,7 +1834,7 @@ var_t* vm_new_class(vm_t* vm, const char* cls) {
 	var_t* cls_var = vm_load_var(vm, cls, true);
 	cls_var->type = V_OBJECT;
 	if(var_get_prototype(cls_var) == NULL)
-		var_set_prototype(cls_var, var_new_obj(NULL, NULL));
+		var_set_prototype(cls_var, var_new_obj(vm, NULL, NULL));
 	return cls_var;
 }
 
@@ -1888,7 +1889,7 @@ void vm_run(vm_t* vm) {
 						else
 							vm->pc = vm->pc - offset - 1;
 					}
-					var_unref(v, true);
+					var_unref(v);
 				}
 				break;
 			}
@@ -1935,8 +1936,8 @@ void vm_run(vm_t* vm) {
 				var_t* v1 = vm_pop2(vm);
 				if(v1 != NULL && v2 != NULL) {
 					compare(vm, instr, v1, v2);
-					var_unref(v1, true);
-					var_unref(v2, true);
+					var_unref(v1);
+					var_unref(v2);
 				}
 				break;
 			}
@@ -1947,7 +1948,7 @@ void vm_run(vm_t* vm) {
 			case INSTR_TRY: 
 			{
 				scope_t* sc = NULL;
-				sc = scope_new(var_new_block());
+				sc = scope_new(var_new_block(vm));
 				sc->is_block = true;
 				if(instr == INSTR_LOOP) {
 					sc->is_loop = true;
@@ -2023,7 +2024,7 @@ void vm_run(vm_t* vm) {
 			}
 			case INSTR_UNDEF: 
 			{
-				var_t* v = var_new();	
+				var_t* v = var_new(vm);	
 				vm_push(vm, v);
 				break;
 			}
@@ -2039,14 +2040,14 @@ void vm_run(vm_t* vm) {
 					if(v->type == V_INT) {
 						int n = *(int*)v->value;
 						n = -n;
-						vm_push(vm, var_new_int(n));
+						vm_push(vm, var_new_int(vm, n));
 					}
 					else if(v->type == V_FLOAT) {
 						float n = *(float*)v->value;
 						n = -n;
-						vm_push(vm, var_new_float(n));
+						vm_push(vm, var_new_float(vm, n));
 					}
-					var_unref(v, true);
+					var_unref(v);
 				}
 				break;
 			}
@@ -2057,7 +2058,7 @@ void vm_run(vm_t* vm) {
 					bool i = false;
 					if(v->type == V_UNDEF || *(int*)v->value == 0)
 						i = true;
-					var_unref(v, true);
+					var_unref(v);
 					vm_push(vm, i ? vm->var_true:vm->var_false);
 				}
 				break;
@@ -2078,8 +2079,8 @@ void vm_run(vm_t* vm) {
 						r = (i1 != 0) || (i2 != 0);
 					vm_push(vm, r ? vm->var_true:vm->var_false);
 
-					var_unref(v1, true);
-					var_unref(v2, true);
+					var_unref(v1);
+					var_unref(v2);
 				}
 				break;
 			}
@@ -2102,8 +2103,8 @@ void vm_run(vm_t* vm) {
 				var_t* v1 = vm_pop2(vm);
 				if(v1 != NULL && v2 != NULL) {
 					math_op(vm, instr, v1, v2);
-					var_unref(v1, true);
-					var_unref(v2, true);
+					var_unref(v1);
+					var_unref(v2);
 				}
 				break;
 			}
@@ -2127,7 +2128,7 @@ void vm_run(vm_t* vm) {
 					else {
 						vm_push(vm, v);
 					}
-					var_unref(v, true);
+					var_unref(v);
 				}
 				break;
 			}
@@ -2137,7 +2138,7 @@ void vm_run(vm_t* vm) {
 				if(v != NULL) {
 					int *i = (int*)v->value;
 					if(i != NULL) {
-						var_t* v2 = var_new_int(*i);
+						var_t* v2 = var_new_int(vm, *i);
 						vm_push(vm, v2);
 						/*
 						if((ins & INSTR_OPT_CACHE) == 0) {
@@ -2148,7 +2149,7 @@ void vm_run(vm_t* vm) {
 							else { 
 								code[vm->pc] = INSTR_NIL; 
 								code[vm->pc-1] |= INSTR_OPT_CACHE;
-								var_unref(v2, true);
+								var_unref(v2);
 							}
 						}
 						*/
@@ -2157,7 +2158,7 @@ void vm_run(vm_t* vm) {
 					else {
 						vm_push(vm, v);
 					}
-					var_unref(v, true);
+					var_unref(v);
 				}
 				break;
 			}
@@ -2181,7 +2182,7 @@ void vm_run(vm_t* vm) {
 					else {
 						vm_push(vm, v);
 					}
-					var_unref(v, true);
+					var_unref(v);
 				}
 				break;
 
@@ -2192,7 +2193,7 @@ void vm_run(vm_t* vm) {
 				if(v != NULL) {
 					int *i = (int*)v->value;
 					if(i != NULL) {
-						var_t* v2 = var_new_int(*i);
+						var_t* v2 = var_new_int(vm, *i);
 						vm_push(vm, v2);
 						/*
 						if((ins & INSTR_OPT_CACHE) == 0) {
@@ -2203,7 +2204,7 @@ void vm_run(vm_t* vm) {
 							else { 
 								code[vm->pc] = INSTR_NIL;
 								code[vm->pc-1] |= INSTR_OPT_CACHE; 
-								var_unref(v2, true);
+								var_unref(v2);
 							}
 						}
 						*/
@@ -2212,7 +2213,7 @@ void vm_run(vm_t* vm) {
 					else {
 						vm_push(vm, v);
 					}
-					var_unref(v, true);
+					var_unref(v);
 				}
 				break;
 			}
@@ -2224,12 +2225,15 @@ void vm_run(vm_t* vm) {
 					if(thisV != NULL)
 						vm_push(vm, thisV);
 					else
-						vm_push(vm, var_new());
+						vm_push(vm, var_new(vm));
 				}
 				else { //return with value;
 					var_t* ret = vm_pop2(vm); // if node in stack, just restore the var value.
+
+					if(ret->is_func)
+						func_mark_closure(vm, ret);
 					vm_push(vm, ret);
-					var_unref(ret, true);
+					var_unref(ret);
 				}
 
 				while(true) {
@@ -2282,7 +2286,7 @@ void vm_run(vm_t* vm) {
 			}
 			case INSTR_INT:
 			{
-				var_t* v = var_new_int((int)code[vm->pc++]);
+				var_t* v = var_new_int(vm, (int)code[vm->pc++]);
 				/*#ifdef MARIO_CACHE
 				if(try_cache(vm, &code[vm->pc-2], v))
 					code[vm->pc-1] = INSTR_NIL;
@@ -2293,7 +2297,7 @@ void vm_run(vm_t* vm) {
 			}
 			case INSTR_INT_S:
 			{
-				var_t* v = var_new_int(offset);
+				var_t* v = var_new_int(vm, offset);
 				/*#ifdef MARIO_CACHE
 				try_cache(vm, &code[vm->pc-1], v);
 				#endif
@@ -2303,7 +2307,7 @@ void vm_run(vm_t* vm) {
 			}
 			case INSTR_FLOAT: 
 			{
-				var_t* v = var_new_float(*(float*)(&code[vm->pc++]));
+				var_t* v = var_new_float(vm, *(float*)(&code[vm->pc++]));
 				/*#ifdef MARIO_CACHE
 				if(try_cache(vm, &code[vm->pc-2], v))
 					code[vm->pc-1] = INSTR_NIL;
@@ -2315,7 +2319,7 @@ void vm_run(vm_t* vm) {
 			case INSTR_STR: 
 			{
 				const char* s = bc_getstr(&vm->bc, offset);
-				var_t* v = var_new_str(s);
+				var_t* v = var_new_str(vm, s);
 				/*#ifdef MARIO_CACHE	
 				try_cache(vm, &code[vm->pc-1], v);
 				#endif
@@ -2329,7 +2333,7 @@ void vm_run(vm_t* vm) {
 				node_t* n = vm_pop2node(vm);
 				if(v != NULL && n != NULL) {
 					bool modi = (!n->be_const || n->var->type == V_UNDEF);
-					var_unref(n->var, true);
+					var_unref(n->var);
 					if(modi) 
 						node_replace(n, v);
 					else {
@@ -2338,7 +2342,7 @@ void vm_run(vm_t* vm) {
 						_err("'!\n");
 					}
 					vm_push(vm, n->var);
-					var_unref(v, true);
+					var_unref(v);
 			
 					/*if((ins & INSTR_OPT_CACHE) == 0) {
 						if(OP(code[vm->pc]) != INSTR_POP) {
@@ -2357,10 +2361,10 @@ void vm_run(vm_t* vm) {
 				if(v != NULL) {
 					var_build_basic_prototype(vm, v);
 					do_get(vm, v, s);
-					var_unref(v, true);
+					var_unref(v);
 				}
 				else {
-					vm_push(vm, var_new());
+					vm_push(vm, var_new(vm));
 					_err("Error: can not find member '");
 					_err(s);
 					_err("'!\n");
@@ -2420,7 +2424,7 @@ void vm_run(vm_t* vm) {
 						vm_pop(vm);
 						arg_num--;
 					}
-					vm_push(vm, var_new());
+					vm_push(vm, var_new(vm));
 					_err("Error: can not find function '");
 					_err(s);
 					_err("'!\n");
@@ -2428,7 +2432,7 @@ void vm_run(vm_t* vm) {
 				str_free(name);
 
 				if(unrefObj && obj != NULL)
-					var_unref(obj, true);
+					var_unref(obj);
 
 				//check and do interrupter.
 				#ifdef MARIO_THREAD
@@ -2442,7 +2446,7 @@ void vm_run(vm_t* vm) {
 				const char* s = (instr == INSTR_MEMBER ? "" :  bc_getstr(&vm->bc, offset));
 				var_t* v = vm_pop2(vm);
 				if(v == NULL) 
-					v = var_new();
+					v = var_new(vm);
 				
 				var_t *var = vm_get_scope_var(vm);
 				if(var->is_array) {
@@ -2451,12 +2455,11 @@ void vm_run(vm_t* vm) {
 				else {
 					if(v->is_func) {
 						func_t* func = (func_t*)v->value;
-						func_mark_closure(vm, v);
 						func->owner = var;
 					}
 					var_add(var, s, v);
 				}
-				var_unref(v, false);
+				var_unref(v);
 				break;
 			}
 
@@ -2477,11 +2480,11 @@ void vm_run(vm_t* vm) {
 			{
 				var_t* obj;
 				if(instr == INSTR_OBJ) {
-					obj = var_new_obj(NULL, NULL);
+					obj = var_new_obj(vm, NULL, NULL);
 					var_set_prototype(obj, var_get_prototype(vm->var_Object));
 				}
 				else
-					obj = var_new_array();
+					obj = var_new_array(vm);
 				scope_t* sc = scope_new(obj);
 				vm_push_scope(vm, sc);
 				break;
@@ -2511,9 +2514,9 @@ void vm_run(vm_t* vm) {
 					if(n != NULL) 
 						vm_push_node(vm, n);
 					else
-						vm_push(vm, var_new());
-					var_unref(v1, true);
-					var_unref(v2, true);
+						vm_push(vm, var_new(vm));
+					var_unref(v1);
+					var_unref(v2);
 				}
 				break;
 			}
@@ -2549,16 +2552,16 @@ void vm_run(vm_t* vm) {
 				var_t* v1 = vm_pop2(vm);
 				if(v1 != NULL && v2 != NULL) {
 					bool res = var_instanceof(v1, v2);
-					var_unref(v2, true);
-					var_unref(v1, true);
-					vm_push(vm, var_new_bool(res));
+					var_unref(v2);
+					var_unref(v1);
+					vm_push(vm, var_new_bool(vm, res));
 				}
 				break;
 			}
 			case INSTR_TYPEOF: 
 			{
 				var_t* var = vm_pop2(vm);
-				var_t* v = var_new_str(get_typeof(var));
+				var_t* v = var_new_str(vm, get_typeof(var));
 				vm_push(vm, v);
 				break;
 			}
@@ -2585,7 +2588,7 @@ void vm_run(vm_t* vm) {
 				var_t* v = vm_pop2(vm);
 				var_t* sc_var = vm_get_scope_var(vm);
 				var_add(sc_var, s, v);
-				var_unref(v, true);
+				var_unref(v);
 				break;
 			}
 
@@ -2653,8 +2656,8 @@ void vm_close(vm_t* vm) {
 	}
 	array_clean(&vm->close_natives, NULL);
 
-	var_unref(vm->var_true, true);
-	var_unref(vm->var_false, true);
+	var_unref(vm->var_true);
+	var_unref(vm->var_false);
 
 
 	#ifdef MARIO_THREAD
@@ -2669,10 +2672,16 @@ void vm_close(vm_t* vm) {
 	array_free(vm->scopes, scope_free);
 	array_clean(&vm->init_natives, NULL);
 
-	var_unref(vm->root, true);
+	var_unref(vm->root);
 	bc_release(&vm->bc);
 	vm->stack_top = 0;
 
+	var_t* v = vm->free_vars;
+	while(v != NULL) {
+		var_t* vtmp = v->next;
+		_free(v);
+		v = vtmp;
+	}
 	_free(vm);
 }	
 
@@ -2886,9 +2895,9 @@ vm_t* vm_new(bool compiler(bytecode_t *bc, const char* input)) {
 
 	vm->scopes = array_new();
 
-	vm->var_true = var_new_bool(true);
+	vm->var_true = var_new_bool(vm, true);
 	var_ref(vm->var_true);
-	vm->var_false = var_new_bool(false);
+	vm->var_false = var_new_bool(vm, false);
 	var_ref(vm->var_false);
 
 	/*#ifdef MARIO_CACHE
@@ -2909,7 +2918,7 @@ vm_t* vm_new(bool compiler(bytecode_t *bc, const char* input)) {
 	array_init(&vm->close_natives);	
 	array_init(&vm->init_natives);	
 	
-	vm->root = var_new_obj(NULL, NULL);
+	vm->root = var_new_obj(vm, NULL, NULL);
 	var_ref(vm->root);
 
 	vm->var_Object = vm_new_class(vm, "Object");

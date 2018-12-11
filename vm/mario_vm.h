@@ -27,6 +27,8 @@ bool compile(bytecode_t *bc, const char* input);
 #define SUPER "super"
 #define CONSTRUCTOR "constructor"
 
+struct st_vm;
+
 typedef struct st_var {
 	uint32_t magic: 8; //0 for var; 1 for node
 	uint32_t refs:16;
@@ -34,17 +36,20 @@ typedef struct st_var {
 	uint32_t is_array:1;
 	uint32_t is_func:1;
 	uint32_t is_class:1;
-	uint32_t is_dirty:1;
-	uint32_t size;  // size for bytes type of value;
+	uint32_t in_vars_list: 1;
 
+	uint32_t size;  // size for bytes type of value;
 	void* value;
+
 	free_func_t free_func; //how to free value
 	free_func_t on_destroy; //before destroyed.
 
+	struct st_var* prev; //for var list
+	struct st_var* next; //for var list
 	m_array_t children;
+	struct st_vm* vm;
 } var_t;
 
-struct st_vm;
 typedef var_t* (*native_func_t)(struct st_vm *, var_t*, void*);
 
 typedef struct st_func {
@@ -60,8 +65,7 @@ typedef struct st_func {
 //script node for var member children
 typedef struct st_node {
 	int16_t magic: 8; //1 for node
-  int16_t be_const : 4;
-  int16_t non_ref  : 4;
+  int16_t be_const : 8;
 	char* name;
 	var_t* var;
 	var_t* owner;
@@ -124,9 +128,12 @@ typedef struct st_vm {
 	var_t* var_Array;
 	var_t* var_true;
 	var_t* var_false;
+
+	var_t* vars;
+	var_t* free_vars;
 } vm_t;
 
-node_t* node_new(const char* name);
+node_t* node_new(vm_t* vm, const char* name);
 void node_free(void* p);
 var_t* node_replace(node_t* node, var_t* v);
 
@@ -154,20 +161,20 @@ void var_clean(var_t* var);
 void var_free(void* p);
 
 var_t* var_ref(var_t* var);
-void var_unref(var_t* var, bool del);
+void var_unref(var_t* var);
 
 //#define var_ref(var) ({ ++(var)->refs; var; })
 //#define var_unref(var, del) ({ --(var)->refs; if((var)->refs <= 0 && (del)) var_free((var)); })
 
-var_t* var_new();
-var_t* var_new_block();
-var_t* var_new_array();
-var_t* var_new_int(int i);
-var_t* var_new_bool(bool b);
-var_t* var_new_obj(void*p, free_func_t fr);
-var_t* var_new_float(float i);
-var_t* var_new_str(const char* s);
-var_t* var_new_str2(const char* s, uint32_t len);
+var_t* var_new(vm_t* vm);
+var_t* var_new_block(vm_t* vm);
+var_t* var_new_array(vm_t* vm);
+var_t* var_new_int(vm_t* vm, int i);
+var_t* var_new_bool(vm_t* vm, bool b);
+var_t* var_new_obj(vm_t* vm, void*p, free_func_t fr);
+var_t* var_new_float(vm_t* vm, float i);
+var_t* var_new_str(vm_t* vm, const char* s);
+var_t* var_new_str2(vm_t* vm, const char* s, uint32_t len);
 const char* var_get_str(var_t* var);
 var_t* var_set_str(var_t* var, const char* v);
 int var_get_int(var_t* var);
