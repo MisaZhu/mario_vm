@@ -201,9 +201,9 @@ void var_array_del(var_t* var, int32_t index) {
 void func_free(void* p);
 
 inline void var_clean(var_t* var) {
-	if(var == NULL)
+	if(var == NULL || var->is_dirty)
 		return;
-
+	var->is_dirty = true;
 	/*free children*/
 	if(var->children.size > 0)
 		var_remove_all(var);	
@@ -221,12 +221,13 @@ inline void var_clean(var_t* var) {
 		var->on_destroy(var);
 		var->on_destroy = NULL;
 	}
+	var->is_dirty = false;
 	memset(var, 0, sizeof(var_t));
 }
 
 inline void var_free(void* p) {
 	var_t* var = (var_t*)p;
-	if(var == NULL || var->refs > 0)
+	if(var == NULL)
 		return;
 	vm_t* vm = var->vm;
 
@@ -238,6 +239,8 @@ inline void var_free(void* p) {
 			vm->vars = var->next;
 		if(var->next)
 			var->next->prev = var->prev;
+		if(vm->vars_num > 0)
+			vm->vars_num--;
 	}
 
 	//clean var.
@@ -250,6 +253,7 @@ inline void var_free(void* p) {
 		vm->free_vars->prev = var;
 	var->next = vm->free_vars;
 	vm->free_vars = var;
+	vm->free_vars_num++;
 }
 
 inline var_t* var_ref(var_t* var) {
@@ -265,13 +269,69 @@ inline var_t* var_ref(var_t* var) {
 			var->next->prev = var->prev;
 		var->prev = var->next = NULL;
 		var->in_vars_list = false;
+		if(var->vm->vars_num > 0)
+			var->vm->vars_num--;
 	}
 	return var;
+}
+
+static inline bool var_has(var_t* var, var_t* v) {
+ 	if(var == NULL || v == NULL)
+ 		return false;
+ 	var->is_dirty = true;
+
+ 	uint32_t i;
+ 	bool ret = false;
+ 	for(i=0; i<var->children.size; i++) {
+ 		node_t* node = (node_t*)var->children.items[i];
+ 		if(node != NULL) {
+ 			if(node->var == v) {
+ 				ret = true;
+ 				break;
+ 			}
+ 			if(node-var->is_dirty == false) {
+ 				if(var_has(node->var, v)) {
+ 					ret = true;
+ 					break;
+ 				}
+ 			}
+ 		}
+ 	}
+ 	var->is_dirty = false;
+ 	return ret;
+}
+
+static inline void gc_vars(vm_t* vm) {
+	var_t* v = vm->vars;
+	while(v != NULL) {
+		var_t* vtmp = v->next;
+		if(!var_has(vm->root, v)) {
+			var_free(v);
+		}
+		v = vtmp;
+	}
+}
+
+static inline void gc_free_vars(vm_t* vm) {
+	var_t* v = vm->free_vars;
+	while(v != NULL) {
+		var_t* vtmp = v->next;
+		_free(v);
+		v = vtmp;
+	}
+	vm->free_vars = NULL;
+	vm->free_vars_num = 0;
+}
+
+static inline void gc(vm_t* vm) {
+	gc_vars(vm);
+	gc_free_vars(vm);
 }
 
 inline void var_unref(var_t* var) {
 	if(var == NULL)
 		return;
+
 	if(var->refs > 0)
 		--var->refs;
 
@@ -286,6 +346,8 @@ inline void var_unref(var_t* var) {
 			vm->vars->prev = var;
 		vm->vars = var;
 		var->in_vars_list = true;
+		var->vm->vars_num++;
+		//gc(vm); //try gc 
 	}
 }
 
@@ -310,6 +372,10 @@ inline var_t* var_new(vm_t* vm) {
 	var_t* var = vm->free_vars;
 	if(var != NULL) {
 		vm->free_vars = var->next;
+		if(vm->free_vars != NULL)
+			vm->free_vars->prev = NULL;
+		if(vm->free_vars_num > 0)
+			vm->free_vars_num--;
 		var->prev = var->next = NULL;
 	}
 	else {
@@ -324,6 +390,7 @@ inline var_t* var_new(vm_t* vm) {
 	var->next = vm->vars;
 	vm->vars = var;
 	var->in_vars_list= true;
+	vm->vars_num++;
 	return var;
 }
 
@@ -924,7 +991,7 @@ void vm_stack_free(vm_t* vm, void* p) {
 	}
 	else {
 		var_t* var = (var_t*)p;
-		var_free(var);
+		var_unref(var);
 	}
 }
 
@@ -2672,16 +2739,13 @@ void vm_close(vm_t* vm) {
 	array_free(vm->scopes, scope_free);
 	array_clean(&vm->init_natives, NULL);
 
+	gc(vm); //try gc
+
 	var_unref(vm->root);
 	bc_release(&vm->bc);
 	vm->stack_top = 0;
 
-	var_t* v = vm->free_vars;
-	while(v != NULL) {
-		var_t* vtmp = v->next;
-		_free(v);
-		v = vtmp;
-	}
+	gc_free_vars(vm); //do gc again after root freed.
 	_free(vm);
 }	
 

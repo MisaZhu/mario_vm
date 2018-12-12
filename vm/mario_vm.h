@@ -31,12 +31,13 @@ struct st_vm;
 
 typedef struct st_var {
 	uint32_t magic: 8; //0 for var; 1 for node
-	uint32_t refs:16;
 	uint32_t type:4;
 	uint32_t is_array:1;
 	uint32_t is_func:1;
 	uint32_t is_class:1;
+	uint32_t is_dirty: 1;
 	uint32_t in_vars_list: 1;
+	uint32_t refs:15;
 
 	uint32_t size;  // size for bytes type of value;
 	void* value;
@@ -130,7 +131,9 @@ typedef struct st_vm {
 	var_t* var_false;
 
 	var_t* vars;
+	uint32_t vars_num;
 	var_t* free_vars;
+	uint32_t free_vars_num;
 } vm_t;
 
 node_t* node_new(vm_t* vm, const char* name);
