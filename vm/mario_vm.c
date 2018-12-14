@@ -225,52 +225,53 @@ inline void var_clean(var_t* var) {
 	memset(var, 0, sizeof(var_t));
 }
 
-inline void var_free(void* p) {
+static inline void var_free(void* p) {
 	var_t* var = (var_t*)p;
-	if(var == NULL)
+	if(var == NULL || var->status == V_ST_FREE)
 		return;
+
 	vm_t* vm = var->vm;
-
-	//remove from vm->vars list;
-	if(var->in_vars_list) {
-		if(var->prev != NULL)
-			var->prev->next = var->next;
-		else
-			vm->vars = var->next;
-		if(var->next)
-			var->next->prev = var->prev;
-		if(vm->vars_num > 0)
-			vm->vars_num--;
-	}
-
+	//backup next and prev
+	var_t* next = var->next;
+	var_t* prev = var->prev; 
 	//clean var.
+	uint32_t status = var->status;
+	var->status = V_ST_FREE;
 	var_clean(var);
+
 	var->type = V_UNDEF;
 	var->vm = vm;
 
-	//add to vm->free_vars list for reusing.
-	if(vm->free_vars != NULL) 
-		vm->free_vars->prev = var;
-	var->next = vm->free_vars;
-	vm->free_vars = var;
-	vm->free_vars_num++;
+	if(status == V_ST_GC) {
+		var->next = next;
+		var->prev = prev;
+		var->status = V_ST_GC_FREE;
+	}
+	else if(status != V_ST_FREE) {
+		//add to vm->free_vars list for reusing.
+		if(vm->free_vars != NULL) 
+			vm->free_vars->prev = var;
+		var->next = vm->free_vars;
+		vm->free_vars = var;
+		vm->free_vars_num++;
+	}
 }
 
 inline var_t* var_ref(var_t* var) {
 	++var->refs;
-	//remove from vm->vars list.(will put back when unref).
-	if(var->in_vars_list) {
+	//remove from vm->gc_vars list.(will put back when unref).
+	if(var->status == V_ST_GC) {
 		vm_t* vm = var->vm;
 		if(var->prev != NULL)
 			var->prev->next = var->next;
 		else
-			vm->vars = var->next;
+			vm->gc_vars = var->next;
 		if(var->next != NULL)
 			var->next->prev = var->prev;
 		var->prev = var->next = NULL;
-		var->in_vars_list = false;
-		if(var->vm->vars_num > 0)
-			var->vm->vars_num--;
+		var->status = V_ST_REF;
+		if(var->vm->gc_vars_num > 0)
+			var->vm->gc_vars_num--;
 	}
 	return var;
 }
@@ -301,14 +302,63 @@ static inline bool var_has(var_t* var, var_t* v) {
  	return ret;
 }
 
+static inline bool var_stacked(vm_t* vm, var_t* var) {
+	int i = vm->stack_top;
+	while(i>=0) {
+		void *p = vm->stack[i];
+		int8_t magic = *(int8_t*)p;
+		var_t* v = NULL;
+		if(magic == 0) { //var
+			v = (var_t*)p;
+		}
+		else {//node
+			node_t* node = (node_t*)p;
+			if(node != NULL)
+				v = node->var;
+		}
+
+		if(var == v)
+			return true;
+		i--;
+	}
+	return false;
+}
+
 static inline void gc_vars(vm_t* vm) {
-	var_t* v = vm->vars;
+	var_t* v = vm->gc_vars;
+	//first step: free unlinked var
 	while(v != NULL) {
-		var_t* vtmp = v->next;
-		if(!var_has(vm->root, v)) {
+		var_t* next = v->next;
+		if(v->status == V_ST_GC &&
+				!var_stacked(vm, v) &&
+				!var_has(vm->root, v)) {
 			var_free(v);
 		}
-		v = vtmp;
+		v = next;
+	}
+
+	//second step: move freed var to free_var_list
+	v = vm->gc_vars;
+	while(v != NULL) {
+		var_t* next = v->next;
+		if(v->status == V_ST_GC_FREE) {
+			v->status = V_ST_FREE;
+			if(v->prev == NULL) 
+				vm->gc_vars = next;
+			else
+				v->prev->next = next;
+
+			if(next != NULL) 
+				next->prev = v->prev;
+			vm->gc_vars_num--;
+
+			if(vm->free_vars != NULL)
+				vm->free_vars->prev = v;
+			v->next = vm->free_vars;
+			vm->free_vars = v;
+			vm->free_vars_num++;
+		}
+		v = next;
 	}
 }
 
@@ -338,16 +388,16 @@ inline void var_unref(var_t* var) {
 	if(var->refs == 0) {
 		var_free(var);
 	}
-	else if(!var->in_vars_list) { //put back to vm->vars list.
+	else if(var->status == V_ST_REF) { //put back to vm->gc_vars list.
 		vm_t* vm = var->vm;
-		var->next = vm->vars;
+		var->next = vm->gc_vars;
 		var->prev = NULL;
-		if(vm->vars != NULL)
-			vm->vars->prev = var;
-		vm->vars = var;
-		var->in_vars_list = true;
-		var->vm->vars_num++;
-		//gc(vm); //try gc 
+		if(vm->gc_vars != NULL)
+			vm->gc_vars->prev = var;
+		vm->gc_vars = var;
+		var->status = V_ST_GC;
+		var->vm->gc_vars_num++;
+		gc_vars(vm); //try gc 
 	}
 }
 
@@ -385,12 +435,12 @@ inline var_t* var_new(vm_t* vm) {
 		var->vm = vm;
 	}
 
-	if(vm->vars != NULL)
-		vm->vars->prev = var;
-	var->next = vm->vars;
-	vm->vars = var;
-	var->in_vars_list= true;
-	vm->vars_num++;
+	if(vm->gc_vars != NULL)
+		vm->gc_vars->prev = var;
+	var->next = vm->gc_vars;
+	vm->gc_vars = var;
+	var->status = V_ST_GC;
+	vm->gc_vars_num++;
 	return var;
 }
 
@@ -2723,8 +2773,8 @@ void vm_close(vm_t* vm) {
 	}
 	array_clean(&vm->close_natives, NULL);
 
-	var_unref(vm->var_true);
-	var_unref(vm->var_false);
+	//var_unref(vm->var_true);
+	//var_unref(vm->var_false);
 
 
 	#ifdef MARIO_THREAD
@@ -2927,7 +2977,6 @@ var_t* native_debug(vm_t* vm, var_t* env, void* data) {
 	}
 	str_free(str);
 	str_add(ret, '\n');
-	_out_func(ret->cstr);
 	str_free(ret);
 	return NULL;
 }
@@ -2959,11 +3008,6 @@ vm_t* vm_new(bool compiler(bytecode_t *bc, const char* input)) {
 
 	vm->scopes = array_new();
 
-	vm->var_true = var_new_bool(vm, true);
-	var_ref(vm->var_true);
-	vm->var_false = var_new_bool(vm, false);
-	var_ref(vm->var_false);
-
 	/*#ifdef MARIO_CACHE
 	var_cache_init(vm);
 	#endif
@@ -2976,7 +3020,6 @@ vm_t* vm_new(bool compiler(bytecode_t *bc, const char* input)) {
 	vm->isignal_tail = NULL;
 	vm->isignal_num = 0;
 	vm->interrupted = false;
-
 	#endif
 
 	array_init(&vm->close_natives);	
@@ -2984,6 +3027,12 @@ vm_t* vm_new(bool compiler(bytecode_t *bc, const char* input)) {
 	
 	vm->root = var_new_obj(vm, NULL, NULL);
 	var_ref(vm->root);
+	vm->var_true = var_new_bool(vm, true);
+	var_add(vm->root, "", vm->var_true);
+//	vm->var_ref(vm->var_true);
+	vm->var_false = var_new_bool(vm, false);
+	var_add(vm->root, "", vm->var_false);
+//	var_ref(vm->var_false);
 
 	vm->var_Object = vm_new_class(vm, "Object");
 	vm_reg_static(vm, "", "yield()", native_yield, NULL);

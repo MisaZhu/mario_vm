@@ -22,6 +22,11 @@ bool compile(bytecode_t *bc, const char* input);
 #define V_OBJECT 4
 #define V_BOOL   5
 
+#define V_ST_FREE      0
+#define V_ST_GC        1
+#define V_ST_GC_FREE   2
+#define V_ST_REF       3
+
 #define THIS "this"
 #define PROTOTYPE "prototype"
 #define SUPER "super"
@@ -31,13 +36,13 @@ struct st_vm;
 
 typedef struct st_var {
 	uint32_t magic: 8; //0 for var; 1 for node
-	uint32_t type:4;
-	uint32_t is_array:1;
-	uint32_t is_func:1;
-	uint32_t is_class:1;
-	uint32_t is_dirty: 1;
-	uint32_t in_vars_list: 1;
-	uint32_t refs:15;
+	uint32_t type:12;
+	uint32_t status: 4;
+	uint32_t is_array:2;
+	uint32_t is_func:2;
+	uint32_t is_class:2;
+	uint32_t is_dirty: 2;
+	uint32_t refs;
 
 	uint32_t size;  // size for bytes type of value;
 	void* value;
@@ -130,8 +135,8 @@ typedef struct st_vm {
 	var_t* var_true;
 	var_t* var_false;
 
-	var_t* vars;
-	uint32_t vars_num;
+	var_t* gc_vars;
+	uint32_t gc_vars_num;
 	var_t* free_vars;
 	uint32_t free_vars_num;
 } vm_t;
@@ -161,7 +166,6 @@ uint32_t var_array_size(var_t* var);
 void var_instance_from(var_t* var, var_t* src);
 void var_from_prototype(var_t* var, var_t* proto);
 void var_clean(var_t* var);
-void var_free(void* p);
 
 var_t* var_ref(var_t* var);
 void var_unref(var_t* var);
