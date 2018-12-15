@@ -279,6 +279,9 @@ inline var_t* var_ref(var_t* var) {
 static inline bool var_has(var_t* var, var_t* v) {
  	if(var == NULL || v == NULL)
  		return false;
+	if(var == v)
+		return true;
+
  	var->is_dirty = true;
 
  	uint32_t i;
@@ -306,6 +309,10 @@ static inline bool var_stacked(vm_t* vm, var_t* var) {
 	int i = vm->stack_top;
 	while(i>=0) {
 		void *p = vm->stack[i];
+		i--;
+		if(p == NULL)
+			continue;
+
 		int8_t magic = *(int8_t*)p;
 		var_t* v = NULL;
 		if(magic == 0) { //var
@@ -317,9 +324,45 @@ static inline bool var_stacked(vm_t* vm, var_t* var) {
 				v = node->var;
 		}
 
-		if(var == v)
+		if(var_has(v, var))
 			return true;
-		i--;
+	}
+	return false;
+}
+
+//scope of vm runing
+typedef struct st_scope {
+	struct st_scope* prev;
+	var_t* var;
+	PC pc_start; // continue anchor for loop
+	PC pc; // try cache anchor , or break anchor for loop
+	uint32_t is_func: 8;
+	uint32_t is_block: 8;
+	uint32_t is_try: 8;
+	uint32_t is_loop: 8;
+	//continue and break anchor for loop(while/for)
+} scope_t;
+
+#define vm_get_scope(vm) (scope_t*)array_tail((vm)->scopes)
+#define vm_get_scope_var(vm) ({ \
+	scope_t* sc = (scope_t*)array_tail((vm)->scopes); \
+	var_t* ret; \
+	if(sc == NULL) \
+		ret = (vm)->root; \
+	else \
+		ret = sc->var; \
+	ret; \
+})
+
+static inline bool var_scoped(vm_t* vm, var_t* var) {
+	if(vm->scopes == NULL)
+		return false;
+
+	scope_t* sc = vm_get_scope(vm);
+	while(sc != NULL) {
+		if(var_has(sc->var, var))
+			return true;;
+		sc = sc->prev;
 	}
 	return false;
 }
@@ -331,6 +374,7 @@ static inline void gc_vars(vm_t* vm) {
 		var_t* next = v->next;
 		if(v->status == V_ST_GC &&
 				!var_stacked(vm, v) &&
+				!var_scoped(vm, v) &&
 				!var_has(vm->root, v)) {
 			var_free(v);
 		}
@@ -397,7 +441,6 @@ inline void var_unref(var_t* var) {
 		vm->gc_vars = var;
 		var->status = V_ST_GC;
 		var->vm->gc_vars_num++;
-		gc_vars(vm); //try gc 
 	}
 }
 
@@ -941,19 +984,6 @@ var_t* vm_stack_pick(vm_t* vm, int depth) {
 	return ret;
 }
 
-//scope of vm runing
-typedef struct st_scope {
-	struct st_scope* prev;
-	var_t* var;
-	PC pc_start; // continue anchor for loop
-	PC pc; // try cache anchor , or break anchor for loop
-	uint32_t is_func: 8;
-	uint32_t is_block: 8;
-	uint32_t is_try: 8;
-	uint32_t is_loop: 8;
-	//continue and break anchor for loop(while/for)
-} scope_t;
-
 scope_t* scope_new(var_t* var) {
 	scope_t* sc = (scope_t*)_malloc(sizeof(scope_t));
 	sc->prev = NULL;
@@ -986,17 +1016,6 @@ void scope_free(void* p) {
 		var_unref(sc->var);
 	_free(sc);
 }
-
-#define vm_get_scope(vm) (scope_t*)array_tail((vm)->scopes)
-#define vm_get_scope_var(vm) ({ \
-	scope_t* sc = (scope_t*)array_tail((vm)->scopes); \
-	var_t* ret; \
-	if(sc == NULL) \
-		ret = (vm)->root; \
-	else \
-		ret = sc->var; \
-	ret; \
-})
 /*#define vm_get_scope_var(vm, skipBlock) ({ \
 	scope_t* sc = (scope_t*)array_tail((vm)->scopes); \
 	if((skipBlock) && sc != NULL && sc->var->type == V_BLOCK) \
@@ -2708,8 +2727,8 @@ void vm_run(vm_t* vm) {
 				var_unref(v);
 				break;
 			}
-
 		}
+		gc_vars(vm); //try gc 
 	}
 	while(vm->pc < code_size);
 }
@@ -2787,6 +2806,7 @@ void vm_close(vm_t* vm) {
 	*/
 
 	array_free(vm->scopes, scope_free);
+	vm->scopes = NULL;
 	array_clean(&vm->init_natives, NULL);
 
 	gc(vm); //try gc
@@ -2977,6 +2997,7 @@ var_t* native_debug(vm_t* vm, var_t* env, void* data) {
 	}
 	str_free(str);
 	str_add(ret, '\n');
+	_out_func(ret->cstr);
 	str_free(ret);
 	return NULL;
 }
