@@ -293,7 +293,7 @@ static inline bool var_has(var_t* var, var_t* v) {
  				ret = true;
  				break;
  			}
- 			if(node-var->is_dirty == false) {
+ 			if(node->var->is_dirty == false) {
  				if(var_has(node->var, v)) {
  					ret = true;
  					break;
@@ -338,7 +338,6 @@ static inline void gc_vars(vm_t* vm) {
 		if(v->status == V_ST_GC &&
 				!var_stacked(vm, v) &&
 				!var_has(vm->root, v)) {
-			_err("....\n");
 			var_free(v);
 		}
 		v = next;
@@ -1376,13 +1375,11 @@ bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 			var_add(env, SUPER, super_v);
 	}
 
-	vm_push(vm, env); //avoid for gc
+	var_t* ret = NULL;
 	if(func->native != NULL) { //native function
-		var_t* ret = func->native(vm, env, func->data);
+		ret = func->native(vm, env, func->data);
 		if(ret == NULL)
 			ret = var_new(vm);
-		vm_pop(vm);
-		vm_push(vm, ret);
 	}
 	else {
 		scope_t* sc = scope_new(env);
@@ -1392,9 +1389,13 @@ bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 
 		//script function
 		vm->pc = func->pc;
-		vm_run(vm);
+		vm_push(vm, env); //avoid for gc
+		if(vm_run(vm)) { //with function return;
+			ret = vm_pop2(vm);
+		}
 		vm_pop(vm);
 	}
+	vm_push(vm, ret);
 	return true;
 }
 
@@ -1976,7 +1977,7 @@ void vm_terminate(vm_t* vm) {
 	vm->pc = vm->bc.cindex;
 }
 
-void vm_run(vm_t* vm) {
+bool vm_run(vm_t* vm) {
 	//int32_t scDeep = vm->scopes.size;
 	register PC code_size = vm->bc.cindex;
 	register PC* code = vm->bc.code_buf;
@@ -2370,7 +2371,7 @@ void vm_run(vm_t* vm) {
 					}
 					vm_pop_scope(vm);
 				}
-				return;
+				return true;
 			}
 			case INSTR_VAR:
 			{
@@ -2719,6 +2720,7 @@ void vm_run(vm_t* vm) {
 		gc_vars(vm); //try gc 
 	}
 	while(vm->pc < code_size);
+	return false;
 }
 
 bool vm_load(vm_t* vm, const char* s) {
