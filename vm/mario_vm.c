@@ -330,43 +330,6 @@ static inline bool var_stacked(vm_t* vm, var_t* var) {
 	return false;
 }
 
-//scope of vm runing
-typedef struct st_scope {
-	struct st_scope* prev;
-	var_t* var;
-	PC pc_start; // continue anchor for loop
-	PC pc; // try cache anchor , or break anchor for loop
-	uint32_t is_func: 8;
-	uint32_t is_block: 8;
-	uint32_t is_try: 8;
-	uint32_t is_loop: 8;
-	//continue and break anchor for loop(while/for)
-} scope_t;
-
-#define vm_get_scope(vm) (scope_t*)array_tail((vm)->scopes)
-#define vm_get_scope_var(vm) ({ \
-	scope_t* sc = (scope_t*)array_tail((vm)->scopes); \
-	var_t* ret; \
-	if(sc == NULL) \
-		ret = (vm)->root; \
-	else \
-		ret = sc->var; \
-	ret; \
-})
-
-static inline bool var_scoped(vm_t* vm, var_t* var) {
-	if(vm->scopes == NULL)
-		return false;
-
-	scope_t* sc = vm_get_scope(vm);
-	while(sc != NULL) {
-		if(var_has(sc->var, var))
-			return true;;
-		sc = sc->prev;
-	}
-	return false;
-}
-
 static inline void gc_vars(vm_t* vm) {
 	var_t* v = vm->gc_vars;
 	//first step: free unlinked var
@@ -374,8 +337,8 @@ static inline void gc_vars(vm_t* vm) {
 		var_t* next = v->next;
 		if(v->status == V_ST_GC &&
 				!var_stacked(vm, v) &&
-				!var_scoped(vm, v) &&
 				!var_has(vm->root, v)) {
+			_err("....\n");
 			var_free(v);
 		}
 		v = next;
@@ -984,6 +947,30 @@ var_t* vm_stack_pick(vm_t* vm, int depth) {
 	return ret;
 }
 
+//scope of vm runing
+typedef struct st_scope {
+	struct st_scope* prev;
+	var_t* var;
+	PC pc_start; // continue anchor for loop
+	PC pc; // try cache anchor , or break anchor for loop
+	uint32_t is_func: 8;
+	uint32_t is_block: 8;
+	uint32_t is_try: 8;
+	uint32_t is_loop: 8;
+	//continue and break anchor for loop(while/for)
+} scope_t;
+
+#define vm_get_scope(vm) (scope_t*)array_tail((vm)->scopes)
+#define vm_get_scope_var(vm) ({ \
+	scope_t* sc = (scope_t*)array_tail((vm)->scopes); \
+	var_t* ret; \
+	if(sc == NULL) \
+		ret = (vm)->root; \
+	else \
+		ret = sc->var; \
+	ret; \
+})
+
 scope_t* scope_new(var_t* var) {
 	scope_t* sc = (scope_t*)_malloc(sizeof(scope_t));
 	sc->prev = NULL;
@@ -1346,7 +1333,6 @@ bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 	var_t *env = var_new(vm);
 	var_t* args = var_new_array(vm);
 	var_add(env, "arguments", args);
-	var_ref(env);
 	func_t* func = var_get_func(func_var);
 	if(obj == NULL) {
 		//obj = vm->root;
@@ -1390,10 +1376,12 @@ bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 			var_add(env, SUPER, super_v);
 	}
 
+	vm_push(vm, env); //avoid for gc
 	if(func->native != NULL) { //native function
 		var_t* ret = func->native(vm, env, func->data);
 		if(ret == NULL)
 			ret = var_new(vm);
+		vm_pop(vm);
 		vm_push(vm, ret);
 	}
 	else {
@@ -1405,8 +1393,8 @@ bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 		//script function
 		vm->pc = func->pc;
 		vm_run(vm);
+		vm_pop(vm);
 	}
-	var_unref(env);
 	return true;
 }
 
