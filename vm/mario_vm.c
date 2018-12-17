@@ -23,16 +23,28 @@ node_t* node_new(vm_t* vm, const char* name) {
 	return node;
 }
 
+static inline bool var_empty(var_t* var) {
+	if(var == NULL || var->status == V_ST_FREE)
+		return true;
+	return false;
+}
+
 void node_free(void* p) {
 	node_t* node = (node_t*)p;
 	if(node == NULL)
 		return;
 
 	_free(node->name);
-	if(node->var != NULL) {
+	if(!var_empty(node->var)) {
 		var_unref(node->var);
 	}
 	_free(node);
+}
+
+static inline bool node_empty(node_t* node) {
+	if(node == NULL || var_empty(node->var))
+		return true;
+	return false;
 }
 
 inline var_t* node_replace(node_t* node, var_t* v) {
@@ -47,16 +59,31 @@ inline void var_remove_all(var_t* var) {
 	array_clean(&var->children, node_free);
 }
 
+static inline node_t* var_find_raw(var_t* var, const char*name) {
+	if(var_empty(var))
+		return NULL;
+
+	uint32_t i;
+	for(i=0; i<var->children.size; i++) {
+		node_t* node = (node_t*)var->children.items[i];
+		if(node != NULL && node->name != NULL) {
+			if(strcmp(node->name, name) == 0) {
+				return node;
+			}
+		}
+	}
+	return NULL;
+}
+
 node_t* var_add(var_t* var, const char* name, var_t* add) {
 	node_t* node = NULL;
 
 	if(name[0] != 0) 
-		node = var_find(var, name);
+		node = var_find_raw(var, name);
 
 	if(node == NULL) {
 		node = node_new(var->vm, name);
 		var_ref(node->var);
-		node->owner = var;
 		array_add(&var->children, node);
 	}
 
@@ -70,12 +97,11 @@ node_t* var_add_head(var_t* var, const char* name, var_t* add) {
 	node_t* node = NULL;
 
 	if(name[0] != 0) 
-		node = var_find(var, name);
+		node = var_find_raw(var, name);
 
 	if(node == NULL) {
 		node = node_new(var->vm, name);
 		var_ref(node->var);
-		node->owner = var;
 		array_add(&var->children, node);
 	}
 
@@ -86,17 +112,10 @@ node_t* var_add_head(var_t* var, const char* name, var_t* add) {
 }
 
 inline node_t* var_find(var_t* var, const char*name) {
-	uint32_t i;
-
-	for(i=0; i<var->children.size; i++) {
-		node_t* node = (node_t*)var->children.items[i];
-		if(node != NULL) {
-			if(strcmp(node->name, name) == 0) {
-				return node;
-			}
-		}
-	}
-	return NULL;
+	node_t* node = var_find_raw(var, name);
+	if(node_empty(node))
+		return NULL;
+	return node;
 }
 
 inline var_t* var_find_var(var_t* var, const char*name) {
@@ -116,6 +135,8 @@ inline node_t* var_find_create(var_t* var, const char*name) {
 
 node_t* var_get(var_t* var, int32_t index) {
 	node_t* node = (node_t*)array_get(&var->children, index);
+	if(node_empty(node))
+		return NULL;
 	return node;
 }
 
@@ -130,6 +151,8 @@ node_t* var_array_get(var_t* var, int32_t index) {
 	}
 
 	node_t* node = (node_t*)array_get(&arr_var->children, index);
+	if(node_empty(node))
+		return NULL;
 	return node;
 }
 
@@ -227,9 +250,10 @@ inline void var_clean(var_t* var) {
 
 static inline void var_free(void* p) {
 	var_t* var = (var_t*)p;
-	if(var == NULL || var->status == V_ST_FREE)
+	if(var_empty(var))
 		return;
 
+	printf("var free: %x, %d,%d\n", (uint64_t)var, var->refs, var->status);
 	vm_t* vm = var->vm;
 	//backup next and prev
 	var_t* next = var->next;
@@ -245,7 +269,7 @@ static inline void var_free(void* p) {
 	if(status == V_ST_GC) {
 		var->next = next;
 		var->prev = prev;
-		var->status = V_ST_GC_FREE;
+		var->status = V_ST_FREE;
 	}
 	else if(status != V_ST_FREE) {
 		//add to vm->free_vars list for reusing.
@@ -277,7 +301,7 @@ inline var_t* var_ref(var_t* var) {
 }
 
 static inline bool var_has(var_t* var, var_t* v) {
- 	if(var == NULL || v == NULL)
+ 	if(var_empty(var) || var_empty(v))
  		return false;
 	if(var == v)
 		return true;
@@ -288,7 +312,7 @@ static inline bool var_has(var_t* var, var_t* v) {
  	bool ret = false;
  	for(i=0; i<var->children.size; i++) {
  		node_t* node = (node_t*)var->children.items[i];
- 		if(node != NULL) {
+ 		if(!node_empty(node)) {
  			if(node->var == v) {
  				ret = true;
  				break;
@@ -306,7 +330,7 @@ static inline bool var_has(var_t* var, var_t* v) {
 }
 
 static inline bool var_stacked(vm_t* vm, var_t* var) {
-	int i = vm->stack_top;
+	int i = vm->stack_top-1;
 	while(i>=0) {
 		void *p = vm->stack[i];
 		i--;
@@ -330,6 +354,41 @@ static inline bool var_stacked(vm_t* vm, var_t* var) {
 	return false;
 }
 
+//scope of vm runing
+typedef struct st_scope {
+	struct st_scope* prev;
+	var_t* var;
+	PC pc_start; // continue anchor for loop
+	PC pc; // try cache anchor , or break anchor for loop
+	uint32_t is_func: 8;
+	uint32_t is_block: 8;
+	uint32_t is_try: 8;
+	uint32_t is_loop: 8;
+	//continue and break anchor for loop(while/for)
+} scope_t;
+
+#define vm_get_scope(vm) (scope_t*)array_tail((vm)->scopes)
+static inline var_t* vm_get_scope_var(vm_t* vm) {
+	var_t* ret = vm->root;
+	scope_t* sc = (scope_t*)array_tail(vm->scopes);
+	if(sc != NULL && !var_empty(sc->var))
+		ret = sc->var;
+	return ret;
+}
+
+static inline bool var_scoped(vm_t* vm, var_t* var) {
+	if(vm->scopes == NULL)
+		return false;
+
+	scope_t* sc = vm_get_scope(vm);
+	while(sc != NULL) {
+		if(var_has(sc->var, var))
+			return true;;
+		sc = sc->prev;
+	}
+	return false;
+}
+
 static inline void gc_vars(vm_t* vm) {
 	var_t* v = vm->gc_vars;
 	//first step: free unlinked var
@@ -337,6 +396,7 @@ static inline void gc_vars(vm_t* vm) {
 		var_t* next = v->next;
 		if(v->status == V_ST_GC &&
 				!var_stacked(vm, v) &&
+				!var_scoped(vm, v) &&
 				!var_has(vm->root, v)) {
 			var_free(v);
 		}
@@ -347,7 +407,7 @@ static inline void gc_vars(vm_t* vm) {
 	v = vm->gc_vars;
 	while(v != NULL) {
 		var_t* next = v->next;
-		if(v->status == V_ST_GC_FREE) {
+		if(v->status == V_ST_FREE) {
 			v->status = V_ST_FREE;
 			if(v->prev == NULL) 
 				vm->gc_vars = next;
@@ -385,7 +445,7 @@ static inline void gc(vm_t* vm) {
 }
 
 inline void var_unref(var_t* var) {
-	if(var == NULL)
+	if(var_empty(var))
 		return;
 
 	if(var->refs > 0)
@@ -431,20 +491,19 @@ inline var_t* var_new(vm_t* vm) {
 			vm->free_vars->prev = NULL;
 		if(vm->free_vars_num > 0)
 			vm->free_vars_num--;
-		var->prev = var->next = NULL;
 	}
 	else {
 		var = (var_t*)_malloc(sizeof(var_t));
-		memset(var, 0, sizeof(var_t));
-		var->type = V_UNDEF;
-		var->vm = vm;
 	}
 
+	memset(var, 0, sizeof(var_t));
+	var->type = V_UNDEF;
+	var->vm = vm;
+	var->status = V_ST_GC;
 	if(vm->gc_vars != NULL)
 		vm->gc_vars->prev = var;
 	var->next = vm->gc_vars;
 	vm->gc_vars = var;
-	var->status = V_ST_GC;
 	vm->gc_vars_num++;
 	return var;
 }
@@ -849,19 +908,21 @@ static inline var_t* vm_pop2(vm_t* vm) {
 	vm->stack_top--;
 	p = vm->stack[vm->stack_top];
 	int8_t magic = *(int8_t*)p;
+	var_t* v = NULL;
 	//var
 	if(magic == 0) {
-		return(var_t*)p;
+		v = (var_t*)p;
 	}
 
 	//node
 	node_t* node = (node_t*)p;
-	if(node != NULL) {
-		var_t* ret = node->var;
-		return ret;
+	if(!node_empty(node)) {
+		v = node->var;
 	}
 
-	return NULL;
+	if(var_empty(v))
+		return NULL;
+	return v;
 }
 
 /*#define vm_pop2(vm) ({ \
@@ -890,16 +951,19 @@ static inline bool vm_pop(vm_t* vm) {
 	vm->stack_top--;
 	void *p = vm->stack[vm->stack_top];
 	int8_t magic = *(int8_t*)p;
-	var_t* v;
+	var_t* v = NULL;
 	if(magic == 0) { //var
 		v = (var_t*)p;
-		var_unref(v);
 	}
 	else { //node
 		node_t* node = (node_t*)p;
-		v = node->var;
-		var_unref(v);
+		if(!node_empty(node)) {
+			v = node->var;
+		}
 	}
+
+	if(!var_empty(v))
+		var_unref(v);
 	return true;
 }
 
@@ -945,30 +1009,6 @@ var_t* vm_stack_pick(vm_t* vm, int depth) {
 	}
 	return ret;
 }
-
-//scope of vm runing
-typedef struct st_scope {
-	struct st_scope* prev;
-	var_t* var;
-	PC pc_start; // continue anchor for loop
-	PC pc; // try cache anchor , or break anchor for loop
-	uint32_t is_func: 8;
-	uint32_t is_block: 8;
-	uint32_t is_try: 8;
-	uint32_t is_loop: 8;
-	//continue and break anchor for loop(while/for)
-} scope_t;
-
-#define vm_get_scope(vm) (scope_t*)array_tail((vm)->scopes)
-#define vm_get_scope_var(vm) ({ \
-	scope_t* sc = (scope_t*)array_tail((vm)->scopes); \
-	var_t* ret; \
-	if(sc == NULL) \
-		ret = (vm)->root; \
-	else \
-		ret = sc->var; \
-	ret; \
-})
 
 scope_t* scope_new(var_t* var) {
 	scope_t* sc = (scope_t*)_malloc(sizeof(scope_t));
@@ -1052,7 +1092,7 @@ void vm_stack_free(vm_t* vm, void* p) {
 
 node_t* vm_find(vm_t* vm, const char* name) {
 	var_t* var = vm_get_scope_var(vm);
-	if(var == NULL)
+	if(var_empty(var))
 		return NULL;
 	return var_find(var, name);	
 }
@@ -1119,7 +1159,7 @@ static inline node_t* vm_find_in_scopes(vm_t* vm, const char* name) {
 	}
 	
 	while(sc != NULL) {
-		if(sc->var != NULL) {
+		if(!var_empty(sc->var)) {
 			ret = var_find(sc->var, name);
 			if(ret != NULL)
 				return ret;
@@ -1158,7 +1198,7 @@ inline node_t* vm_load_node(vm_t* vm, const char* name, bool create) {
 	if(n == NULL)
 		n =  vm_find_in_scopes(vm, name);	
 
-	if(n != NULL)
+	if(n != NULL && n->var != NULL && n->var->status != V_ST_FREE)
 		return n;
 	/*
 	_err("Warning: '");	
@@ -1376,6 +1416,7 @@ bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 	}
 
 	var_t* ret = NULL;
+	vm_push(vm, env); //avoid for gc
 	if(func->native != NULL) { //native function
 		ret = func->native(vm, env, func->data);
 		if(ret == NULL)
@@ -1389,12 +1430,13 @@ bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 
 		//script function
 		vm->pc = func->pc;
-		vm_push(vm, env); //avoid for gc
 		if(vm_run(vm)) { //with function return;
 			ret = vm_pop2(vm);
+			ret->refs--;
 		}
-		vm_pop(vm);
 	}
+	printf("func refs: %d,%d\n", env->refs, env->status);
+	vm_pop(vm);
 	vm_push(vm, ret);
 	return true;
 }
@@ -2717,7 +2759,8 @@ bool vm_run(vm_t* vm) {
 				break;
 			}
 		}
-		gc_vars(vm); //try gc 
+		//gc(vm);
+		gc_vars(vm);
 	}
 	while(vm->pc < code_size);
 	return false;

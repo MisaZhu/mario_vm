@@ -24,8 +24,7 @@ bool compile(bytecode_t *bc, const char* input);
 
 #define V_ST_FREE      0
 #define V_ST_GC        1
-#define V_ST_GC_FREE   2
-#define V_ST_REF       3
+#define V_ST_REF       2
 
 #define THIS "this"
 #define PROTOTYPE "prototype"
@@ -74,7 +73,6 @@ typedef struct st_node {
   int16_t be_const : 8;
 	char* name;
 	var_t* var;
-	var_t* owner;
 } node_t;
 
 
