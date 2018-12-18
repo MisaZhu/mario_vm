@@ -244,7 +244,12 @@ inline void var_clean(var_t* var) {
 		var->on_destroy(var);
 		var->on_destroy = NULL;
 	}
+
+	var_t* next = var->next; //backup next
+	var_t* prev = var->prev; //backup prev
 	memset(var, 0, sizeof(var_t));
+	var->next = next;
+	var->prev = prev;
 }
 
 static inline void add_to_free(var_t* var) {
@@ -255,33 +260,6 @@ static inline void add_to_free(var_t* var) {
 	var->next = vm->free_vars;
 	vm->free_vars = var;
 	vm->free_vars_num++;
-}
-
-static inline void var_free(void* p) {
-	var_t* var = (var_t*)p;
-	if(var_empty(var))
-		return;
-
-	vm_t* vm = var->vm;
-	//backup next and prev : TODO
-	var_t* next = var->next;
-	var_t* prev = var->prev; 
-	//clean var.
-	uint32_t status = var->status;
-	var->status = V_ST_FREE;
-	var_clean(var);
-
-	var->type = V_UNDEF;
-	var->vm = vm;
-
-	if(status == V_ST_GC) {
-		var->next = next;
-		var->prev = prev;
-		var->status = V_ST_GC_FREE;
-	}
-	else if(status != V_ST_FREE) {
-		add_to_free(var);
-	}
 }
 
 static inline void add_to_gc(var_t* var) {
@@ -325,6 +303,34 @@ static inline void remove_from_gc(var_t* var) {
 	var->prev = var->next = NULL;
 	if(var->vm->gc_vars_num > 0)
 		var->vm->gc_vars_num--;
+}
+
+static inline void var_free(void* p) {
+	var_t* var = (var_t*)p;
+	if(var_empty(var))
+		return;
+
+	vm_t* vm = var->vm;
+	//clean var.
+	uint32_t status = var->status;
+	var->status = V_ST_FREE;
+	var_clean(var);
+
+	var->type = V_UNDEF;
+	var->vm = vm;
+
+	if(status == V_ST_GC) {
+		if(vm->is_doing_gc) {
+			var->status = V_ST_GC_FREE;
+		}
+		else {
+			remove_from_gc(var);
+			add_to_free(var);
+		}
+	}
+	else if(status != V_ST_FREE) {
+		add_to_free(var);
+	}
 }
 
 inline var_t* var_ref(var_t* var) {
@@ -391,41 +397,6 @@ static inline bool var_stacked(vm_t* vm, var_t* var) {
 	return false;
 }
 
-//scope of vm runing
-typedef struct st_scope {
-	struct st_scope* prev;
-	var_t* var;
-	PC pc_start; // continue anchor for loop
-	PC pc; // try cache anchor , or break anchor for loop
-	uint32_t is_func: 8;
-	uint32_t is_block: 8;
-	uint32_t is_try: 8;
-	uint32_t is_loop: 8;
-	//continue and break anchor for loop(while/for)
-} scope_t;
-
-#define vm_get_scope(vm) (scope_t*)array_tail((vm)->scopes)
-static inline var_t* vm_get_scope_var(vm_t* vm) {
-	var_t* ret = vm->root;
-	scope_t* sc = (scope_t*)array_tail(vm->scopes);
-	if(sc != NULL && !var_empty(sc->var))
-		ret = sc->var;
-	return ret;
-}
-
-static inline bool var_scoped(vm_t* vm, var_t* var) {
-	if(vm->scopes == NULL)
-		return false;
-
-	scope_t* sc = vm_get_scope(vm);
-	while(sc != NULL) {
-		if(var_has(sc->var, var))
-			return true;;
-		sc = sc->prev;
-	}
-	return false;
-}
-
 static inline void gc_vars(vm_t* vm) {
 	var_t* v = vm->gc_vars;
 	//first step: free unlinked var
@@ -433,7 +404,6 @@ static inline void gc_vars(vm_t* vm) {
 		var_t* next = v->next;
 		if(v->status == V_ST_GC &&
 				!var_stacked(vm, v) &&
-				!var_scoped(vm, v) &&
 				!var_has(vm->root, v)) {
 			var_free(v);
 		}
@@ -464,8 +434,30 @@ static inline void gc_free_vars(vm_t* vm) {
 }
 
 static inline void gc(vm_t* vm) {
+	if(vm->is_doing_gc || vm->gc_vars_num < vm->gc_max)
+		return;
+	vm->is_doing_gc = true;
+#ifdef MARIO_DEBUG
+	str_t* info = str_new("gc: vars ");
+	str_add_int(info, vm->gc_vars_num, 10);
+	str_append(info, ", freed ");
+	str_add_int(info, vm->free_vars_num, 10);
+	_debug(info->cstr);
+#endif
+
 	gc_vars(vm);
 	gc_free_vars(vm);
+
+#ifdef MARIO_DEBUG
+	str_cpy(info, "; done: vars ");
+	str_add_int(info, vm->gc_vars_num, 10);
+	str_append(info, ", freed ");
+	str_add_int(info, vm->free_vars_num, 10);
+	str_append(info, "\n");
+	_debug(info->cstr);
+	str_free(info);
+#endif
+	vm->is_doing_gc = false;
 }
 
 inline void var_unref(var_t* var) {
@@ -679,13 +671,12 @@ void var_to_str(var_t* var, str_t* ret) {
 		return;
 	}
 
-	char s[STATIC_STR_MAX];
 	switch(var->type) {
 	case V_INT:
-		str_cpy(ret, str_from_int(var_get_int(var), s, 10));
+		str_cpy(ret, str_from_int(var_get_int(var), 10));
 		break;
 	case V_FLOAT:
-		str_cpy(ret, str_from_float(var_get_float(var), s));
+		str_cpy(ret, str_from_float(var_get_float(var)));
 		break;
 	case V_STRING:
 		str_cpy(ret, var_get_str(var));
@@ -1016,6 +1007,29 @@ var_t* vm_stack_pick(vm_t* vm, int depth) {
 	return ret;
 }
 
+//scope of vm runing
+typedef struct st_scope {
+	struct st_scope* prev;
+	var_t* var;
+	PC pc_start; // continue anchor for loop
+	PC pc; // try cache anchor , or break anchor for loop
+	uint32_t is_func: 8;
+	uint32_t is_block: 8;
+	uint32_t is_try: 8;
+	uint32_t is_loop: 8;
+	//continue and break anchor for loop(while/for)
+} scope_t;
+
+#define vm_get_scope(vm) (scope_t*)array_tail((vm)->scopes)
+static inline var_t* vm_get_scope_var(vm_t* vm) {
+	var_t* ret = vm->root;
+	scope_t* sc = (scope_t*)array_tail(vm->scopes);
+	if(sc != NULL && !var_empty(sc->var))
+		ret = sc->var;
+	return ret;
+}
+
+
 scope_t* scope_new(var_t* var) {
 	scope_t* sc = (scope_t*)_malloc(sizeof(scope_t));
 	sc->prev = NULL;
@@ -1081,6 +1095,7 @@ PC vm_pop_scope(vm_t* vm) {
 	if(sc->is_func)
 		pc = sc->pc;
 	array_del(vm->scopes, vm->scopes->size-1, scope_free);
+	gc(vm);
 	return pc;
 }
 
@@ -1792,9 +1807,9 @@ var_t* new_obj(vm_t* vm, const char* name, int arg_num) {
 	}
 
 	if(constructor != NULL) {
-		//var_ref(obj);
+		var_ref(obj);
 		func_call(vm, obj, constructor, arg_num);
-		//var_unref(obj);
+		obj->refs--;
 		obj = vm_pop2(vm);
 		obj->refs--;
 	}
@@ -2766,8 +2781,7 @@ bool vm_run(vm_t* vm) {
 				break;
 			}
 		}
-		gc(vm);
-		//gc_vars(vm);
+		//gc(vm);
 	}
 	while(vm->pc < code_size);
 	return false;
@@ -2849,7 +2863,6 @@ void vm_close(vm_t* vm) {
 	vm->scopes = NULL;
 	array_clean(&vm->init_natives, NULL);
 
-	gc(vm); //try gc
 	var_unref(vm->root);
 	bc_release(&vm->bc);
 	vm->stack_top = 0;
@@ -3049,10 +3062,12 @@ var_t* native_yield(vm_t* vm, var_t* env, void* data) {
 
 vm_t* vm_from(vm_t* vm) {
 	vm_t* ret = vm_new(vm->compiler);
+	ret->gc_max = vm->gc_max;
   vm_init(ret, vm->on_init, vm->on_close);
 	return ret;
 }
 
+#define GC_MAX 128
 vm_t* vm_new(bool compiler(bytecode_t *bc, const char* input)) {
 	vm_t* vm = (vm_t*)_malloc(sizeof(vm_t));
 	memset(vm, 0, sizeof(vm_t));
@@ -3061,6 +3076,7 @@ vm_t* vm_new(bool compiler(bytecode_t *bc, const char* input)) {
 	vm->terminated = false;
 	vm->pc = 0;
 	vm->this_strIndex = 0;
+	vm->gc_max = GC_MAX;
 	vm->stack_top = 0;
 
 	bc_init(&vm->bc);

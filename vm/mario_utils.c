@@ -341,6 +341,14 @@ char* str_add(str_t* str, char c) {
 	return str->cstr;
 }
 
+char* str_add_int(str_t* str, int i, int base) {
+	return str_append(str, str_from_int(i, base));
+}
+
+char* str_add_float(str_t* str, float f) {
+	return str_append(str, str_from_float(f));
+}
+
 void str_free(str_t* str) {
 	if(str == NULL)
 		return;
@@ -351,12 +359,14 @@ void str_free(str_t* str) {
 	_free(str);
 }
 
-const char* str_from_int(int value, char* result, int base) {
+static char _str_result[STATIC_STR_MAX+1];
+
+const char* str_from_int(int value, int base) {
     // check that the base if valid
     if (base < 2 || base > 36) 
 			base = 10;
 
-    char* ptr = result, *ptr1 = result, tmp_char;
+    char* ptr = _str_result, *ptr1 = _str_result, tmp_char;
     int tmp_value;
 
     do {
@@ -373,16 +383,16 @@ const char* str_from_int(int value, char* result, int base) {
         *ptr--= *ptr1;
         *ptr1++ = tmp_char;
     }
-    return result;
+    return _str_result;
 }
 
 const char* str_from_bool(bool b) {
 	return b ? "true":"false";
 }
 
-const char* str_from_float(float i, char* s) {
-	snprintf(s, STATIC_STR_MAX-1, "%f", i);
-	return s;
+const char* str_from_float(float i) {
+	snprintf(_str_result, STATIC_STR_MAX-1, "%f", i);
+	return _str_result;
 }
 
 int str_to_int(const char* str) {

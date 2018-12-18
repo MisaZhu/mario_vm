@@ -95,7 +95,8 @@ typedef struct st_isignal {
 #endif
 */
 
-#define VM_STACK_MAX 32
+#define VM_STACK_MAX    32
+
 typedef struct st_vm {
 	bytecode_t bc;
 	bool (*compiler)(bytecode_t *bc, const char* input);
@@ -134,6 +135,9 @@ typedef struct st_vm {
 	var_t* var_true;
 	var_t* var_false;
 
+	//for gc
+	bool is_doing_gc;
+	uint32_t gc_max;
 	var_t* gc_vars;
 	var_t* gc_vars_tail;
 	uint32_t gc_vars_num;
