@@ -24,7 +24,7 @@ node_t* node_new(vm_t* vm, const char* name) {
 }
 
 static inline bool var_empty(var_t* var) {
-	if(var == NULL || var->status == V_ST_FREE)
+	if(var == NULL || var->status <= V_ST_GC_FREE)
 		return true;
 	return false;
 }
@@ -244,7 +244,6 @@ inline void var_clean(var_t* var) {
 		var->on_destroy(var);
 		var->on_destroy = NULL;
 	}
-	var->is_dirty = false;
 	memset(var, 0, sizeof(var_t));
 }
 
@@ -253,7 +252,6 @@ static inline void var_free(void* p) {
 	if(var_empty(var))
 		return;
 
-	printf("var free: %x, %d,%d\n", (uint64_t)var, var->refs, var->status);
 	vm_t* vm = var->vm;
 	//backup next and prev
 	var_t* next = var->next;
@@ -269,7 +267,7 @@ static inline void var_free(void* p) {
 	if(status == V_ST_GC) {
 		var->next = next;
 		var->prev = prev;
-		var->status = V_ST_FREE;
+		var->status = V_ST_GC_FREE;
 	}
 	else if(status != V_ST_FREE) {
 		//add to vm->free_vars list for reusing.
@@ -290,8 +288,12 @@ inline var_t* var_ref(var_t* var) {
 			var->prev->next = var->next;
 		else
 			vm->gc_vars = var->next;
+			
 		if(var->next != NULL)
 			var->next->prev = var->prev;
+		else
+			vm->gc_vars_tail = var->prev;
+
 		var->prev = var->next = NULL;
 		var->status = V_ST_REF;
 		if(var->vm->gc_vars_num > 0)
@@ -303,11 +305,11 @@ inline var_t* var_ref(var_t* var) {
 static inline bool var_has(var_t* var, var_t* v) {
  	if(var_empty(var) || var_empty(v))
  		return false;
+
 	if(var == v)
 		return true;
 
  	var->is_dirty = true;
-
  	uint32_t i;
  	bool ret = false;
  	for(i=0; i<var->children.size; i++) {
@@ -317,12 +319,12 @@ static inline bool var_has(var_t* var, var_t* v) {
  				ret = true;
  				break;
  			}
- 			if(node->var->is_dirty == false) {
- 				if(var_has(node->var, v)) {
- 					ret = true;
- 					break;
- 				}
- 			}
+			if(node->var->is_dirty == false) {
+				if(var_has(node->var, v)) {
+					ret = true;
+					break;
+				}
+			}
  		}
  	}
  	var->is_dirty = false;
@@ -392,6 +394,7 @@ static inline bool var_scoped(vm_t* vm, var_t* var) {
 static inline void gc_vars(vm_t* vm) {
 	var_t* v = vm->gc_vars;
 	//first step: free unlinked var
+	_err("+++\n");
 	while(v != NULL) {
 		var_t* next = v->next;
 		if(v->status == V_ST_GC &&
@@ -402,12 +405,13 @@ static inline void gc_vars(vm_t* vm) {
 		}
 		v = next;
 	}
+	_err("---\n");
 
 	//second step: move freed var to free_var_list
 	v = vm->gc_vars;
 	while(v != NULL) {
 		var_t* next = v->next;
-		if(v->status == V_ST_FREE) {
+		if(v->status == V_ST_GC_FREE) {
 			v->status = V_ST_FREE;
 			if(v->prev == NULL) 
 				vm->gc_vars = next;
@@ -456,13 +460,15 @@ inline void var_unref(var_t* var) {
 	}
 	else if(var->status == V_ST_REF) { //put back to vm->gc_vars list.
 		vm_t* vm = var->vm;
-		var->next = vm->gc_vars;
-		var->prev = NULL;
-		if(vm->gc_vars != NULL)
-			vm->gc_vars->prev = var;
-		vm->gc_vars = var;
+		var->prev = vm->gc_vars_tail;
+		if(vm->gc_vars_tail != NULL)
+			vm->gc_vars_tail->next = var;
+		else {
+			vm->gc_vars_tail = vm->gc_vars = var;
+		}
+		var->next = NULL;
 		var->status = V_ST_GC;
-		var->vm->gc_vars_num++;
+		vm->gc_vars_num++;
 	}
 }
 
@@ -913,11 +919,12 @@ static inline var_t* vm_pop2(vm_t* vm) {
 	if(magic == 0) {
 		v = (var_t*)p;
 	}
-
-	//node
-	node_t* node = (node_t*)p;
-	if(!node_empty(node)) {
-		v = node->var;
+	else {
+		//node
+		node_t* node = (node_t*)p;
+		if(!node_empty(node)) {
+			v = node->var;
+		}
 	}
 
 	if(var_empty(v))
@@ -1435,7 +1442,6 @@ bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 			ret->refs--;
 		}
 	}
-	printf("func refs: %d,%d\n", env->refs, env->status);
 	vm_pop(vm);
 	vm_push(vm, ret);
 	return true;
@@ -1787,7 +1793,9 @@ var_t* new_obj(vm_t* vm, const char* name, int arg_num) {
 	}
 
 	if(constructor != NULL) {
+		var_ref(obj);
 		func_call(vm, obj, constructor, arg_num);
+		var_unref(obj);
 		obj = vm_pop2(vm);
 		obj->refs--;
 	}
@@ -2759,8 +2767,8 @@ bool vm_run(vm_t* vm) {
 				break;
 			}
 		}
-		//gc(vm);
-		gc_vars(vm);
+		gc(vm);
+		//gc_vars(vm);
 	}
 	while(vm->pc < code_size);
 	return false;
@@ -2842,13 +2850,11 @@ void vm_close(vm_t* vm) {
 	vm->scopes = NULL;
 	array_clean(&vm->init_natives, NULL);
 
-	gc(vm); //try gc
-
 	var_unref(vm->root);
 	bc_release(&vm->bc);
 	vm->stack_top = 0;
 
-	gc_free_vars(vm); //do gc again after root freed.
+	gc(vm); //try gc
 	_free(vm);
 }	
 

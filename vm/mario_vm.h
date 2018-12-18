@@ -23,8 +23,9 @@ bool compile(bytecode_t *bc, const char* input);
 #define V_BOOL   5
 
 #define V_ST_FREE      0
-#define V_ST_GC        1
-#define V_ST_REF       2
+#define V_ST_GC_FREE   1
+#define V_ST_GC        2
+#define V_ST_REF       3 
 
 #define THIS "this"
 #define PROTOTYPE "prototype"
@@ -134,6 +135,7 @@ typedef struct st_vm {
 	var_t* var_false;
 
 	var_t* gc_vars;
+	var_t* gc_vars_tail;
 	uint32_t gc_vars_num;
 	var_t* free_vars;
 	uint32_t free_vars_num;
