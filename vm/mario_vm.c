@@ -263,7 +263,7 @@ static inline void var_free(void* p) {
 		return;
 
 	vm_t* vm = var->vm;
-	//backup next and prev
+	//backup next and prev : TODO
 	var_t* next = var->next;
 	var_t* prev = var->prev; 
 	//clean var.
@@ -509,7 +509,7 @@ inline var_t* var_new(vm_t* vm) {
 	memset(var, 0, sizeof(var_t));
 	var->type = V_UNDEF;
 	var->vm = vm;
-	add_to_gc(var);
+	var->status = V_ST_REF;
 	return var;
 }
 
@@ -1792,9 +1792,9 @@ var_t* new_obj(vm_t* vm, const char* name, int arg_num) {
 	}
 
 	if(constructor != NULL) {
-		var_ref(obj);
+		//var_ref(obj);
 		func_call(vm, obj, constructor, arg_num);
-		var_unref(obj);
+		//var_unref(obj);
 		obj = vm_pop2(vm);
 		obj->refs--;
 	}
