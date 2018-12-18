@@ -247,6 +247,16 @@ inline void var_clean(var_t* var) {
 	memset(var, 0, sizeof(var_t));
 }
 
+static inline void add_to_free(var_t* var) {
+	vm_t* vm = var->vm;
+	var->status = V_ST_FREE;
+	if(vm->free_vars != NULL)
+		vm->free_vars->prev = var;
+	var->next = vm->free_vars;
+	vm->free_vars = var;
+	vm->free_vars_num++;
+}
+
 static inline void var_free(void* p) {
 	var_t* var = (var_t*)p;
 	if(var_empty(var))
@@ -270,34 +280,59 @@ static inline void var_free(void* p) {
 		var->status = V_ST_GC_FREE;
 	}
 	else if(status != V_ST_FREE) {
-		//add to vm->free_vars list for reusing.
-		if(vm->free_vars != NULL) 
-			vm->free_vars->prev = var;
-		var->next = vm->free_vars;
-		vm->free_vars = var;
-		vm->free_vars_num++;
+		add_to_free(var);
 	}
+}
+
+static inline void add_to_gc(var_t* var) {
+	vm_t* vm = var->vm;
+	var->prev = vm->gc_vars_tail;
+	if(vm->gc_vars_tail != NULL)
+		vm->gc_vars_tail->next = var;
+	else {
+		vm->gc_vars = var;
+	}
+	var->next = NULL;
+	vm->gc_vars_tail = var;
+	var->status = V_ST_GC;
+	vm->gc_vars_num++;
+}
+
+static inline var_t* get_from_free(vm_t* vm) {
+	var_t* var = vm->free_vars;
+	if(var != NULL) {
+		vm->free_vars = var->next;
+		if(vm->free_vars != NULL)
+			vm->free_vars->prev = NULL;
+		if(vm->free_vars_num > 0)
+			vm->free_vars_num--;
+	}
+	return var;
+}
+
+static inline void remove_from_gc(var_t* var) {
+	vm_t* vm = var->vm;
+	if(var->prev != NULL)
+		var->prev->next = var->next;
+	else
+		vm->gc_vars = var->next;
+
+	if(var->next != NULL)
+		var->next->prev = var->prev;
+	else
+		vm->gc_vars_tail = var->prev;
+
+	var->prev = var->next = NULL;
+	if(var->vm->gc_vars_num > 0)
+		var->vm->gc_vars_num--;
 }
 
 inline var_t* var_ref(var_t* var) {
 	++var->refs;
 	//remove from vm->gc_vars list.(will put back when unref).
 	if(var->status == V_ST_GC) {
-		vm_t* vm = var->vm;
-		if(var->prev != NULL)
-			var->prev->next = var->next;
-		else
-			vm->gc_vars = var->next;
-			
-		if(var->next != NULL)
-			var->next->prev = var->prev;
-		else
-			vm->gc_vars_tail = var->prev;
-
-		var->prev = var->next = NULL;
+		remove_from_gc(var);
 		var->status = V_ST_REF;
-		if(var->vm->gc_vars_num > 0)
-			var->vm->gc_vars_num--;
 	}
 	return var;
 }
@@ -394,7 +429,6 @@ static inline bool var_scoped(vm_t* vm, var_t* var) {
 static inline void gc_vars(vm_t* vm) {
 	var_t* v = vm->gc_vars;
 	//first step: free unlinked var
-	_err("+++\n");
 	while(v != NULL) {
 		var_t* next = v->next;
 		if(v->status == V_ST_GC &&
@@ -405,28 +439,14 @@ static inline void gc_vars(vm_t* vm) {
 		}
 		v = next;
 	}
-	_err("---\n");
 
 	//second step: move freed var to free_var_list
 	v = vm->gc_vars;
 	while(v != NULL) {
 		var_t* next = v->next;
 		if(v->status == V_ST_GC_FREE) {
-			v->status = V_ST_FREE;
-			if(v->prev == NULL) 
-				vm->gc_vars = next;
-			else
-				v->prev->next = next;
-
-			if(next != NULL) 
-				next->prev = v->prev;
-			vm->gc_vars_num--;
-
-			if(vm->free_vars != NULL)
-				vm->free_vars->prev = v;
-			v->next = vm->free_vars;
-			vm->free_vars = v;
-			vm->free_vars_num++;
+			remove_from_gc(v);	
+			add_to_free(v);
 		}
 		v = next;
 	}
@@ -459,16 +479,7 @@ inline void var_unref(var_t* var) {
 		var_free(var);
 	}
 	else if(var->status == V_ST_REF) { //put back to vm->gc_vars list.
-		vm_t* vm = var->vm;
-		var->prev = vm->gc_vars_tail;
-		if(vm->gc_vars_tail != NULL)
-			vm->gc_vars_tail->next = var;
-		else {
-			vm->gc_vars_tail = vm->gc_vars = var;
-		}
-		var->next = NULL;
-		var->status = V_ST_GC;
-		vm->gc_vars_num++;
+		add_to_gc(var);
 	}
 }
 
@@ -490,27 +501,15 @@ const char* get_typeof(var_t* var) {
 }
 
 inline var_t* var_new(vm_t* vm) {
-	var_t* var = vm->free_vars;
-	if(var != NULL) {
-		vm->free_vars = var->next;
-		if(vm->free_vars != NULL)
-			vm->free_vars->prev = NULL;
-		if(vm->free_vars_num > 0)
-			vm->free_vars_num--;
-	}
-	else {
+	var_t* var = get_from_free(vm);
+	if(var == NULL) {
 		var = (var_t*)_malloc(sizeof(var_t));
 	}
 
 	memset(var, 0, sizeof(var_t));
 	var->type = V_UNDEF;
 	var->vm = vm;
-	var->status = V_ST_GC;
-	if(vm->gc_vars != NULL)
-		vm->gc_vars->prev = var;
-	var->next = vm->gc_vars;
-	vm->gc_vars = var;
-	vm->gc_vars_num++;
+	add_to_gc(var);
 	return var;
 }
 
@@ -2850,6 +2849,7 @@ void vm_close(vm_t* vm) {
 	vm->scopes = NULL;
 	array_clean(&vm->init_natives, NULL);
 
+	gc(vm); //try gc
 	var_unref(vm->root);
 	bc_release(&vm->bc);
 	vm->stack_top = 0;
