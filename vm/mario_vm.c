@@ -224,9 +224,9 @@ void var_array_del(var_t* var, int32_t index) {
 void func_free(void* p);
 
 inline void var_clean(var_t* var) {
-	if(var == NULL || var->is_dirty)
+	if(var_empty(var))
 		return;
-	var->is_dirty = true;
+	var->status = V_ST_FREE; //mark as freed for avoid dead loop
 	/*free children*/
 	if(var->children.size > 0)
 		var_remove_all(var);	
@@ -313,7 +313,6 @@ static inline void var_free(void* p) {
 	vm_t* vm = var->vm;
 	//clean var.
 	uint32_t status = var->status;
-	var->status = V_ST_FREE;
 	var_clean(var);
 
 	var->type = V_UNDEF;
@@ -343,36 +342,25 @@ inline var_t* var_ref(var_t* var) {
 	return var;
 }
 
-static inline bool var_has(var_t* var, var_t* v) {
- 	if(var_empty(var) || var_empty(v))
- 		return false;
+static inline void gc_mark(var_t* var, bool mark) {
+ 	if(var_empty(var))
+ 		return;
 
-	if(var == v)
-		return true;
-
- 	var->is_dirty = true;
+ 	var->is_marking = true;
  	uint32_t i;
- 	bool ret = false;
  	for(i=0; i<var->children.size; i++) {
  		node_t* node = (node_t*)var->children.items[i];
  		if(!node_empty(node)) {
- 			if(node->var == v) {
- 				ret = true;
- 				break;
- 			}
-			if(node->var->is_dirty == false) {
-				if(var_has(node->var, v)) {
-					ret = true;
-					break;
-				}
+ 			node->var->is_marked = mark;
+			if(node->var->is_marking == false) {
+				gc_mark(node->var, mark);
 			}
  		}
  	}
- 	var->is_dirty = false;
- 	return ret;
+ 	var->is_marking = false;
 }
 
-static inline bool var_stacked(vm_t* vm, var_t* var) {
+static inline void gc_mark_stack(vm_t* vm, bool mark) {
 	int i = vm->stack_top-1;
 	while(i>=0) {
 		void *p = vm->stack[i];
@@ -391,26 +379,28 @@ static inline bool var_stacked(vm_t* vm, var_t* var) {
 				v = node->var;
 		}
 
-		if(var_has(v, var))
-			return true;
+		gc_mark(v, mark);
 	}
-	return false;
 }
 
 static inline void gc_vars(vm_t* vm) {
+	gc_mark(vm->root, true); //mark all rooted vars
+	gc_mark_stack(vm, true); //mark all stacked vars
+
 	var_t* v = vm->gc_vars;
-	//first step: free unlinked var
+	//first step: free unmarked vars
 	while(v != NULL) {
 		var_t* next = v->next;
-		if(v->status == V_ST_GC &&
-				!var_stacked(vm, v) &&
-				!var_has(vm->root, v)) {
+		if(v->status == V_ST_GC && v->is_marked == false) {
 			var_free(v);
 		}
 		v = next;
 	}
 
-	//second step: move freed var to free_var_list
+	gc_mark(vm->root, false); //unmark all rooted vars
+	gc_mark_stack(vm, false); //unmark all stacked vars
+
+	//second step: move freed var to free_var_list for reusing.
 	v = vm->gc_vars;
 	while(v != NULL) {
 		var_t* next = v->next;
@@ -441,7 +431,7 @@ static inline void gc(vm_t* vm) {
 
 	vm->is_doing_gc = true;
 #ifdef MARIO_DEBUG
-	str_t* info = str_new("gc -  before: vars ");
+	str_t* info = str_new("gc - before: gc_vars ");
 	str_add_int(info, vm->gc_vars_num, 10);
 	str_append(info, ", freed ");
 	str_add_int(info, vm->free_vars_num, 10);
@@ -452,7 +442,7 @@ static inline void gc(vm_t* vm) {
 	gc_free_vars(vm, vm->gc_free_buffer_size);
 
 #ifdef MARIO_DEBUG
-	str_cpy(info, "; after: vars ");
+	str_cpy(info, "; after: gc_vars ");
 	str_add_int(info, vm->gc_vars_num, 10);
 	str_append(info, ", freed ");
 	str_add_int(info, vm->free_vars_num, 10);

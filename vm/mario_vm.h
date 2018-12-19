@@ -36,12 +36,13 @@ struct st_vm;
 
 typedef struct st_var {
 	uint32_t magic: 8; //0 for var; 1 for node
-	uint32_t type:12;
+	uint32_t type:10;
 	uint32_t status: 4;
 	uint32_t is_array:2;
 	uint32_t is_func:2;
 	uint32_t is_class:2;
-	uint32_t is_dirty: 2;
+	uint32_t is_marking: 2;
+	uint32_t is_marked: 2;
 	uint32_t refs;
 
 	uint32_t size;  // size for bytes type of value;
