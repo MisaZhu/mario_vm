@@ -383,9 +383,24 @@ static inline void gc_mark_stack(vm_t* vm, bool mark) {
 	}
 }
 
+/*static inline void gc_mark_isignal(vm_t* vm, bool mark) {
+	isignal_t* sig = vm->isignal_head;
+	while(sig != NULL) {
+		gc_mark(sig->handle_func, mark);
+		gc_mark(sig->obj, mark);
+		gc_mark(sig->args, mark);
+		sig = sig->next;
+	}
+}
+*/
+
 static inline void gc_vars(vm_t* vm) {
+	if(vm->interrupted) 
+		return; // can not gc in interrupter.
+		
 	gc_mark(vm->root, true); //mark all rooted vars
 	gc_mark_stack(vm, true); //mark all stacked vars
+//	gc_mark_isignal(vm, true); //mark all interrupt signal vars
 
 	var_t* v = vm->gc_vars;
 	//first step: free unmarked vars
@@ -399,6 +414,7 @@ static inline void gc_vars(vm_t* vm) {
 
 	gc_mark(vm->root, false); //unmark all rooted vars
 	gc_mark_stack(vm, false); //unmark all stacked vars
+//	gc_mark_isignal(vm, false); //unmark all interrupt signal vars
 
 	//second step: move freed var to free_var_list for reusing.
 	v = vm->gc_vars;
@@ -413,6 +429,8 @@ static inline void gc_vars(vm_t* vm) {
 }
 
 static inline void gc_free_vars(vm_t* vm, uint32_t buffer_size) {
+	if(vm->interrupted) 
+		return; // can not gc in interrupter.
 	var_t* v = vm->free_vars;
 	while(v != NULL) {
 		var_t* vtmp = v->next;
@@ -426,7 +444,7 @@ static inline void gc_free_vars(vm_t* vm, uint32_t buffer_size) {
 }
 
 static inline void gc(vm_t* vm) {
-	if(vm->is_doing_gc || vm->gc_vars_num < vm->gc_buffer_size)
+	if(vm->interrupted || vm->is_doing_gc || vm->gc_vars_num < vm->gc_buffer_size)
 		return;
 
 	vm->is_doing_gc = true;
