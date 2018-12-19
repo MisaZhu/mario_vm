@@ -422,23 +422,26 @@ static inline void gc_vars(vm_t* vm) {
 	}
 }
 
-static inline void gc_free_vars(vm_t* vm) {
+static inline void gc_free_vars(vm_t* vm, uint32_t buffer_size) {
 	var_t* v = vm->free_vars;
 	while(v != NULL) {
 		var_t* vtmp = v->next;
 		_free(v);
 		v = vtmp;
+		vm->free_vars = v;
+		vm->free_vars_num--;
+		if(vm->free_vars_num <= buffer_size)
+			break;
 	}
-	vm->free_vars = NULL;
-	vm->free_vars_num = 0;
 }
 
 static inline void gc(vm_t* vm) {
-	if(vm->is_doing_gc || vm->gc_vars_num < vm->gc_max)
+	if(vm->is_doing_gc || vm->gc_vars_num < vm->gc_buffer_size)
 		return;
+
 	vm->is_doing_gc = true;
 #ifdef MARIO_DEBUG
-	str_t* info = str_new("gc: vars ");
+	str_t* info = str_new("gc -  before: vars ");
 	str_add_int(info, vm->gc_vars_num, 10);
 	str_append(info, ", freed ");
 	str_add_int(info, vm->free_vars_num, 10);
@@ -446,10 +449,10 @@ static inline void gc(vm_t* vm) {
 #endif
 
 	gc_vars(vm);
-	gc_free_vars(vm);
+	gc_free_vars(vm, vm->gc_free_buffer_size);
 
 #ifdef MARIO_DEBUG
-	str_cpy(info, "; done: vars ");
+	str_cpy(info, "; after: vars ");
 	str_add_int(info, vm->gc_vars_num, 10);
 	str_append(info, ", freed ");
 	str_add_int(info, vm->free_vars_num, 10);
@@ -2867,7 +2870,8 @@ void vm_close(vm_t* vm) {
 	bc_release(&vm->bc);
 	vm->stack_top = 0;
 
-	gc(vm); //try gc
+	gc_vars(vm); //try gc
+	gc_free_vars(vm, 0);
 	_free(vm);
 }	
 
@@ -3062,12 +3066,14 @@ var_t* native_yield(vm_t* vm, var_t* env, void* data) {
 
 vm_t* vm_from(vm_t* vm) {
 	vm_t* ret = vm_new(vm->compiler);
-	ret->gc_max = vm->gc_max;
+	ret->gc_buffer_size = vm->gc_buffer_size;
+	ret->gc_free_buffer_size = vm->gc_free_buffer_size;
   vm_init(ret, vm->on_init, vm->on_close);
 	return ret;
 }
 
-#define GC_MAX 128
+#define GC_BUFFER 128
+#define GC_FREE_BUFFER 128
 vm_t* vm_new(bool compiler(bytecode_t *bc, const char* input)) {
 	vm_t* vm = (vm_t*)_malloc(sizeof(vm_t));
 	memset(vm, 0, sizeof(vm_t));
@@ -3076,7 +3082,8 @@ vm_t* vm_new(bool compiler(bytecode_t *bc, const char* input)) {
 	vm->terminated = false;
 	vm->pc = 0;
 	vm->this_strIndex = 0;
-	vm->gc_max = GC_MAX;
+	vm->gc_buffer_size = GC_BUFFER;
+	vm->gc_free_buffer_size = GC_FREE_BUFFER;
 	vm->stack_top = 0;
 
 	bc_init(&vm->bc);

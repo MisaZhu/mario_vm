@@ -137,7 +137,8 @@ typedef struct st_vm {
 
 	//for gc
 	bool is_doing_gc;
-	uint32_t gc_max;
+	uint32_t gc_buffer_size;
+	uint32_t gc_free_buffer_size;
 	var_t* gc_vars;
 	var_t* gc_vars_tail;
 	uint32_t gc_vars_num;
