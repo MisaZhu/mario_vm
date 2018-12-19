@@ -2411,9 +2411,6 @@ bool vm_run(vm_t* vm) {
 				}
 				else { //return with value;
 					var_t* ret = vm_pop2(vm); // if node in stack, just restore the var value.
-
-					if(ret->is_func)
-						func_mark_closure(vm, ret);
 					vm_push(vm, ret);
 					var_unref(ret);
 				}
@@ -2653,8 +2650,10 @@ bool vm_run(vm_t* vm) {
 				var_t* v = func_def(vm, 
 						(instr == INSTR_FUNC ? true:false),
 						(instr == INSTR_FUNC_STC ? true:false));
-				if(v != NULL)
+				if(v != NULL) {
+					func_mark_closure(vm, v);
 					vm_push(vm, v);
+				}
 				break;
 			}
 			case INSTR_OBJ:
