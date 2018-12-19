@@ -346,18 +346,18 @@ static inline void gc_mark(var_t* var, bool mark) {
  	if(var_empty(var))
  		return;
 
- 	var->is_marking = true;
+ 	var->gc_marking = true;
  	uint32_t i;
  	for(i=0; i<var->children.size; i++) {
  		node_t* node = (node_t*)var->children.items[i];
  		if(!node_empty(node)) {
- 			node->var->is_marked = mark;
-			if(node->var->is_marking == false) {
+ 			node->var->gc_marked = mark;
+			if(node->var->gc_marking == false) {
 				gc_mark(node->var, mark);
 			}
  		}
  	}
- 	var->is_marking = false;
+ 	var->gc_marking = false;
 }
 
 static inline void gc_mark_stack(vm_t* vm, bool mark) {
@@ -391,7 +391,7 @@ static inline void gc_vars(vm_t* vm) {
 	//first step: free unmarked vars
 	while(v != NULL) {
 		var_t* next = v->next;
-		if(v->status == V_ST_GC && v->is_marked == false) {
+		if(v->status == V_ST_GC && v->gc_marked == false) {
 			var_free(v);
 		}
 		v = next;

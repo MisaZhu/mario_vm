@@ -41,8 +41,8 @@ typedef struct st_var {
 	uint32_t is_array:2;
 	uint32_t is_func:2;
 	uint32_t is_class:2;
-	uint32_t is_marking: 2;
-	uint32_t is_marked: 2;
+	uint32_t gc_marking: 2;
+	uint32_t gc_marked: 2;
 	uint32_t refs;
 
 	uint32_t size;  // size for bytes type of value;
