@@ -394,7 +394,7 @@ static inline void var_free(void* p) {
 inline var_t* var_ref(var_t* var) {
 	++var->refs;
 	if(var->status == V_ST_GC) {
-		/*remove from vm->gc_vars list.(will put back when unref).*/
+		/*remove from vm->gc_vars list.*/
 		remove_from_gc(var);
 		var->status = V_ST_REF;
 	}
