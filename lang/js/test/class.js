@@ -5,14 +5,14 @@ function f() {
 }
 
 a = new f();
-console.log(a);
+debug(a);
 
 /**/
 O = {
 	name: "Misa",
 	age: 20,
 	f: function () {
-		console.log(this);	
+		debug(this);	
 	}
 };
 
@@ -24,22 +24,22 @@ o.f();
 class Base {
 	constructor() {
 		this.b = 1;
-		console.log("Super Base Constructor");
+		debug("Super Base Constructor");
 	}
 
 	f() {
-		console.log("Super Base");
+		debug("Super Base");
 	}
 }
 
 class Base1 extends Base {
 	constructor() {
 		super();
-		console.log("Super Base1 Constructor");
+		debug("Super Base1 Constructor");
 	}
 	f() {
 		super.f();
-		console.log("Super Base1");
+		debug("Super Base1");
 	}
 }
 
@@ -51,7 +51,7 @@ class Test extends Base1 {
 
 	f() {
 		super.f();
-		console.log("this: " + this);
+		debug("this: " + this);
 	}
 }
 

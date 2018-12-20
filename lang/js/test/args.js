@@ -1,1 +1,1 @@
-console.log(_args);
+debug(_args);
