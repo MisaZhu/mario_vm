@@ -305,43 +305,6 @@ static inline void remove_from_gc(var_t* var) {
 		var->vm->gc_vars_num--;
 }
 
-static inline void var_free(void* p) {
-	var_t* var = (var_t*)p;
-	if(var_empty(var))
-		return;
-
-	vm_t* vm = var->vm;
-	//clean var.
-	uint32_t status = var->status;
-	var_clean(var);
-
-	var->type = V_UNDEF;
-	var->vm = vm;
-
-	if(status == V_ST_GC) {
-		if(vm->is_doing_gc) {
-			var->status = V_ST_GC_FREE;
-		}
-		else {
-			remove_from_gc(var);
-			add_to_free(var);
-		}
-	}
-	else if(status != V_ST_FREE) {
-		add_to_free(var);
-	}
-}
-
-inline var_t* var_ref(var_t* var) {
-	++var->refs;
-	//remove from vm->gc_vars list.(will put back when unref).
-	if(var->status == V_ST_GC) {
-		remove_from_gc(var);
-		var->status = V_ST_REF;
-	}
-	return var;
-}
-
 static inline void gc_mark(var_t* var, bool mark) {
  	if(var_empty(var))
  		return;
@@ -402,6 +365,61 @@ static inline void gc_mark_isignal(vm_t* vm, bool mark) {
 	}
 }
 
+static inline void var_free(void* p) {
+	var_t* var = (var_t*)p;
+	if(var_empty(var))
+		return;
+
+	vm_t* vm = var->vm;
+	uint32_t status = var->status; //store status of variable
+	//clean var.
+	var_clean(var);
+	var->type = V_UNDEF;
+	var->vm = vm;
+
+	if(status == V_ST_GC) { //if in gc_vars list
+		if(vm->is_doing_gc) { // if is doint gc, change status to GC_FREE for moving to free_vars list later.
+			var->status = V_ST_GC_FREE;
+		}
+		else { //not doing gc, move to free_vars list immediately.
+			remove_from_gc(var);
+			add_to_free(var);
+		}
+	}
+	else if(status != V_ST_FREE) {
+		add_to_free(var);
+	}
+}
+
+inline var_t* var_ref(var_t* var) {
+	++var->refs;
+	if(var->status == V_ST_GC) {
+		/*remove from vm->gc_vars list.(will put back when unref).*/
+		remove_from_gc(var);
+		var->status = V_ST_REF;
+	}
+	return var;
+}
+
+inline void var_unref(var_t* var) {
+	if(var_empty(var))
+		return;
+
+	if(var->refs > 0)
+		--var->refs;
+
+	if(var->refs == 0) {
+		/*referenced count is 0, means this variable not be referenced anymore,
+		free it immediately.*/
+		var_free(var);
+	}
+	else if(var->status == V_ST_REF) { 
+		/*referenced count not 0, means this variable still be referenced,
+		add to vm->gc_vars list for rooted checking.*/
+		add_to_gc(var);
+	}
+}
+
 static inline void gc_vars(vm_t* vm) {
 	gc_mark(vm->root, true); //mark all rooted vars
 	gc_mark_stack(vm, true); //mark all stacked vars
@@ -453,42 +471,9 @@ static inline void gc(vm_t* vm) {
 		return;
 
 	vm->is_doing_gc = true;
-#ifdef MARIO_DEBUG
-	str_t* info = str_new("gc - before: gc_vars ");
-	str_add_int(info, vm->gc_vars_num, 10);
-	str_append(info, ", freed ");
-	str_add_int(info, vm->free_vars_num, 10);
-	_debug(info->cstr);
-#endif
-
 	gc_vars(vm);
 	gc_free_vars(vm, vm->gc_free_buffer_size);
-
-#ifdef MARIO_DEBUG
-	str_cpy(info, "; after: gc_vars ");
-	str_add_int(info, vm->gc_vars_num, 10);
-	str_append(info, ", freed ");
-	str_add_int(info, vm->free_vars_num, 10);
-	str_append(info, "\n");
-	_debug(info->cstr);
-	str_free(info);
-#endif
 	vm->is_doing_gc = false;
-}
-
-inline void var_unref(var_t* var) {
-	if(var_empty(var))
-		return;
-
-	if(var->refs > 0)
-		--var->refs;
-
-	if(var->refs == 0) {
-		var_free(var);
-	}
-	else if(var->status == V_ST_REF) { //put back to vm->gc_vars list.
-		add_to_gc(var);
-	}
 }
 
 const char* get_typeof(var_t* var) {
