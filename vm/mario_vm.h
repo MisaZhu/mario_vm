@@ -85,7 +85,7 @@ typedef struct st_isignal {
 	var_t* obj;
 	var_t* handle_func;
 	str_t* handle_func_name;
-	var_t* args;
+	str_t* msg;
 	struct st_isignal* next;
 	struct st_isignal* prev;
 } isignal_t;
@@ -116,7 +116,7 @@ typedef struct st_vm {
 	m_array_t close_natives;
 
 	#ifdef MARIO_THREAD
-	pthread_mutex_t interrupt_lock;
+	pthread_mutex_t thread_lock;
 	isignal_t* isignal_head;
 	isignal_t* isignal_tail;
 	uint32_t isignal_num;
@@ -251,8 +251,8 @@ const char* get_func_arg_str(var_t* env, uint32_t index);
 var_t* call_m_func(vm_t* vm, var_t* obj, var_t* func, var_t* args);
 var_t* call_m_func_by_name(vm_t* vm, var_t* obj, const char* func_name, var_t* args);
 
-bool interrupt(vm_t* vm, var_t* obj, var_t* func, var_t* args);
-bool interrupt_by_name(vm_t* vm, var_t* obj, const char* func_name, var_t* args);
+bool interrupt(vm_t* vm, var_t* obj, var_t* func, const char* msg);
+bool interrupt_by_name(vm_t* vm, var_t* obj, const char* func_name, const char* msg);
 
 #ifdef __cplusplus
 }

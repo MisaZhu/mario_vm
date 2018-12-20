@@ -383,24 +383,19 @@ static inline void gc_mark_stack(vm_t* vm, bool mark) {
 	}
 }
 
-/*static inline void gc_mark_isignal(vm_t* vm, bool mark) {
+static inline void gc_mark_isignal(vm_t* vm, bool mark) {
 	isignal_t* sig = vm->isignal_head;
 	while(sig != NULL) {
 		gc_mark(sig->handle_func, mark);
 		gc_mark(sig->obj, mark);
-		gc_mark(sig->args, mark);
 		sig = sig->next;
 	}
 }
-*/
 
 static inline void gc_vars(vm_t* vm) {
-	if(vm->interrupted) 
-		return; // can not gc in interrupter.
-		
 	gc_mark(vm->root, true); //mark all rooted vars
 	gc_mark_stack(vm, true); //mark all stacked vars
-//	gc_mark_isignal(vm, true); //mark all interrupt signal vars
+	gc_mark_isignal(vm, true); //mark all interrupt signal vars
 
 	var_t* v = vm->gc_vars;
 	//first step: free unmarked vars
@@ -414,7 +409,7 @@ static inline void gc_vars(vm_t* vm) {
 
 	gc_mark(vm->root, false); //unmark all rooted vars
 	gc_mark_stack(vm, false); //unmark all stacked vars
-//	gc_mark_isignal(vm, false); //unmark all interrupt signal vars
+	gc_mark_isignal(vm, false); //unmark all interrupt signal vars
 
 	//second step: move freed var to free_var_list for reusing.
 	v = vm->gc_vars;
@@ -429,8 +424,6 @@ static inline void gc_vars(vm_t* vm) {
 }
 
 static inline void gc_free_vars(vm_t* vm, uint32_t buffer_size) {
-	if(vm->interrupted) 
-		return; // can not gc in interrupter.
 	var_t* v = vm->free_vars;
 	while(v != NULL) {
 		var_t* vtmp = v->next;
@@ -444,7 +437,7 @@ static inline void gc_free_vars(vm_t* vm, uint32_t buffer_size) {
 }
 
 static inline void gc(vm_t* vm) {
-	if(vm->interrupted || vm->is_doing_gc || vm->gc_vars_num < vm->gc_buffer_size)
+	if(vm->is_doing_gc || vm->gc_vars_num < vm->gc_buffer_size)
 		return;
 
 	vm->is_doing_gc = true;
@@ -1890,24 +1883,20 @@ interrupter
 
 #define MAX_ISIGNAL 128
 
-static bool interrupt_raw(vm_t* vm, var_t* obj, const char* func_name, var_t* func, var_t* args) {
+static bool interrupt_raw(vm_t* vm, var_t* obj, const char* func_name, var_t* func, const char* msg) {
 	while(vm->interrupted) { } // can not interrupt another interrupter.
 
-	pthread_mutex_lock(&vm->interrupt_lock);
+	pthread_mutex_lock(&vm->thread_lock);
 	if(vm->isignal_num >= MAX_ISIGNAL) {
 		_err("Too many interrupt signals!\n");
-		if(args != NULL)
-			var_unref(args);
-		pthread_mutex_unlock(&vm->interrupt_lock);
+		pthread_mutex_unlock(&vm->thread_lock);
 		return false;
 	}
 
 	isignal_t* is = (isignal_t*)_malloc(sizeof(isignal_t));
 	if(is == NULL) {
 		_err("Interrupt signal input error!\n");
-		if(args != NULL)
-			var_unref(args);
-		pthread_mutex_unlock(&vm->interrupt_lock);
+		pthread_mutex_unlock(&vm->thread_lock);
 		return false;
 	}
 
@@ -1926,10 +1915,10 @@ static bool interrupt_raw(vm_t* vm, var_t* obj, const char* func_name, var_t* fu
 	else
 		is->handle_func_name = NULL;
 
-	if(args != NULL)
-		is->args = var_ref(args);
+	if(msg != NULL)
+		is->msg = str_new(msg);
 	else
-		is->args = NULL;
+		is->msg = NULL;
 
 	if(vm->isignal_tail == NULL) {
 		vm->isignal_head = is;
@@ -1942,16 +1931,16 @@ static bool interrupt_raw(vm_t* vm, var_t* obj, const char* func_name, var_t* fu
 	}
 
 	vm->isignal_num++;
-	pthread_mutex_unlock(&vm->interrupt_lock);
+	pthread_mutex_unlock(&vm->thread_lock);
 	return true;
 }
 
-bool interrupt_by_name(vm_t* vm, var_t* obj, const char* func_name, var_t* args) {
-	return interrupt_raw(vm, obj, func_name, NULL, args);
+bool interrupt_by_name(vm_t* vm, var_t* obj, const char* func_name, const char* msg) {
+	return interrupt_raw(vm, obj, func_name, NULL, msg);
 }
 
-bool interrupt(vm_t* vm, var_t* obj, var_t* func, var_t* args) {
-	return interrupt_raw(vm, obj, NULL, func, args);
+bool interrupt(vm_t* vm, var_t* obj, var_t* func, const char* msg) {
+	return interrupt_raw(vm, obj, NULL, func, msg);
 }
 
 void try_interrupter(vm_t* vm) {
@@ -1959,7 +1948,7 @@ void try_interrupter(vm_t* vm) {
 		return;
 	}
 
-	pthread_mutex_lock(&vm->interrupt_lock);
+	pthread_mutex_lock(&vm->thread_lock);
 	vm->interrupted = true;
 
 	isignal_t* sig = vm->isignal_head;
@@ -1984,9 +1973,26 @@ void try_interrupter(vm_t* vm) {
 
 	if(func == NULL || sig == NULL) {
 		vm->interrupted = false;
-		pthread_mutex_unlock(&vm->interrupt_lock);
+		pthread_mutex_unlock(&vm->thread_lock);
 		return;
 	}
+	
+	var_t* args = var_new(vm);
+	if(sig->msg != NULL) {
+		if(sig->msg->cstr == NULL)
+			var_add(args, "", var_new_str(vm, ""));
+		else
+			var_add(args, "", var_new_str(vm, sig->msg->cstr));
+		str_free(sig->msg);
+	}
+
+	vm_push(vm, args);
+	var_t* ret = call_m_func(vm, sig->obj, func, args);
+	vm_pop(vm);
+	//var_unref(args);
+
+	if(ret != NULL)
+		var_unref(ret);
 
 	//pop this sig from queue.
 	if(sig->prev == NULL) 
@@ -1999,21 +2005,14 @@ void try_interrupter(vm_t* vm) {
 	else
 		sig->next->prev = sig->prev;
 
-	var_t* ret = call_m_func(vm, sig->obj, func, sig->args);
-
-	if(ret != NULL)
-		var_unref(ret);
-
 	//var_unref(sig->obj);
 	var_unref(func);
 	if(sig->handle_func_name != NULL)
 		str_free(sig->handle_func_name);
-	if(sig->args != NULL)
-		var_unref(sig->args);
 	_free(sig);
 	vm->isignal_num--;
 	vm->interrupted = false;
-	pthread_mutex_unlock(&vm->interrupt_lock);
+	pthread_mutex_unlock(&vm->thread_lock);
 }
 
 #else
@@ -2861,7 +2860,7 @@ void vm_close(vm_t* vm) {
 
 
 	#ifdef MARIO_THREAD
-	pthread_mutex_destroy(&vm->interrupt_lock);
+	pthread_mutex_destroy(&vm->thread_lock);
 	#endif
 
 	/*#ifdef MARIO_CACHE
@@ -3104,7 +3103,7 @@ vm_t* vm_new(bool compiler(bytecode_t *bc, const char* input)) {
 	*/
 
 	#ifdef MARIO_THREAD
-	pthread_mutex_init(&vm->interrupt_lock, NULL);
+	pthread_mutex_init(&vm->thread_lock, NULL);
 
 	vm->isignal_head = NULL;
 	vm->isignal_tail = NULL;
