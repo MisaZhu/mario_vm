@@ -360,6 +360,16 @@ static inline void gc_mark(var_t* var, bool mark) {
  	var->gc_marking = false;
 }
 
+static inline void gc_mark_cache(vm_t* vm, bool mark) {
+#ifdef MARIO_CACHE
+	uint32_t i;
+	for(i=0; i<vm->var_cache_used; ++i) {
+		var_t* v = vm->var_cache[i];
+		gc_mark(v, mark);
+	}
+#endif
+}
+
 static inline void gc_mark_stack(vm_t* vm, bool mark) {
 	int i = vm->stack_top-1;
 	while(i>=0) {
@@ -396,6 +406,7 @@ static inline void gc_vars(vm_t* vm) {
 	gc_mark(vm->root, true); //mark all rooted vars
 	gc_mark_stack(vm, true); //mark all stacked vars
 	gc_mark_isignal(vm, true); //mark all interrupt signal vars
+	gc_mark_cache(vm, true); //mark all cached vars
 
 	var_t* v = vm->gc_vars;
 	//first step: free unmarked vars
@@ -410,6 +421,7 @@ static inline void gc_vars(vm_t* vm) {
 	gc_mark(vm->root, false); //unmark all rooted vars
 	gc_mark_stack(vm, false); //unmark all stacked vars
 	gc_mark_isignal(vm, false); //unmark all interrupt signal vars
+	gc_mark_cache(vm, false); //unmark all cached vars
 
 	//second step: move freed var to free_var_list for reusing.
 	v = vm->gc_vars;
@@ -844,7 +856,7 @@ static inline void vm_load_basic_classes(vm_t* vm) {
 
 /** var cache for const value --------------*/
 
-/*#ifdef MARIO_CACHE
+#ifdef MARIO_CACHE
 
 void var_cache_init(vm_t* vm) {
 	uint32_t i;
@@ -858,7 +870,7 @@ void var_cache_free(vm_t* vm) {
 	uint32_t i;
 	for(i=0; i<vm->var_cache_used; ++i) {
 		var_t* v = vm->var_cache[i];
-		var_unref(v, true);
+		var_unref(v);
 		vm->var_cache[i] = NULL;
 	}
 	vm->var_cache_used = 0;	
@@ -885,7 +897,6 @@ bool try_cache(vm_t* vm, PC* ins, var_t* v) {
 }
 
 #endif
-*/
 
 
 /** Interpreter-----------------------------*/
@@ -2202,7 +2213,7 @@ bool vm_run(vm_t* vm) {
 				}
 				break;
 			}
-			/*#ifdef MARIO_CACHE
+			#ifdef MARIO_CACHE
 			case INSTR_CACHE: 
 			{	
 				var_t* v = vm->var_cache[offset];
@@ -2210,7 +2221,6 @@ bool vm_run(vm_t* vm) {
 				break;
 			}
 			#endif
-			*/
 			case INSTR_TRUE: 
 			{
 				vm_push(vm, vm->var_true);
@@ -2483,32 +2493,29 @@ bool vm_run(vm_t* vm) {
 			case INSTR_INT:
 			{
 				var_t* v = var_new_int(vm, (int)code[vm->pc++]);
-				/*#ifdef MARIO_CACHE
+				#ifdef MARIO_CACHE
 				if(try_cache(vm, &code[vm->pc-2], v))
 					code[vm->pc-1] = INSTR_NIL;
 				#endif
-				*/
 				vm_push(vm, v);
 				break;
 			}
 			case INSTR_INT_S:
 			{
 				var_t* v = var_new_int(vm, offset);
-				/*#ifdef MARIO_CACHE
+				#ifdef MARIO_CACHE
 				try_cache(vm, &code[vm->pc-1], v);
 				#endif
-				*/
 				vm_push(vm, v);
 				break;
 			}
 			case INSTR_FLOAT: 
 			{
 				var_t* v = var_new_float(vm, *(float*)(&code[vm->pc++]));
-				/*#ifdef MARIO_CACHE
+				#ifdef MARIO_CACHE
 				if(try_cache(vm, &code[vm->pc-2], v))
 					code[vm->pc-1] = INSTR_NIL;
 				#endif
-				*/
 				vm_push(vm, v);
 				break;
 			}
@@ -2516,7 +2523,8 @@ bool vm_run(vm_t* vm) {
 			{
 				const char* s = bc_getstr(&vm->bc, offset);
 				var_t* v = var_new_str(vm, s);
-				/*#ifdef MARIO_CACHE	
+				/*
+				#ifdef MARIO_CACHE	
 				try_cache(vm, &code[vm->pc-1], v);
 				#endif
 				*/
@@ -2863,10 +2871,9 @@ void vm_close(vm_t* vm) {
 	pthread_mutex_destroy(&vm->thread_lock);
 	#endif
 
-	/*#ifdef MARIO_CACHE
+	#ifdef MARIO_CACHE
 	var_cache_free(vm);
 	#endif
-	*/
 
 	array_free(vm->scopes, scope_free);
 	vm->scopes = NULL;
@@ -3097,10 +3104,9 @@ vm_t* vm_new(bool compiler(bytecode_t *bc, const char* input)) {
 
 	vm->scopes = array_new();
 
-	/*#ifdef MARIO_CACHE
+	#ifdef MARIO_CACHE
 	var_cache_init(vm);
 	#endif
-	*/
 
 	#ifdef MARIO_THREAD
 	pthread_mutex_init(&vm->thread_lock, NULL);

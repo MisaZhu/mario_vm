@@ -91,10 +91,9 @@ typedef struct st_isignal {
 } isignal_t;
 #endif
 
-/*#ifdef MARIO_CACHE
+#ifdef MARIO_CACHE
 #define VAR_CACHE_MAX 32
 #endif
-*/
 
 #define VM_STACK_MAX    32
 
@@ -123,11 +122,11 @@ typedef struct st_vm {
 	bool interrupted;
 	#endif
 
-	/*#ifdef MARIO_CACHE
+	#ifdef MARIO_CACHE
 	var_t* var_cache[VAR_CACHE_MAX];
 	uint32_t var_cache_used;
 	#endif
-	*/
+
 	uint32_t this_strIndex;
 	var_t* var_Object;
 	var_t* var_String;
