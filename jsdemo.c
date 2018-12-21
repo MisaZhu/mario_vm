@@ -41,7 +41,9 @@ int main(int argc, char** argv) {
 	const char* fname = "";
 
 	if(argc < 2) {
-		_err("Usage: demo [source_file]!\n");
+		_err("Usage: jsdemo [source_file]\n"
+				 "       jsdemo -v [source_file]\n"
+				 "       jsdemo -d [source_file]\n");
 		return 1;
 	}
 
