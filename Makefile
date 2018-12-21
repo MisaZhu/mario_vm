@@ -6,6 +6,7 @@ ifeq ($(MARIO_LANG),)
 MARIO_LANG = js
 endif
 MARIO_VM = vm
+MARIO_UTILS = utils
 MARIO_COMP = lang/$(MARIO_LANG)/compiler
 
 CC := $(CROSS_COMPILE)gcc
@@ -13,11 +14,17 @@ CXX := $(CROSS_COMPILE)g++
 AR := $(CROSS_COMPILE)ar
 LD := $(CROSS_COMPILE)gcc
 
-mario_OBJS= $(MARIO_VM)/mario_utils.o $(MARIO_VM)/mario_bc.o $(MARIO_VM)/mario_vm.o $(MARIO_VM)/mario_lex.o
+mario_OBJS= $(MARIO_UTILS)/mario_basic.o \
+						$(MARIO_UTILS)/mario_string.o \
+						$(MARIO_UTILS)/mario_array.o \
+						$(MARIO_VM)/mario_bc.o \
+						$(MARIO_VM)/mario_vm.o \
+						$(MARIO_VM)/mario_lex.o
+
 lang_OBJS = $(MARIO_COMP)/compiler.o 
 OBJS = jsdemo.o $(mario_OBJS) $(lang_OBJS)
 
-CFLAGS = -I$(MARIO_VM) -I$(MARIO_COMP) -Wall -fPIC
+CFLAGS = -I$(MARIO_UTILS) -I$(MARIO_VM) -I$(MARIO_COMP) -Wall -fPIC
 
 ifneq ($(MARIO_DEBUG), no)
 CFLAGS += -g -DMARIO_DEBUG

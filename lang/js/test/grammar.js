@@ -32,11 +32,6 @@ arr[11] = {
   foobar: 10
 };
 
-function f(v) {
-	debug(v);
-}
-arr.forEach(f);
-
 //var and let
 cc1 = "cc1";
 cc2 = "cc2";
