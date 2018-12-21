@@ -382,6 +382,23 @@ int call_func(lex_t* l, bytecode_t* bc) {
 	return arg_num;
 }
 
+bool stmt_loop_block(lex_t* l, bytecode_t* bc) {
+	bool block = false;
+	if(l->tk && l->tk=='{') {
+		if(!lex_chkread(l, '{')) return false;
+		block = true;
+	}
+
+	if(block) {
+		while (l->tk && l->tk!='}'){
+			if(!statement(l, bc))
+				return false;
+		}
+		return lex_chkread(l, '}');
+	}
+	return statement(l, bc);
+}
+
 bool stmt_block(lex_t* l, bytecode_t* bc, bool func) {
 	bool doBlock = false;
 	if(!lex_chkread(l, '{')) return false;
@@ -959,7 +976,7 @@ bool stmt_while(lex_t* l, bytecode_t* bc) {
 
 	bc_add_instr(bc, pcb, INSTR_NJMPB, ILLEGAL_PC); //not jump back to break anchor;
 
-	if(!statement(l, bc)) return false;
+	if(!stmt_loop_block(l, bc)) return false;
 
 	bc_add_instr(bc, pcc, INSTR_JMPB, ILLEGAL_PC); //coninue anchor;
 	pc = bc_gen(bc, INSTR_LOOP_END);
@@ -994,7 +1011,9 @@ bool stmt_for(lex_t* l, bytecode_t* bc) {
 	bc_add_instr(bc, pcc, INSTR_JMPB, ILLEGAL_PC); //jump to coninue anchor;
 
 	bc_set_instr(bc, pcl, INSTR_JMP, ILLEGAL_PC); // loop anchor;
-	if(!statement(l, bc)) return false; //loop statement
+
+	//if(!statement(l, bc)) return false; //loop statement
+	if(!stmt_loop_block(l, bc)) return false;
 
 	bc_add_instr(bc, pci, INSTR_JMPB, ILLEGAL_PC); //jump to iterator anchor;
 	pc = bc_gen(bc, INSTR_LOOP_END);

@@ -8,19 +8,6 @@ a = new f();
 debug(a);
 
 /**/
-O = {
-	name: "Misa",
-	age: 20,
-	f: function () {
-		debug(this);	
-	}
-};
-
-o = Object.create(O);
-o.f();
-
-
-/**/
 class Base {
 	constructor() {
 		this.b = 1;
