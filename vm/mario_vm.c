@@ -2309,14 +2309,15 @@ bool vm_run(vm_t* vm) {
 					int *i = (int*)v->value;
 					if(i != NULL) {
 						(*i)--;
-						/*
 						if((ins & INSTR_OPT_CACHE) == 0) {
 							if(OP(code[vm->pc]) != INSTR_POP) { 
 								vm_push(vm, v);
 							}
-							else { code[vm->pc] = INSTR_NIL; code[vm->pc-1] |= INSTR_OPT_CACHE; }
+							else { 
+								code[vm->pc] = INSTR_NIL;
+								code[vm->pc-1] |= INSTR_OPT_CACHE; 
+							}
 						}
-						*/
 						vm_push(vm, v);
 					}
 					else {
@@ -2332,11 +2333,8 @@ bool vm_run(vm_t* vm) {
 				if(v != NULL) {
 					int *i = (int*)v->value;
 					if(i != NULL) {
-						var_t* v2 = var_new_int(vm, *i);
-						vm_push(vm, v2);
-						/*
 						if((ins & INSTR_OPT_CACHE) == 0) {
-							var_t* v2 = var_new_int(*i);
+							var_t* v2 = var_new_int(vm, *i);
 							if(OP(code[vm->pc]) != INSTR_POP) {
 								vm_push(vm, v2);
 							}
@@ -2346,7 +2344,6 @@ bool vm_run(vm_t* vm) {
 								var_unref(v2);
 							}
 						}
-						*/
 						(*i)--;
 					}
 					else {
@@ -2363,14 +2360,15 @@ bool vm_run(vm_t* vm) {
 					int *i = (int*)v->value;
 					if(i != NULL) {
 						(*i)++;
-						/*	
 						if((ins & INSTR_OPT_CACHE) == 0) {
 							if(OP(code[vm->pc]) != INSTR_POP) { 
 								vm_push(vm, v);
 							}
-							else { code[vm->pc] = INSTR_NIL; code[vm->pc-1] |= INSTR_OPT_CACHE; }
+							else { 
+								code[vm->pc] = INSTR_NIL; 
+								code[vm->pc-1] |= INSTR_OPT_CACHE; 
+							}
 						}
-						*/
 						vm_push(vm, v);
 					}
 					else {
@@ -2387,11 +2385,8 @@ bool vm_run(vm_t* vm) {
 				if(v != NULL) {
 					int *i = (int*)v->value;
 					if(i != NULL) {
-						var_t* v2 = var_new_int(vm, *i);
-						vm_push(vm, v2);
-						/*
 						if((ins & INSTR_OPT_CACHE) == 0) {
-							var_t* v2 = var_new_int(*i);
+							var_t* v2 = var_new_int(vm, *i);
 							if(OP(code[vm->pc]) != INSTR_POP) {
 								vm_push(vm, v2);
 							}
@@ -2401,7 +2396,6 @@ bool vm_run(vm_t* vm) {
 								var_unref(v2);
 							}
 						}
-						*/
 						(*i)++;
 					}
 					else {
@@ -2530,9 +2524,11 @@ bool vm_run(vm_t* vm) {
 						_err(n->name);
 						_err("'!\n");
 					}
-					vm_push(vm, n->var);
-					var_unref(v);
-			
+					if(OP(code[vm->pc]) != INSTR_POP)
+						vm_push(vm, n->var);
+					else 
+						code[vm->pc] = INSTR_NIL; 
+					v->refs--;
 					/*if((ins & INSTR_OPT_CACHE) == 0) {
 						if(OP(code[vm->pc]) != INSTR_POP) {
 							vm_push(vm, n->var);
