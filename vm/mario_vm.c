@@ -2524,18 +2524,17 @@ bool vm_run(vm_t* vm) {
 						_err(n->name);
 						_err("'!\n");
 					}
-					if(OP(code[vm->pc]) != INSTR_POP)
-						vm_push(vm, n->var);
-					else 
-						code[vm->pc] = INSTR_NIL; 
-					v->refs--;
-					/*if((ins & INSTR_OPT_CACHE) == 0) {
+
+					if((ins & INSTR_OPT_CACHE) == 0) {
 						if(OP(code[vm->pc]) != INSTR_POP) {
 							vm_push(vm, n->var);
 						}
-						else { code[vm->pc] = INSTR_NIL; code[vm->pc-1] |= INSTR_OPT_CACHE; }
+						else { 
+							code[vm->pc] = INSTR_NIL;
+							code[vm->pc-1] |= INSTR_OPT_CACHE;
+						}
 					}
-					*/
+					var_unref(v);
 				}
 				break;
 			}
