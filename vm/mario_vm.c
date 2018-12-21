@@ -378,7 +378,7 @@ static inline void var_free(void* p) {
 	var->vm = vm;
 
 	if(status == V_ST_GC) { //if in gc_vars list
-		if(vm->is_doing_gc) { // if is doint gc, change status to GC_FREE for moving to free_vars list later.
+		if(vm->is_doing_gc) { // if is doing gc, change status to GC_FREE for moving to free_vars list later.
 			var->status = V_ST_GC_FREE;
 		}
 		else { //not doing gc, move to free_vars list immediately.
