@@ -130,6 +130,15 @@ PC bc_gen(bytecode_t* bc, opr_code_t instr) {
 	return bc_gen_str(bc, instr, "");
 }
 
+void bc_remove_instr(bytecode_t* bc, PC from, uint32_t num) {
+	PC off = from+num;
+	while(off < bc->cindex) {
+		bc->code_buf[off-num] = bc->code_buf[off];
+		off++;
+	}
+	bc->cindex -= num;
+}
+
 void bc_set_instr(bytecode_t* bc, PC anchor, opr_code_t op, PC target) {
 	if(target == ILLEGAL_PC)
 		target = bc->cindex;

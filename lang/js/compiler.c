@@ -605,10 +605,14 @@ bool factor(lex_t* l, bytecode_t* bc, bool member) {
 		if(!lex_chkread(l, '(')) return false;
 		if(!base(l, bc)) return false;
 		if(!lex_chkread(l, ')')) return false;
+
 		if(l->tk == LEX_R_AFUNCTION) {
 			if(!lex_chkread(l, LEX_R_AFUNCTION)) return false;
 			bc_set_instr(bc, pc, INSTR_FUNC, 0);
 			factor_def_afunc(l, bc);
+		}
+		else {
+			bc_remove_instr(bc, pc, 1);
 		}
 	}
 	else if (l->tk==LEX_R_TRUE) {

@@ -148,6 +148,7 @@ PC bc_gen_str(bytecode_t* bc, opr_code_t instr, const char* s);
 PC bc_gen_int(bytecode_t* bc, opr_code_t instr, int32_t i);
 PC bc_gen_short(bytecode_t* bc, opr_code_t instr, int32_t i);
 void bc_set_instr(bytecode_t* bc, PC anchor, opr_code_t op, PC target);
+void bc_remove_instr(bytecode_t* bc, PC from, uint32_t num);
 uint32_t bc_getstrindex(bytecode_t* bc, const char* str);
 PC bc_add_instr(bytecode_t* bc, PC anchor, opr_code_t op, PC target);
 PC bc_reserve(bytecode_t* bc);

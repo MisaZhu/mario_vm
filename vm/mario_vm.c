@@ -2136,7 +2136,9 @@ bool vm_run(vm_t* vm) {
 				break;
 			}
 			case INSTR_NIL: 
-			{	break; }
+			{	
+				break; 
+			}
 			case INSTR_BLOCK: 
 			case INSTR_LOOP: 
 			case INSTR_TRY: 
