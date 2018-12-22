@@ -3,8 +3,8 @@ $(info CROSS_COMPILE=$(CROSS_COMPILE))
 endif
 
 MARIO_LANG = js
-MARIO_VM = ../../vm
-MARIO_UTILS = ../../utils
+MARIO_VM = vm
+MARIO_UTILS = utils
 
 CC := $(CROSS_COMPILE)gcc
 CXX := $(CROSS_COMPILE)g++
@@ -18,7 +18,7 @@ mario_OBJS= $(MARIO_UTILS)/mario_basic.o \
 						$(MARIO_VM)/mario_vm.o \
 						$(MARIO_VM)/mario_lex.o
 
-lang_OBJS = compiler.o 
+lang_OBJS = lang/$(MARIO_LANG)/compiler.o 
 OBJS = jsdemo.o $(mario_OBJS) $(lang_OBJS)
 
 CFLAGS = -I$(MARIO_UTILS) -I$(MARIO_VM) -Wall -fPIC
