@@ -48,6 +48,7 @@ typedef enum {
   LEX_R_CONTINUE,
   LEX_R_STATIC,
   LEX_R_FUNCTION,
+  LEX_R_AFUNCTION,
   LEX_R_CLASS,
   LEX_R_EXTENDS,
   LEX_R_RETURN,
@@ -141,6 +142,9 @@ void lex_get_op_token(lex_t* lex) {
 		lex_get_nextch(lex);
 	} else if (lex->tk=='^' && lex->curr_ch=='=') {
 		lex->tk = LEX_XOREQUAL;
+		lex_get_nextch(lex);
+	} else if (lex->tk=='=' && lex->curr_ch=='>') {
+		lex->tk = LEX_R_AFUNCTION;
 		lex_get_nextch(lex);
 	}
 }
