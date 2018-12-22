@@ -2074,17 +2074,15 @@ bool vm_run(vm_t* vm) {
 			case INSTR_NJMPB: 
 			{
 				var_t* v = vm_pop2(vm);
-				if(v != NULL) {
-					if(v->type == V_UNDEF ||
-							v->value == NULL ||
-							*(int*)(v->value) == 0) {
-						if(instr == INSTR_NJMP) 
-							vm->pc = vm->pc + offset - 1;
-						else
-							vm->pc = vm->pc - offset - 1;
-					}
-					var_unref(v);
+				if(v->type == V_UNDEF ||
+						v->value == NULL ||
+						*(int*)(v->value) == 0) {
+					if(instr == INSTR_NJMP) 
+						vm->pc = vm->pc + offset - 1;
+					else
+						vm->pc = vm->pc - offset - 1;
 				}
+				var_unref(v);
 				break;
 			}
 			case INSTR_LOAD: 
@@ -2128,11 +2126,9 @@ bool vm_run(vm_t* vm) {
 			{
 				var_t* v2 = vm_pop2(vm);
 				var_t* v1 = vm_pop2(vm);
-				if(v1 != NULL && v2 != NULL) {
-					compare(vm, instr, v1, v2);
-					var_unref(v1);
-					var_unref(v2);
-				}
+				compare(vm, instr, v1, v2);
+				var_unref(v1);
+				var_unref(v2);
 				break;
 			}
 			case INSTR_NIL: 
@@ -2231,31 +2227,27 @@ bool vm_run(vm_t* vm) {
 			case INSTR_NEG: 
 			{
 				var_t* v = vm_pop2(vm);
-				if(v != NULL) {
-					if(v->type == V_INT) {
-						int n = *(int*)v->value;
-						n = -n;
-						vm_push(vm, var_new_int(vm, n));
-					}
-					else if(v->type == V_FLOAT) {
-						float n = *(float*)v->value;
-						n = -n;
-						vm_push(vm, var_new_float(vm, n));
-					}
-					var_unref(v);
+				if(v->type == V_INT) {
+					int n = *(int*)v->value;
+					n = -n;
+					vm_push(vm, var_new_int(vm, n));
 				}
+				else if(v->type == V_FLOAT) {
+					float n = *(float*)v->value;
+					n = -n;
+					vm_push(vm, var_new_float(vm, n));
+				}
+				var_unref(v);
 				break;
 			}
 			case INSTR_NOT: 
 			{
 				var_t* v = vm_pop2(vm);
-				if(v != NULL) {
-					bool i = false;
-					if(v->type == V_UNDEF || *(int*)v->value == 0)
-						i = true;
-					var_unref(v);
-					vm_push(vm, i ? vm->var_true:vm->var_false);
-				}
+				bool i = false;
+				if(v->type == V_UNDEF || *(int*)v->value == 0)
+					i = true;
+				var_unref(v);
+				vm_push(vm, i ? vm->var_true:vm->var_false);
 				break;
 			}
 			case INSTR_AAND: 
@@ -2263,20 +2255,18 @@ bool vm_run(vm_t* vm) {
 			{
 				var_t* v2 = vm_pop2(vm);
 				var_t* v1 = vm_pop2(vm);
-				if(v1 != NULL && v2 != NULL) {
-					bool r = false;
-					int i1 = *(int*)v1->value;
-					int i2 = *(int*)v2->value;
+				bool r = false;
+				int i1 = *(int*)v1->value;
+				int i2 = *(int*)v2->value;
 
-					if(instr == INSTR_AAND)
-						r = (i1 != 0) && (i2 != 0);
-					else
-						r = (i1 != 0) || (i2 != 0);
-					vm_push(vm, r ? vm->var_true:vm->var_false);
+				if(instr == INSTR_AAND)
+					r = (i1 != 0) && (i2 != 0);
+				else
+					r = (i1 != 0) || (i2 != 0);
+				vm_push(vm, r ? vm->var_true:vm->var_false);
 
-					var_unref(v1);
-					var_unref(v2);
-				}
+				var_unref(v1);
+				var_unref(v2);
 				break;
 			}
 			case INSTR_PLUS: 
@@ -2296,114 +2286,115 @@ bool vm_run(vm_t* vm) {
 			{
 				var_t* v2 = vm_pop2(vm);
 				var_t* v1 = vm_pop2(vm);
-				if(v1 != NULL && v2 != NULL) {
-					math_op(vm, instr, v1, v2);
-					var_unref(v1);
-					var_unref(v2);
-				}
+				math_op(vm, instr, v1, v2);
+				var_unref(v1);
+				var_unref(v2);
 				break;
 			}
 			case INSTR_MMINUS_PRE: 
 			{
 				var_t* v = vm_pop2(vm);
-				if(v != NULL) {
-					int *i = (int*)v->value;
-					if(i != NULL) {
-						(*i)--;
-						if((ins & INSTR_OPT_CACHE) == 0) {
-							if(OP(code[vm->pc]) != INSTR_POP) { 
-								vm_push(vm, v);
-							}
-							else { 
-								code[vm->pc] = INSTR_NIL;
-								code[vm->pc-1] |= INSTR_OPT_CACHE; 
-							}
+				int *i = (int*)v->value;
+				if(i != NULL) {
+					(*i)--;
+					if((ins & INSTR_OPT_CACHE) == 0) {
+						if(OP(code[vm->pc]) != INSTR_POP) { 
+							vm_push(vm, v);
 						}
-						vm_push(vm, v);
+						else { 
+							code[vm->pc] = INSTR_NIL;
+							code[vm->pc-1] |= INSTR_OPT_CACHE; 
+						}
 					}
-					else {
-						vm_push(vm, v);
+					else { //skip the nil if cached
+						vm->pc++;
 					}
-					var_unref(v);
+					vm_push(vm, v);
 				}
+				else {
+					vm_push(vm, v);
+				}
+				var_unref(v);
 				break;
 			}
 			case INSTR_MMINUS: 
 			{
 				var_t* v = vm_pop2(vm);
-				if(v != NULL) {
-					int *i = (int*)v->value;
-					if(i != NULL) {
-						if((ins & INSTR_OPT_CACHE) == 0) {
-							var_t* v2 = var_new_int(vm, *i);
-							if(OP(code[vm->pc]) != INSTR_POP) {
-								vm_push(vm, v2);
-							}
-							else { 
-								code[vm->pc] = INSTR_NIL; 
-								code[vm->pc-1] |= INSTR_OPT_CACHE;
-								var_unref(v2);
-							}
+				int *i = (int*)v->value;
+				if(i != NULL) {
+					if((ins & INSTR_OPT_CACHE) == 0) {
+						var_t* v2 = var_new_int(vm, *i);
+						if(OP(code[vm->pc]) != INSTR_POP) {
+							vm_push(vm, v2);
 						}
-						(*i)--;
+						else { 
+							code[vm->pc] = INSTR_NIL; 
+							code[vm->pc-1] |= INSTR_OPT_CACHE;
+							var_unref(v2);
+						}
 					}
-					else {
-						vm_push(vm, v);
+					else { //skip the nil if cached
+						vm->pc++;
 					}
-					var_unref(v);
+					(*i)--;
 				}
+				else {
+					vm_push(vm, v);
+				}
+				var_unref(v);
 				break;
 			}
 			case INSTR_PPLUS_PRE: 
 			{
 				var_t* v = vm_pop2(vm);
-				if(v != NULL) {
-					int *i = (int*)v->value;
-					if(i != NULL) {
-						(*i)++;
-						if((ins & INSTR_OPT_CACHE) == 0) {
-							if(OP(code[vm->pc]) != INSTR_POP) { 
-								vm_push(vm, v);
-							}
-							else { 
-								code[vm->pc] = INSTR_NIL; 
-								code[vm->pc-1] |= INSTR_OPT_CACHE; 
-							}
+				int *i = (int*)v->value;
+				if(i != NULL) {
+					(*i)++;
+					if((ins & INSTR_OPT_CACHE) == 0) {
+						if(OP(code[vm->pc]) != INSTR_POP) { 
+							vm_push(vm, v);
 						}
-						vm_push(vm, v);
+						else { 
+							code[vm->pc] = INSTR_NIL; 
+							code[vm->pc-1] |= INSTR_OPT_CACHE; 
+						}
 					}
-					else {
-						vm_push(vm, v);
+					else { //skip the nil if cached
+						vm->pc++;
 					}
-					var_unref(v);
+					vm_push(vm, v);
 				}
+				else {
+					vm_push(vm, v);
+				}
+				var_unref(v);
 				break;
-
 			}
 			case INSTR_PPLUS: 
 			{
 				var_t* v = vm_pop2(vm);
-				if(v != NULL) {
-					int *i = (int*)v->value;
-					if(i != NULL) {
-						if((ins & INSTR_OPT_CACHE) == 0) {
-							var_t* v2 = var_new_int(vm, *i);
-							if(OP(code[vm->pc]) != INSTR_POP) {
-								vm_push(vm, v2);
-							}
-							else { 
-								code[vm->pc] = INSTR_NIL;
-								code[vm->pc-1] |= INSTR_OPT_CACHE; 
-								var_unref(v2);
-							}
+				int *i = (int*)v->value;
+				if(i != NULL) {
+					if((ins & INSTR_OPT_CACHE) == 0) {
+						var_t* v2 = var_new_int(vm, *i);
+						if(OP(code[vm->pc]) != INSTR_POP) {
+							vm_push(vm, v2);
 						}
-						(*i)++;
+						else { 
+							code[vm->pc] = INSTR_NIL;
+							code[vm->pc-1] |= INSTR_OPT_CACHE; 
+							var_unref(v2);
+						}
 					}
-					else {
-						vm_push(vm, v);
+					else { //skip the nil if cached
+						vm->pc++;
 					}
-					var_unref(v);
+					(*i)++;
 				}
+				else {
+					vm_push(vm, v);
+				}
+				var_unref(v);
 				break;
 			}
 			case INSTR_RETURN:  //return without value
@@ -2515,45 +2506,38 @@ bool vm_run(vm_t* vm) {
 			{
 				var_t* v = vm_pop2(vm);
 				node_t* n = vm_pop2node(vm);
-				if(v != NULL && n != NULL) {
-					bool modi = (!n->be_const || n->var->type == V_UNDEF);
-					var_unref(n->var);
-					if(modi) 
-						node_replace(n, v);
-					else {
-						_err("Can not change a const variable: '");
-						_err(n->name);
-						_err("'!\n");
-					}
-
-					if((ins & INSTR_OPT_CACHE) == 0) {
-						if(OP(code[vm->pc]) != INSTR_POP) {
-							vm_push(vm, n->var);
-						}
-						else { 
-							code[vm->pc] = INSTR_NIL;
-							code[vm->pc-1] |= INSTR_OPT_CACHE;
-						}
-					}
-					var_unref(v);
+				bool modi = (!n->be_const || n->var->type == V_UNDEF);
+				var_unref(n->var);
+				if(modi) 
+					node_replace(n, v);
+				else {
+					_err("Can not change a const variable: '");
+					_err(n->name);
+					_err("'!\n");
 				}
+
+				if((ins & INSTR_OPT_CACHE) == 0) {
+					if(OP(code[vm->pc]) != INSTR_POP) {
+						vm_push(vm, n->var);
+					}
+					else { 
+						code[vm->pc] = INSTR_NIL;
+						code[vm->pc-1] |= INSTR_OPT_CACHE;
+					}
+				}
+				else { //skip the nil if cached
+					vm->pc++;
+				}
+				var_unref(v);
 				break;
 			}
 			case INSTR_GET: 
 			{
 				const char* s = bc_getstr(&vm->bc, offset);
 				var_t* v = vm_pop2(vm);
-				if(v != NULL) {
-					var_build_basic_prototype(vm, v);
-					do_get(vm, v, s);
-					var_unref(v);
-				}
-				else {
-					vm_push(vm, var_new(vm));
-					_err("Error: can not find member '");
-					_err(s);
-					_err("'!\n");
-				}
+				var_build_basic_prototype(vm, v);
+				do_get(vm, v, s);
+				var_unref(v);
 				break;
 			}
 			case INSTR_NEW: 
@@ -2688,23 +2672,21 @@ bool vm_run(vm_t* vm) {
 			{
 				var_t* v2 = vm_pop2(vm);
 				var_t* v1 = vm_pop2(vm);
-				if(v1 != NULL && v2 != NULL) {
-					node_t* n = NULL;
-					if(v2->type == V_STRING) {
-						const char* s = var_get_str(v2);
-						n = var_find(v1, s);
-					}
-					else {
-						int at = var_get_int(v2);
-						n = var_array_get(v1, at);
-					}
-					if(n != NULL) 
-						vm_push_node(vm, n);
-					else
-						vm_push(vm, var_new(vm));
-					var_unref(v1);
-					var_unref(v2);
+				node_t* n = NULL;
+				if(v2->type == V_STRING) {
+					const char* s = var_get_str(v2);
+					n = var_find(v1, s);
 				}
+				else {
+					int at = var_get_int(v2);
+					n = var_array_get(v1, at);
+				}
+				if(n != NULL) 
+					vm_push_node(vm, n);
+				else
+					vm_push(vm, var_new(vm));
+				var_unref(v1);
+				var_unref(v2);
 				break;
 			}
 			case INSTR_CLASS: 
@@ -2737,12 +2719,10 @@ bool vm_run(vm_t* vm) {
 			{
 				var_t* v2 = vm_pop2(vm);
 				var_t* v1 = vm_pop2(vm);
-				if(v1 != NULL && v2 != NULL) {
-					bool res = var_instanceof(v1, v2);
-					var_unref(v2);
-					var_unref(v1);
-					vm_push(vm, var_new_bool(vm, res));
-				}
+				bool res = var_instanceof(v1, v2);
+				var_unref(v2);
+				var_unref(v1);
+				vm_push(vm, var_new_bool(vm, res));
 				break;
 			}
 			case INSTR_TYPEOF: 

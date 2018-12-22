@@ -601,7 +601,7 @@ bool factor_array_access(lex_t* l, bytecode_t* bc, str_t* name, bool member) {
 
 bool factor(lex_t* l, bytecode_t* bc, bool member) {
 	if (l->tk=='(') {
-		PC pc = bc_gen(bc, INSTR_NIL)-1;
+		PC pc = bc_reserve(bc);
 		if(!lex_chkread(l, '(')) return false;
 		if(!base(l, bc)) return false;
 		if(!lex_chkread(l, ')')) return false;
