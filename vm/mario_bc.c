@@ -134,7 +134,12 @@ void bc_set_instr(bytecode_t* bc, PC anchor, opr_code_t op, PC target) {
 	if(target == ILLEGAL_PC)
 		target = bc->cindex;
 
-	int offset = target > anchor ? (target-anchor) : (anchor-target);
+	int offset;
+	if(target == 0)
+		offset = OFF_MASK;
+	else
+		offset = target > anchor ? (target-anchor) : (anchor-target);
+
 	PC ins = INS(op, offset);
 	bc->code_buf[anchor] = ins;
 }

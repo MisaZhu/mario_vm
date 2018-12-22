@@ -469,7 +469,6 @@ static inline void gc_free_vars(vm_t* vm, uint32_t buffer_size) {
 static inline void gc(vm_t* vm) {
 	if(vm->is_doing_gc || vm->gc_vars_num < vm->gc_buffer_size)
 		return;
-
 	vm->is_doing_gc = true;
 	gc_vars(vm);
 	gc_free_vars(vm, vm->gc_free_buffer_size);

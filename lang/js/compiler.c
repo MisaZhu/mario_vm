@@ -455,7 +455,8 @@ bool factor_def_func(lex_t* l, bytecode_t* bc, str_t* name) {
 	//do arguments
 	if(!lex_chkread(l, '(')) return false;
 	while (l->tk!=')') {
-		bc_gen_str(bc, INSTR_VAR, l->tk_str->cstr);
+		bc_gen_str(bc, INSTR_LOAD, l->tk_str->cstr);
+		//bc_gen_str(bc, INSTR_VAR, l->tk_str->cstr);
 		if(!lex_chkread(l, LEX_ID)) return false;
 		if (l->tk!=')') {
 			if(!lex_chkread(l, ',')) return false;
@@ -471,6 +472,18 @@ bool factor_def_func(lex_t* l, bytecode_t* bc, str_t* name) {
 		bc_gen(bc, INSTR_RETURN);
 	bc_set_instr(bc, pc, INSTR_JMP, ILLEGAL_PC);
 	return true;
+}
+
+bool factor_def_afunc(lex_t* l, bytecode_t* bc) {
+	PC pc = bc_reserve(bc);
+	statement(l, bc);
+	
+	opr_code_t op = bc->code_buf[bc->cindex - 1] >> 16;
+
+	if(op != INSTR_RETURN && op != INSTR_RETURNV)
+		bc_gen(bc, INSTR_RETURN);
+	bc_set_instr(bc, pc, INSTR_JMP, ILLEGAL_PC);
+	return true;	
 }
 
 bool factor_def_class(lex_t* l, bytecode_t* bc) {
@@ -588,9 +601,15 @@ bool factor_array_access(lex_t* l, bytecode_t* bc, str_t* name, bool member) {
 
 bool factor(lex_t* l, bytecode_t* bc, bool member) {
 	if (l->tk=='(') {
+		PC pc = bc_gen(bc, INSTR_NIL)-1;
 		if(!lex_chkread(l, '(')) return false;
 		if(!base(l, bc)) return false;
 		if(!lex_chkread(l, ')')) return false;
+		if(l->tk == LEX_R_AFUNCTION) {
+			if(!lex_chkread(l, LEX_R_AFUNCTION)) return false;
+			bc_set_instr(bc, pc, INSTR_FUNC, 0);
+			factor_def_afunc(l, bc);
+		}
 	}
 	else if (l->tk==LEX_R_TRUE) {
 		if(!lex_chkread(l, LEX_R_TRUE)) return false;
@@ -649,12 +668,25 @@ bool factor(lex_t* l, bytecode_t* bc, bool member) {
 			factor_array_access(l, bc, name, member);
 		}
 		else {
-			if(member) 
+			if(member) {
 				bc_gen_str(bc, INSTR_GET, name->cstr);	
-			else if (l->tk == '.') 
+			}
+			else if (l->tk == '.') {
 				bc_gen_str(bc, INSTR_LOADO, name->cstr);	
-			else 
+			}
+			else if (l->tk == LEX_R_AFUNCTION) {
+				if(!lex_chkread(l, LEX_R_AFUNCTION)) return false;
+				bc_gen(bc, INSTR_FUNC);
 				bc_gen_str(bc, INSTR_LOAD, name->cstr);	
+				factor_def_afunc(l, bc);
+			}
+			else {
+				bc_gen_str(bc, INSTR_LOAD, name->cstr);	
+				if (l->tk == ',') {
+					if(!lex_chkread(l, ',')) return false;
+					if(!factor(l, bc, false)) return false;;
+				}
+			}
 		}
 		str_free(name);
 	}

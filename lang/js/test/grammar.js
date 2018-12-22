@@ -14,6 +14,13 @@ for(i=0;i<10;i++) {
 	debug("for loop: " + i);
 }
 
+//function 
+f1 = x => debug(x+"!!");;
+f2 = (x, y) => { debug(x+y);};
+
+f1("hello");
+f2(1, 3);
+
 //Object.
 var a = {
 	"name": "misa",
