@@ -1,7 +1,6 @@
 #ifndef MARIO_STRING
 #define MARIO_STRING
 
-#include "mario_utils.h"
 #include "mario_array.h"
 
 #ifdef __cplusplus /* __cplusplus */

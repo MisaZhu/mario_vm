@@ -2,32 +2,31 @@ ifneq ($(CROSS_COMPILE),)
 $(info CROSS_COMPILE=$(CROSS_COMPILE))
 endif
 
-ifeq ($(MARIO_VM),)
-MARIO_VM = ../../vm
-endif
-
-NATIVE_PATH = builtin
-
 CC := $(CROSS_COMPILE)gcc
 CXX := $(CROSS_COMPILE)g++
 AR := $(CROSS_COMPILE)ar
 LD := $(CROSS_COMPILE)gcc
 
-mario_OBJS= $(MARIO_VM)/mario_utils.o 
+MARIO_UTILS = ../../utils
 
-OBJS = demo.o $(mario_OBJS)
+mario_OBJS= $(MARIO_UTILS)/mario_basic.o \
+						$(MARIO_UTILS)/mario_string.o \
+						$(MARIO_UTILS)/mario_array.o \
+						$(MARIO_UTILS)/mario_utf8.o
 
-CFLAGS =  -g -I$(MARIO_VM) -I$(MARIO_COMP) -Wall -fPIC -DMARIO_DEBUG -DMARIO_CACHE -DMARIO_THREAD
-LDFLAGS =  -lm -ldl -lpthread
+demo_OBJS = demo.o
+
+CFLAGS = -I$(MARIO_UTILS) -I../.. -g -Wall -DMARIO_CACHE -DMARIO_DEBUG -DMARIO_THREAD
+LDFLAGS = -lpthread
 
 TARGET=demo
 INST_DST=/usr/local/mario
 
-all: $(OBJS)
-	$(LD) -o $(TARGET) $(OBJS) $(LDFLAGS)
+all: $(demo_OBJS) $(mario_OBJS)
+	$(LD) -o $(TARGET) $(demo_OBJS) $(mario_OBJS) $(LDFLAGS)
 
 clean:
-	rm -fr $(TARGET) $(OBJS) *.dSYM
+	rm -fr $(TARGET) $(demo_OBJS) $(mario_OBJS) *.dSYM
 
 install:
 	mkdir -p $(INST_DST)/bin
