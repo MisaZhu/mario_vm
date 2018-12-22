@@ -17,7 +17,7 @@ CXX := $(CROSS_COMPILE)g++
 AR := $(CROSS_COMPILE)ar
 LD := $(CROSS_COMPILE)gcc
 
-NATIVE_PATH = builtin
+NATIVE_PATH = natives
 NATIVE_OBJS= $(NATIVE_PATH)/object/native_object.o  \
 	$(NATIVE_PATH)/number/native_number.o  \
 	$(NATIVE_PATH)/bytes/native_bytes.o  \
@@ -40,7 +40,7 @@ lang_OBJS = $(MARIO_COMP)/compiler.o
 OBJS = shell/mario.o shell/shell.o $(mario_OBJS) $(lang_OBJS) \
 		$(NATIVE_OBJS)
 
-CFLAGS = -I. -I$(MARIO_VM)/utils -I$(MARIO_VM)/vm -I$(MARIO_COMP) -Wall -fPIC
+CFLAGS = -I$(NATIVE_PATH) -I$(MARIO_VM)/utils -I$(MARIO_VM)/vm -I$(MARIO_COMP) -Wall -fPIC
 
 ifneq ($(MARIO_DEBUG), no)
 CFLAGS += -g -DMARIO_DEBUG

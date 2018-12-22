@@ -1,5 +1,5 @@
 #include "mario_vm.h"
-#include "builtin/native_builtin.h"
+#include "native_builtin.h"
 
 #include <unistd.h>
 #include <stdlib.h>
