@@ -16,10 +16,12 @@ for(i=0;i<10;i++) {
 
 //function 
 f1 = x => debug(x+"!!");;
-f2 = (x, y) => { debug(x+y);};
+function f2(f) {
+	f(1, 3);
+}
 
 f1("hello");
-f2(1, 3);
+f2((x, y) => { debug(x+y);});
 
 //Object.
 var a = {

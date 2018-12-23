@@ -225,6 +225,7 @@ void lex_get_next_token(lex_t* lex) {
 	str_reset(lex->tk_str);
 
 	lex_skip_whitespace(lex);
+	//lex_skip_space(lex);
 	if(lex_skip_comments_line(lex, "//")) {
 		lex_get_next_token(lex);
 		return;
@@ -331,7 +332,16 @@ void lex_get_pos_str(lex_t* l, int pos, str_t* ret) {
 	str_append(ret, ")");
 }
 
-bool lex_chkread(lex_t* lex, uint32_t expected_tk) {
+bool lex_chkread(lex_t* lex, uint32_t expected_tk);
+bool lex_skip_empty(lex_t* l) {
+	if(l->tk == '\n') {//skip empty lines.
+		while (l->tk=='\n') 
+			if(!lex_chkread(l, '\n')) return false;
+	}
+	return true;
+}
+
+bool lex_chkread_line(lex_t* lex, uint32_t expected_tk) { //check read with empty line.
 	if (lex->tk != expected_tk) {
 #ifdef MARIO_DEBUG
 		_err("Got ");
@@ -348,6 +358,11 @@ bool lex_chkread(lex_t* lex, uint32_t expected_tk) {
 	}
 	lex_get_next_token(lex);
 	return true;
+}
+
+bool lex_chkread(lex_t* lex, uint32_t expected_tk) { //check read skip empty line.
+	if(!lex_chkread_line(lex, expected_tk)) return false;
+	return lex_skip_empty(lex);
 }
 
 /** Compiler -----------------------------*/
@@ -947,6 +962,21 @@ bool base(lex_t* l, bytecode_t* bc) {
 	return true;
 }
 
+static bool is_stmt_end(int tk) {
+	//return (tk == ';' || tk == '\n');
+	return (tk == ';');
+}
+
+static bool lex_chkread_stmt_end(lex_t* l) {
+	/*if(l->tk == ';')
+		return lex_chkread(l, ';');
+	else if(l->tk == '\n')
+		return lex_chkread(l, '\n');
+	return false;
+	*/
+	return lex_chkread(l, ';');
+}
+
 bool stmt_var(lex_t* l, bytecode_t* bc) {
 	opr_code_t op;
 
@@ -963,7 +993,7 @@ bool stmt_var(lex_t* l, bytecode_t* bc) {
 		op = INSTR_CONST;
 	}
 
-	while (l->tk != ';') {
+	while (!is_stmt_end(l->tk)) {
 		str_t* vname = str_new(l->tk_str->cstr);
 		if(!lex_chkread(l, LEX_ID)) return false;
 		bc_gen_str(bc, op, vname->cstr);
@@ -975,11 +1005,11 @@ bool stmt_var(lex_t* l, bytecode_t* bc) {
 			bc_gen(bc, INSTR_ASIGN);
 			bc_gen(bc, INSTR_POP);
 		}
-		if (l->tk != ';')
+		if (!is_stmt_end(l->tk))
 			if(!lex_chkread(l, ',')) return false;
 		str_free(vname);
 	}
-	return lex_chkread(l, ';');
+	return lex_chkread_stmt_end(l);
 }
 
 bool stmt_if(lex_t* l, bytecode_t* bc) {
@@ -1063,14 +1093,14 @@ bool stmt_for(lex_t* l, bytecode_t* bc) {
 
 bool stmt_break(lex_t* l, bytecode_t* bc) {
 	if(!lex_chkread(l, LEX_R_BREAK)) return false;
-	if(!lex_chkread(l, ';')) return false;
+	if(!lex_chkread_stmt_end(l)) return false;
 	bc_gen(bc, INSTR_BREAK);
 	return true;
 }
 
 bool stmt_continue(lex_t* l, bytecode_t* bc) {
 	if(!lex_chkread(l, LEX_R_CONTINUE)) return false;
-	if(!lex_chkread(l, ';')) return false;
+	if(!lex_chkread_stmt_end(l)) return false;
 	bc_gen(bc, INSTR_CONTINUE);
 	return true;
 }
@@ -1086,22 +1116,22 @@ bool stmt_function(lex_t* l, bytecode_t* bc) {
 
 bool stmt_return(lex_t* l, bytecode_t* bc) {
 	if(!lex_chkread(l, LEX_R_RETURN)) return false;
-	if (l->tk != ';') {
+	if (!is_stmt_end(l->tk)) {
 		if(!base(l, bc)) return false;
 		bc_gen(bc, INSTR_RETURNV);
 	}
 	else {
 		bc_gen(bc, INSTR_RETURN);
 	}
-	return lex_chkread(l, ';');
+	return lex_chkread_stmt_end(l);
 }
 
 bool stmt_throw(lex_t* l, bytecode_t* bc) {
 	if(!lex_chkread(l, LEX_R_THROW)) return false;
 	if(!base(l, bc)) return false;
-	if (l->tk != ';') return false;
+	if(!lex_chkread_stmt_end(l)) return false;
 	bc_gen(bc, INSTR_THROW);
-	return lex_chkread(l, ';');
+	return true;
 }
 
 bool stmt_try(lex_t* l, bytecode_t* bc) {
@@ -1127,6 +1157,7 @@ bool stmt_try(lex_t* l, bytecode_t* bc) {
 
 bool statement(lex_t* l, bytecode_t* bc) {
 	bool pop = true;
+
 	if (l->tk=='{') { /* A block of code */
 		if(!stmt_block(l, bc, false)) return false;
 		pop = false;
@@ -1140,7 +1171,7 @@ bool statement(lex_t* l, bytecode_t* bc) {
 				l->tk=='-') {
 		/* Execute a simple statement that only contains basic arithmetic... */
 		if(!base(l, bc)) return false;
-		if(!lex_chkread(l, ';')) return false;
+		if(!lex_chkread_stmt_end(l)) return false;
 	}
 	else if (l->tk==LEX_R_VAR || l->tk == LEX_R_CONST || l->tk == LEX_R_LET) {
 		if(!stmt_var(l, bc)) return false; 
@@ -1185,7 +1216,7 @@ bool statement(lex_t* l, bytecode_t* bc) {
 		if(!stmt_throw(l, bc)) return false;
 		pop = false;
 	}
-	else {
+	else if(l->tk != '\n') {
 			str_t* s = str_new("Error: don't understand '");
 			str_add(s, l->tk);
 			str_append(s, l->tk_str->cstr);
