@@ -224,8 +224,8 @@ void lex_get_next_token(lex_t* lex) {
 	lex->tk = LEX_EOF;
 	str_reset(lex->tk_str);
 
-	lex_skip_whitespace(lex);
-	//lex_skip_space(lex);
+	//lex_skip_whitespace(lex);
+	lex_skip_space(lex);
 	if(lex_skip_comments_line(lex, "//")) {
 		lex_get_next_token(lex);
 		return;
@@ -341,7 +341,7 @@ bool lex_skip_empty(lex_t* l) {
 	return true;
 }
 
-bool lex_chkread_line(lex_t* lex, uint32_t expected_tk) { //check read with empty line.
+bool lex_chkread(lex_t* lex, uint32_t expected_tk) { //check read with empty line.
 	if (lex->tk != expected_tk) {
 #ifdef MARIO_DEBUG
 		_err("Got ");
@@ -358,11 +358,6 @@ bool lex_chkread_line(lex_t* lex, uint32_t expected_tk) { //check read with empt
 	}
 	lex_get_next_token(lex);
 	return true;
-}
-
-bool lex_chkread(lex_t* lex, uint32_t expected_tk) { //check read skip empty line.
-	if(!lex_chkread_line(lex, expected_tk)) return false;
-	return lex_skip_empty(lex);
 }
 
 /** Compiler -----------------------------*/
@@ -409,12 +404,15 @@ bool stmt_loop_block(lex_t* l, bytecode_t* bc) {
 	}
 
 	if(block) {
+		lex_skip_empty(l);
 		while (l->tk && l->tk!='}'){
 			if(!statement(l, bc))
 				return false;
 		}
+		lex_skip_empty(l);
 		return lex_chkread(l, '}');
 	}
+	lex_skip_empty(l);
 	return statement(l, bc);
 }
 
@@ -441,6 +439,8 @@ bool stmt_block(lex_t* l, bytecode_t* bc, bool func) {
 
 bool factor_def_func(lex_t* l, bytecode_t* bc, str_t* name) {
 	bool is_static = false;
+	lex_skip_empty(l);
+
 	if (l->tk == LEX_R_STATIC) {
 		if(!lex_chkread(l, LEX_R_STATIC)) return false;
 		is_static = true;
@@ -451,7 +451,6 @@ bool factor_def_func(lex_t* l, bytecode_t* bc, str_t* name) {
 		str_cpy(name, l->tk_str->cstr);
 		if(!lex_chkread(l, LEX_ID)) return false;
 	}
-	
 	if(l->tk == LEX_ID) { //class get/set token
 		if(strcmp(name->cstr, "get") == 0) {
 			str_cpy(name, l->tk_str->cstr);
@@ -480,7 +479,6 @@ bool factor_def_func(lex_t* l, bytecode_t* bc, str_t* name) {
 	if(!lex_chkread(l, ')')) return false;
 	PC pc = bc_reserve(bc);
 	stmt_block(l, bc, true);
-	
 	opr_code_t op = bc->code_buf[bc->cindex - 1] >> 16;
 
 	if(op != INSTR_RETURN && op != INSTR_RETURNV)
@@ -525,6 +523,7 @@ bool factor_def_class(lex_t* l, bytecode_t* bc) {
 	while (l->tk!='}') {
 		if(!factor_def_func(l, bc, name))
 			return false;
+		lex_skip_empty(l);
 		bc_gen_str(bc, INSTR_MEMBERN, name->cstr);
 	}
 	if(!lex_chkread(l, '}')) return false;
@@ -556,6 +555,7 @@ bool factor_json(lex_t*l, bytecode_t* bc) {
 	if(!lex_chkread(l, '{')) return false;
 	bc_gen(bc, INSTR_OBJ);
 	while (l->tk != '}') {
+		lex_skip_empty(l);
 		str_t* id = str_new(l->tk_str->cstr);
 		// we only allow strings or IDs on the left hand side of an initialisation
 		if (l->tk==LEX_STR) {
@@ -567,7 +567,7 @@ bool factor_json(lex_t*l, bytecode_t* bc) {
 
 		if(!lex_chkread(l, ':')) return false;
 		if(!base(l, bc)) return false;
-
+		lex_skip_empty(l);
 		bc_gen_str(bc, INSTR_MEMBERN, id->cstr);
 		// no need to clean here, as it will definitely be used
 		if (l->tk != '}') {
@@ -963,18 +963,20 @@ bool base(lex_t* l, bytecode_t* bc) {
 }
 
 static bool is_stmt_end(int tk) {
-	//return (tk == ';' || tk == '\n');
-	return (tk == ';');
+	return (tk == ';' || tk == '\n' || tk == 0);
+	//return (tk == ';');
 }
 
 static bool lex_chkread_stmt_end(lex_t* l) {
-	/*if(l->tk == ';')
+	if(l->tk == 0)
+		return true;
+
+	if(l->tk == ';')
 		return lex_chkread(l, ';');
 	else if(l->tk == '\n')
 		return lex_chkread(l, '\n');
 	return false;
-	*/
-	return lex_chkread(l, ';');
+	//return lex_chkread(l, ';');
 }
 
 bool stmt_var(lex_t* l, bytecode_t* bc) {
@@ -1018,7 +1020,9 @@ bool stmt_if(lex_t* l, bytecode_t* bc) {
 	if(!base(l, bc)) return false; //condition
 	if(!lex_chkread(l, ')')) return false;
 	PC pc = bc_reserve(bc);
+	lex_skip_empty(l);
 	if(!statement(l, bc)) return false;
+	lex_skip_empty(l);
 
 	if (l->tk == LEX_R_ELSE) {
 		if(!lex_chkread(l, LEX_R_ELSE)) return false;
@@ -1140,6 +1144,7 @@ bool stmt_try(lex_t* l, bytecode_t* bc) {
 	bc_add_instr(bc, pc, INSTR_JMP, pc+2);
 	PC pc_cache = bc_reserve(bc);
 	if(!statement(l, bc)) return false;
+	lex_skip_empty(l);
 	PC pce = bc_reserve(bc); //jmp to finalize.
 
 	bc_set_instr(bc, pc_cache, INSTR_JMP, ILLEGAL_PC);
@@ -1158,7 +1163,11 @@ bool stmt_try(lex_t* l, bytecode_t* bc) {
 bool statement(lex_t* l, bytecode_t* bc) {
 	bool pop = true;
 
-	if (l->tk=='{') { /* A block of code */
+	if(l->tk == '\n') {
+		lex_skip_empty(l);
+		pop = false;
+	}
+	else if (l->tk=='{') { /* A block of code */
 		if(!stmt_block(l, bc, false)) return false;
 		pop = false;
 	}
@@ -1171,7 +1180,8 @@ bool statement(lex_t* l, bytecode_t* bc) {
 				l->tk=='-') {
 		/* Execute a simple statement that only contains basic arithmetic... */
 		if(!base(l, bc)) return false;
-		if(!lex_chkread_stmt_end(l)) return false;
+		if(is_stmt_end(l->tk))
+			if(!lex_chkread_stmt_end(l)) return false;
 	}
 	else if (l->tk==LEX_R_VAR || l->tk == LEX_R_CONST || l->tk == LEX_R_LET) {
 		if(!stmt_var(l, bc)) return false; 
@@ -1216,7 +1226,7 @@ bool statement(lex_t* l, bytecode_t* bc) {
 		if(!stmt_throw(l, bc)) return false;
 		pop = false;
 	}
-	else if(l->tk != '\n') {
+	else {
 			str_t* s = str_new("Error: don't understand '");
 			str_add(s, l->tk);
 			str_append(s, l->tk_str->cstr);
