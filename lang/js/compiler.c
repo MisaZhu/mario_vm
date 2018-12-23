@@ -477,6 +477,7 @@ bool factor_def_func(lex_t* l, bytecode_t* bc, str_t* name) {
 		}
 	}
 	if(!lex_chkread(l, ')')) return false;
+	lex_skip_empty(l);
 	PC pc = bc_reserve(bc);
 	stmt_block(l, bc, true);
 	opr_code_t op = bc->code_buf[bc->cindex - 1] >> 16;
@@ -488,6 +489,7 @@ bool factor_def_func(lex_t* l, bytecode_t* bc, str_t* name) {
 }
 
 bool factor_def_afunc(lex_t* l, bytecode_t* bc) {
+	lex_skip_empty(l);
 	PC pc = bc_reserve(bc);
 	statement(l, bc);
 	
@@ -1142,6 +1144,8 @@ bool stmt_try(lex_t* l, bytecode_t* bc) {
 	if(!lex_chkread(l, LEX_R_TRY)) return false;
 	PC pc = bc_gen(bc, INSTR_TRY);
 	bc_add_instr(bc, pc, INSTR_JMP, pc+2);
+
+	lex_skip_empty(l);
 	PC pc_cache = bc_reserve(bc);
 	if(!statement(l, bc)) return false;
 	lex_skip_empty(l);
