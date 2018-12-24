@@ -522,6 +522,7 @@ bool factor_def_class(lex_t* l, bytecode_t* bc) {
 	}
 
 	if(!lex_chkread(l, '{')) return false;
+	lex_skip_empty(l);
 	while (l->tk!='}') {
 		if(!factor_def_func(l, bc, name))
 			return false;
