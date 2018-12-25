@@ -506,6 +506,7 @@ bool factor_def_class(lex_t* l, bytecode_t* bc) {
 	if(!lex_chkread(l, LEX_R_CLASS)) return false;
 	str_t* name = str_new("");
 
+	lex_skip_empty(l);
 	/* we can have classes without names */
 	if (l->tk==LEX_ID) {
 		str_cpy(name, l->tk_str->cstr);
@@ -513,14 +514,17 @@ bool factor_def_class(lex_t* l, bytecode_t* bc) {
 	}
 	bc_gen_str(bc, INSTR_CLASS, name->cstr);
 	
+	lex_skip_empty(l);
 	/*read extends*/
 	if (l->tk==LEX_R_EXTENDS) {
 		if(!lex_chkread(l, LEX_R_EXTENDS)) return false;
+		lex_skip_empty(l);
 		str_cpy(name, l->tk_str->cstr);
 		if(!lex_chkread(l, LEX_ID)) return false;
 		bc_gen_str(bc, INSTR_EXTENDS, name->cstr);
 	}
 
+	lex_skip_empty(l);
 	if(!lex_chkread(l, '{')) return false;
 	lex_skip_empty(l);
 	while (l->tk!='}') {
