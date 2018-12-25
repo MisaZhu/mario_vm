@@ -1076,10 +1076,12 @@ bool stmt_for(lex_t* l, bytecode_t* bc) {
 	if(!statement(l, bc)) //init statement
 		return false;
 
+	lex_skip_empty(l);
 	bc_set_instr(bc, pcc, INSTR_JMP, bc->cindex);
 	if(!base(l, bc)) //condition
 		return false; 
 	if(!lex_chkread(l, ';')) return false;
+	lex_skip_empty(l);
 	bc_add_instr(bc, pcb, INSTR_NJMPB, ILLEGAL_PC); //jump out of loop if not condition.
 	PC pcl = bc_reserve(bc); //jump to loop .skip the iterrator
 
