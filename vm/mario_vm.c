@@ -357,12 +357,14 @@ static inline void gc_mark_stack(vm_t* vm, bool mark) {
 }
 
 static inline void gc_mark_isignal(vm_t* vm, bool mark) {
+#ifdef MARIO_THREAD
 	isignal_t* sig = vm->isignal_head;
 	while(sig != NULL) {
 		gc_mark(sig->handle_func, mark);
 		gc_mark(sig->obj, mark);
 		sig = sig->next;
 	}
+#endif
 }
 
 static inline void var_free(void* p) {
@@ -2012,11 +2014,11 @@ void try_interrupter(vm_t* vm) {
 
 #else
 
-bool interrupt(vm_t* vm, var_t* obj, var_t* func, var_t* args) {
+bool interrupt(vm_t* vm, var_t* obj, var_t* func, const char* msg) {
 	return false;
 }	
 
-bool interrupt_by_name(vm_t* vm, var_t* obj, const char* func_name, var_t* args) {
+bool interrupt_by_name(vm_t* vm, var_t* obj, const char* func_name, const char* msg) {
 	return false;
 }	
 

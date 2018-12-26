@@ -31,7 +31,7 @@ mario_OBJS= $(MARIO_VM)/utils/mario_basic.o \
 						$(MARIO_VM)/utils/mario_array.o \
 						$(MARIO_VM)/utils/mario_string.o \
 						$(MARIO_VM)/utils/mario_utf8.o \
-						$(MARIO_VM)/utils/mario_json.o \
+						$(MARIO_VM)/vm/mario_json.o \
 						$(MARIO_VM)/vm/mario_bc.o \
 						$(MARIO_VM)/vm/mario_vm.o \
 						$(MARIO_VM)/vm/mario_lex.o
