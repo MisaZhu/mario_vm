@@ -1160,10 +1160,13 @@ bool stmt_try(lex_t* l, bytecode_t* bc) {
 
 	bc_set_instr(bc, pc_cache, INSTR_JMP, ILLEGAL_PC);
 	if(!lex_chkread(l, LEX_R_CATCH)) return false;
+
+	lex_skip_empty(l);
 	if(!lex_chkread(l, '(')) return false;
 	bc_gen_str(bc, INSTR_CATCH, l->tk_str->cstr);
 	if(!lex_chkread(l, LEX_ID)) return false;
 	if(!lex_chkread(l, ')')) return false;
+	lex_skip_empty(l);
 	if(!statement(l, bc)) return false;
 
 	pc = bc_gen(bc, INSTR_TRY_END) - 1;
