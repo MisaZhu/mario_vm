@@ -75,7 +75,7 @@ var_t* native_Bytes_fromString(vm_t* vm, var_t* env, void* data) {
 
 	var_t* thisV = get_obj(env, THIS);
 	if(thisV != NULL) {
-		thisV->size = strlen(s) + 1;
+		thisV->size = (uint32_t)strlen(s) + 1;
 		void* p = thisV->value;
 		thisV->value = _malloc(thisV->size);
 		memcpy(thisV->value, s, thisV->size);

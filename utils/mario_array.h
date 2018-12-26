@@ -16,7 +16,7 @@ typedef struct st_array {
 	uint32_t size: 16;
 } m_array_t;
 
-m_array_t* array_new();
+m_array_t* array_new(void);
 void array_free(m_array_t* array, free_func_t fr);
 void array_init(m_array_t* array);
 void array_add(m_array_t* array, void* item);

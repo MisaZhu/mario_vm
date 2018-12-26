@@ -27,7 +27,7 @@ uint32_t bc_getstrindex(bytecode_t* bc, const char* str) {
 			return i;
 	}
 
-	uint32_t len = strlen(str);
+	uint32_t len = (uint32_t)strlen(str);
 	char* p = (char*)_malloc(len + 1);
 	memcpy(p, str, len+1);
 	array_add(&bc->str_table, p);
@@ -100,9 +100,9 @@ PC bc_gen_str(bytecode_t* bc, opr_code_t instr, const char* str) {
 	if(instr == INSTR_INT) {
 		if(strstr(str, "0x") != NULL ||
 				strstr(str, "0x") != NULL)
-			i = strtol(str, NULL, 16);
+			i = (uint32_t)strtol(str, NULL, 16);
 		else
-			i = strtol(str, NULL, 10);
+			i = (uint32_t)strtol(str, NULL, 10);
 		s = NULL;
 	}
 	else if(instr == INSTR_FLOAT) {

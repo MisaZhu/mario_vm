@@ -16,7 +16,7 @@ node_t* node_new(vm_t* vm, const char* name) {
 	memset(node, 0, sizeof(node_t));
 
 	node->magic = 1;
-	uint32_t len = strlen(name);
+	uint32_t len = (uint32_t)strlen(name);
 	node->name = (char*)_malloc(len+1);
 	memcpy(node->name, name, len+1);
 	node->var = var_new(vm);	
@@ -559,7 +559,7 @@ var_t* var_get_prototype(var_t* var) {
 inline var_t* var_new_str(vm_t* vm, const char* s) {
 	var_t* var = var_new(vm);
 	var->type = V_STRING;
-	var->size = strlen(s);
+	var->size = (uint32_t)strlen(s);
 	var->value = _malloc(var->size + 1);
 	memcpy(var->value, s, var->size + 1);
 	return var;
@@ -568,7 +568,7 @@ inline var_t* var_new_str(vm_t* vm, const char* s) {
 inline var_t* var_new_str2(vm_t* vm, const char* s, uint32_t len) {
 	var_t* var = var_new(vm);
 	var->type = V_STRING;
-	var->size = strlen(s);
+	var->size = (uint32_t)strlen(s);
 	if(var->size > len)
 		var->size = len;
 	var->value = _malloc(var->size + 1);
@@ -591,7 +591,7 @@ inline var_t* var_set_str(var_t* var, const char* v) {
 	var->type = V_STRING;
 	if(var->value != NULL)
 		_free(var->value);
-	int len = strlen(v)+1;	
+	uint32_t len = (uint32_t)strlen(v)+1;
 	var->value = _malloc(len);
 	memcpy(var->value, v, len);
 	return var;
@@ -711,7 +711,7 @@ void get_parsable_str(var_t* var, str_t* ret) {
 void append_json_spaces(str_t* ret, int level) {
 	int spaces;
 	for (spaces = 0; spaces<=level; ++spaces) {
-		str_add(ret, ' '), str_add(ret, ' ');
+        str_add(ret, ' '); str_add(ret, ' ');
 	}
 }
 
@@ -1479,7 +1479,7 @@ var_t* func_def(vm_t* vm, bool regular, bool is_static) {
 		const char* s = bc_getstr(&vm->bc, offset);
 		if(s == NULL)
 			break;
-		array_add_buf(&func->args, (void*)s, strlen(s) + 1);
+		array_add_buf(&func->args, (void*)s, (uint32_t)strlen(s) + 1);
 	}
 
 	var_t* ret = var_new_func(vm, func);
@@ -1730,7 +1730,7 @@ static inline void compare(vm_t* vm, opr_code_t op, var_t* v1, var_t* v2) {
 
 void do_get(vm_t* vm, var_t* v, const char* name) {
 	if(v->type == V_STRING && strcmp(name, "length") == 0) {
-		int len = strlen(var_get_str(v));
+		int len = (int)strlen(var_get_str(v));
 		vm_push(vm, var_new_int(vm, len));
 		return;
 	}
@@ -1823,7 +1823,7 @@ int parse_func_name(const char* full, str_t* name) {
 	if(pos != NULL) {
 		args_num = atoi(pos+1);
 		if(name != NULL)
-			str_ncpy(name, full, pos-full);	
+			str_ncpy(name, full, (uint32_t)(pos-full));	
 	}
 	else {
 		if(name != NULL)

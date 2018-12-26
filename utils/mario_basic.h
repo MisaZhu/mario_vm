@@ -37,8 +37,8 @@ typedef enum bool_enum {false, true} bool;
 	extern void _free(void *p);*/
 //#endif
 
-extern void _mem_init();
-extern void _mem_close();
+extern void _mem_init(void);
+extern void _mem_close(void);
 extern void* _raw_realloc(void* p, uint32_t old_size, uint32_t new_size, const char* file, uint32_t line);
 #define _realloc(p, old_size, new_size) _raw_realloc(p, old_size, new_size, __FILE__, __LINE__)
 

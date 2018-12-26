@@ -134,7 +134,7 @@ void lex_reset(lex_t* lex) {
 void lex_init(lex_t * lex, const char* input) {
 	lex->data = input;
 	lex->data_start = 0;
-	lex->data_end = strlen(lex->data);
+	lex->data_end = (int)strlen(lex->data);
 	lex->tk_str = str_new("");
 	lex_reset(lex);
 }

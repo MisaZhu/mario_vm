@@ -25,7 +25,7 @@ char* str_ncpy(str_t* str, const char* src, uint32_t l) {
 		return str->cstr;
 	}
 
-	uint32_t len = strlen(src);
+	uint32_t len = (uint32_t)strlen(src);
 	if(len > l)
 		len = l;
 
@@ -61,7 +61,7 @@ char* str_append(str_t* str, const char* src) {
 		return str->cstr;
 	}
 
-	int len = strlen(src);
+	uint32_t len = (uint32_t)strlen(src);
 	uint32_t new_size = str->len + len;
 	if(str->max <= new_size) {
 		new_size = str->len + len + STR_BUF; /*STR BUF for buffer*/
@@ -147,9 +147,9 @@ int str_to_int(const char* str) {
 	int i = 0;
 	if(strstr(str, "0x") != NULL ||
 			strstr(str, "0x") != NULL)
-		i = strtol(str, NULL, 16);
+		i = (int)strtol(str, NULL, 16);
 	else
-		i = strtol(str, NULL, 10);
+		i = (int)strtol(str, NULL, 10);
 	return i;
 }
 

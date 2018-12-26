@@ -19,7 +19,7 @@ var_t* native_StringLength(vm_t* vm, var_t* env, void* data) {
 	(void)vm; (void)data;
 
 	const char* s = get_str(env, THIS);
-	return var_new_int(vm, strlen(s));
+	return var_new_int(vm, (int)strlen(s));
 }
 
 var_t* native_StringToString(vm_t* vm, var_t* env, void* data) {
@@ -37,7 +37,7 @@ var_t* native_StringSubstr(vm_t* vm, var_t* env, void* data) {
 		start = 0;
 
 	int length = get_int(env, "length");
-	int sl = strlen(s) - start;
+	int sl = (int)strlen(s) - start;
 	if(sl <= 0)
 		return var_new_str(vm, "");
 	if(length > sl) 
