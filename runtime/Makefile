@@ -2,9 +2,7 @@ ifneq ($(CROSS_COMPILE),)
 $(info CROSS_COMPILE=$(CROSS_COMPILE))
 endif
 
-ifeq ($(MARIO_LANG),)
 MARIO_LANG = js
-endif
 
 ifeq ($(MARIO_VM),)
 MARIO_VM = ..
@@ -17,7 +15,7 @@ CXX := $(CROSS_COMPILE)g++
 AR := $(CROSS_COMPILE)ar
 LD := $(CROSS_COMPILE)gcc
 
-NATIVE_PATH = natives
+NATIVE_PATH = $(MARIO_VM)/lang/js/native/builtin
 NATIVE_OBJS= $(NATIVE_PATH)/object/native_object.o  \
 	$(NATIVE_PATH)/number/native_number.o  \
 	$(NATIVE_PATH)/bytes/native_bytes.o  \

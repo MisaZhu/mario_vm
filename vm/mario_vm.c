@@ -2763,7 +2763,7 @@ bool vm_run(vm_t* vm) {
 		}
 		//gc(vm);
 	}
-	while(vm->pc < code_size);
+	while(vm->pc < code_size && !vm->terminated);
 	return false;
 }
 
