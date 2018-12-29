@@ -626,6 +626,13 @@ bool factor(lex_t* l, bytecode_t* bc, bool member) {
 		PC pc = bc_reserve(bc);
 		if(!lex_chkread(l, '(')) return false;
 		if(!base(l, bc)) return false;
+		lex_skip_empty(l);
+
+		while(l->tk == ',') {
+			if(!lex_chkread(l, ',')) return false;
+			if(!base(l, bc)) return false;;
+			lex_skip_empty(l);
+		}
 		if(!lex_chkread(l, ')')) return false;
 
 		if(l->tk == LEX_R_AFUNCTION) {
@@ -708,10 +715,6 @@ bool factor(lex_t* l, bytecode_t* bc, bool member) {
 			}
 			else {
 				bc_gen_str(bc, INSTR_LOAD, name->cstr);	
-				if (l->tk == ',') {
-					if(!lex_chkread(l, ',')) return false;
-					if(!factor(l, bc, false)) return false;;
-				}
 			}
 		}
 		str_free(name);
