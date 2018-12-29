@@ -16,7 +16,8 @@ AR := $(CROSS_COMPILE)ar
 LD := $(CROSS_COMPILE)gcc
 
 NATIVE_PATH = $(MARIO_VM)/lang/js/native/builtin
-NATIVE_OBJS= $(NATIVE_PATH)/object/native_object.o  \
+NATIVE_OBJS= $(NATIVE_PATH)/native_builtin.o  \
+	$(NATIVE_PATH)/object/native_object.o  \
 	$(NATIVE_PATH)/number/native_number.o  \
 	$(NATIVE_PATH)/bytes/native_bytes.o  \
 	$(NATIVE_PATH)/console/native_console.o \
