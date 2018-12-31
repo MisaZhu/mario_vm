@@ -1038,6 +1038,7 @@ bool stmt_if(lex_t* l, bytecode_t* bc) {
 		if(!lex_chkread(l, LEX_R_ELSE)) return false;
 		PC pc2 = bc_reserve(bc);
 		bc_set_instr(bc, pc, INSTR_NJMP, ILLEGAL_PC);
+		lex_skip_empty(l);
 		if(!statement(l, bc)) return false;
 		bc_set_instr(bc, pc2, INSTR_JMP, ILLEGAL_PC);
 	}
