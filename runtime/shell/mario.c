@@ -12,38 +12,6 @@
 #define ERR_MAX 1023
 char _err_info[ERR_MAX+1];
 
-bool load_js(vm_t* vm, const char* fname, bool verify) {
-	int fd = open(fname, O_RDONLY);
-	if(fd < 0) {
-		snprintf(_err_info, ERR_MAX, "Can not open file '%s'\n", fname);
-		_err(_err_info);
-		return false;
-	}
-
-	struct stat st;
-	fstat(fd, &st);
-
-	char* s = (char*)_malloc(st.st_size+1);
-	int sz = read(fd, s, st.st_size);
-	close(fd);
-	
-	if(sz != st.st_size) {
-		_free(s);
-		return false;
-	}
-
-	s[sz] = 0;
-
-	bool ret;
-	if(verify)
-		ret = vm_load(vm, s);
-	else
-		ret = vm_load_run(vm, s);
-	_free(s);
-
-	return ret;
-}
-
 /**
 load extra native libs.
 */
@@ -133,51 +101,46 @@ bool load_natives() {
 	return ret;
 }
 
-bool load_script_libs(vm_t* vm, bool verify) {
+str_t* load_script_content(const char* fname) {
+	int fd = open(fname, O_RDONLY);
+	if(fd < 0) {
+		return NULL;
+	}
+
+	struct stat st;
+	fstat(fd, &st);
+
+	str_t* ret = str_new_by_size(st.st_size+1);
+	int sz = read(fd, ret->cstr, st.st_size);
+	close(fd);
+	
+	if(sz != st.st_size) {
+		str_free(ret);
+		return NULL;
+	}
+	ret->cstr[sz] = 0;
+	ret->len = sz;
+	return ret;
+}
+
+str_t* include_script(vm_t* vm, const char* name) {
 	const char* path = getenv("MARIO_PATH");
 	if(path == NULL)
 		path = DEF_LIBS;
 
-	str_t* fpath = str_new(path);
-	str_append(fpath, "/libs/");
-	str_append(fpath, _mario_lang);
-
-	DIR* dir = opendir(fpath->cstr);
-	if(dir == NULL) {
-		snprintf(_err_info, ERR_MAX, "Warning: MARIO_LIBS does't exist('%s'), skip loading extra js libs!\n", path);
-		_debug(_err_info);
-		str_free(fpath);
-		return true;
+	str_t* ret = load_script_content(name);
+	if(ret != NULL) {
+		return ret;
 	}
 
-	bool ret = true;
-	str_t* fname = str_new("");
-	while(true) {
-		struct dirent* dp = readdir(dir);
-		if(dp == NULL)
-			break;
-		
-		if(strstr(dp->d_name, ".js") == NULL)
-			continue;
+	str_t* fname = str_new(path);
+	str_append(fname, "/libs/");
+	str_append(fname, _mario_lang);
+	str_add(fname, '/');
+	str_append(fname, name);
 	
-		str_cpy(fname, fpath->cstr);
-		str_add(fname, '/');
-		str_append(fname, dp->d_name);
-		
-		snprintf(_err_info, ERR_MAX, "Loading js lib %s ......", fname->cstr);
-		if(!load_js(vm, fname->cstr, verify)) {
-			_err(_err_info);
-			_err(" failed!\n");
-			ret = false;
-			break;
-		}
-		_debug(_err_info);
-		_debug(" ok.\n");
-	}
-	
-	str_free(fpath);
+	ret = load_script_content(name);
 	str_free(fname);
-	closedir(dir);
 	return ret;
 }
 
@@ -189,6 +152,23 @@ void init_args(vm_t* vm, int argc, char** argv) {
 	}
 
 	var_add(vm->root, "_args", args);
+}
+
+bool load_js(vm_t* vm, const char* fname, bool verify) {
+	str_t* s = load_script_content(fname);
+	if(s == NULL) {
+		snprintf(_err_info, ERR_MAX, "Can not open file '%s'\n", fname);
+		_err(_err_info);
+		return false;
+	}
+	
+	bool ret;
+	if(verify)
+		ret = vm_load(vm, s->cstr);
+	else
+		ret = vm_load_run(vm, s->cstr);
+	str_free(s);
+	return ret;
 }
 
 void run_shell(vm_t* vm);
@@ -228,18 +208,13 @@ int main(int argc, char** argv) {
 	if(!load_natives()) {
 		loaded = false;
 	}
+	_load_m_func = include_script;
 
 	_mem_init();
 	vm_t* vm = vm_new(compile);
 	vm->gc_buffer_size = 1024;
 
 	init_args(vm, argc, argv);
-
-	//load extra js files.
-	if(loaded) {
-		if(!load_script_libs(vm, verify))
-			loaded = false;
-	}
 
 	if(loaded) {
 		vm_init(vm, reg_natives, NULL);

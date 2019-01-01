@@ -140,6 +140,8 @@ typedef struct st_bytecode {
 #define INSTR_CATCH        0x0B1 // catch
 #define INSTR_INSTOF       0x0B2 // instanceof
 
+#define INSTR_INCLUDE      0x0C0 // include
+
 #define INSTR_END          0x0FF //END : end of code.
 
 

@@ -196,7 +196,7 @@ void lex_get_reserved_word(lex_t *lex) {
 	else if (strcmp(lex->tk_str->cstr, "else") == 0)      lex->tk = LEX_R_ELSE;
 	else if (strcmp(lex->tk_str->cstr, "do") == 0)        lex->tk = LEX_R_DO;
 	else if (strcmp(lex->tk_str->cstr, "while") == 0)    lex->tk = LEX_R_WHILE;
-	else if (strcmp(lex->tk_str->cstr, "import") == 0)  lex->tk = LEX_R_INCLUDE;
+	else if (strcmp(lex->tk_str->cstr, "include") == 0)  lex->tk = LEX_R_INCLUDE;
 	else if (strcmp(lex->tk_str->cstr, "for") == 0)     lex->tk = LEX_R_FOR;
 	else if (strcmp(lex->tk_str->cstr, "break") == 0)    lex->tk = LEX_R_BREAK;
 	else if (strcmp(lex->tk_str->cstr, "continue") == 0)  lex->tk = LEX_R_CONTINUE;
@@ -313,7 +313,7 @@ const char* lex_get_token_str(int token) {
 		case LEX_R_NULL         : return "null";
 		case LEX_R_UNDEFINED    : return "undefined";
 		case LEX_R_NEW          : return "new";
-		case LEX_R_INCLUDE      : return "import";
+		case LEX_R_INCLUDE      : return "include";
 	}
 	return "?[UNKNOW]";
 }
@@ -466,6 +466,7 @@ bool factor_def_func(lex_t* l, bytecode_t* bc, str_t* name) {
 	else {
 		bc_gen(bc, is_static ? INSTR_FUNC_STC:INSTR_FUNC);
 	}
+	lex_skip_empty(l);
 	//do arguments
 	if(!lex_chkread(l, '(')) return false;
 	while (l->tk!=')') {
@@ -1131,6 +1132,13 @@ bool stmt_function(lex_t* l, bytecode_t* bc) {
 	return true;
 }
 
+bool stmt_include(lex_t* l, bytecode_t* bc) {
+	if(!lex_chkread(l, LEX_R_INCLUDE)) return false;
+	if(!base(l, bc)) return false;
+	bc_gen(bc, INSTR_INCLUDE);
+	return true;
+}
+
 bool stmt_return(lex_t* l, bytecode_t* bc) {
 	if(!lex_chkread(l, LEX_R_RETURN)) return false;
 	if (!is_stmt_end(l->tk)) {
@@ -1210,6 +1218,10 @@ bool statement(lex_t* l, bytecode_t* bc) {
 	}
 	else if(l->tk == LEX_R_FUNCTION) {
 		if(!stmt_function(l, bc)) return false; 
+		pop = false;
+	}
+	else if(l->tk == LEX_R_INCLUDE) {
+		if(!stmt_include(l, bc)) return false; 
 		pop = false;
 	}
 	else if (l->tk == LEX_R_RETURN) {

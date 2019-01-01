@@ -109,6 +109,8 @@ typedef struct st_vm {
 	bool terminated;
 	var_t* root;
 
+	m_array_t included;
+
 	void (*on_init)(struct st_vm* vm);
 	m_array_t init_natives;
 	void (*on_close)(struct st_vm* vm);
@@ -145,6 +147,9 @@ typedef struct st_vm {
 	var_t* free_vars;
 	uint32_t free_vars_num;
 } vm_t;
+
+typedef str_t* (*load_m_func_t)(struct st_vm *, const char* jsname);
+extern load_m_func_t _load_m_func;
 
 node_t* node_new(vm_t* vm, const char* name);
 void node_free(void* p);

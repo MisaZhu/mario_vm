@@ -9,6 +9,8 @@ very tiny script engine in single file.
 extern "C" {
 #endif
 
+load_m_func_t _load_m_func = NULL;
+
 /** vm var-----------------------------*/
 
 node_t* node_new(vm_t* vm, const char* name) {
@@ -2048,6 +2050,28 @@ void vm_terminate(vm_t* vm) {
 	vm->pc = vm->bc.cindex;
 }
 
+static void do_include(vm_t* vm, const char* jsname) {
+	if(_load_m_func == NULL)
+		return;
+	//check if included or not.
+	int i;
+	for(i=0; i<vm->included.size; i++) {
+		str_t* jsn = (str_t*)array_get(&vm->included, i);
+		if(strcmp(jsn->cstr, jsname) == 0)
+			return;
+	}
+
+	str_t* js = _load_m_func(vm, jsname);
+	if(js == NULL)
+		return;
+	array_add(&vm->included, str_new(jsname));
+
+	PC pc = vm->pc;
+	vm_load_run(vm, js->cstr);
+	str_free(js);
+	vm->pc = pc;
+}
+
 bool vm_run(vm_t* vm) {
 	//int32_t scDeep = vm->scopes.size;
 	register PC code_size = vm->bc.cindex;
@@ -2633,7 +2657,6 @@ bool vm_run(vm_t* vm) {
 				var_unref(v);
 				break;
 			}
-
 			case INSTR_FUNC: 
 			case INSTR_FUNC_STC: 
 			case INSTR_FUNC_GET: 
@@ -2734,6 +2757,13 @@ bool vm_run(vm_t* vm) {
 				vm_push(vm, v);
 				break;
 			}
+			case INSTR_INCLUDE: 
+			{
+				var_t* v = vm_pop2(vm);
+				do_include(vm, var_get_str(v));
+				var_unref(v);
+				break;
+			}
 			case INSTR_THROW: 
 			{
 				while(true) {
@@ -2771,12 +2801,10 @@ bool vm_load(vm_t* vm, const char* s) {
 	if(vm->compiler == NULL)
 		return false;
 
-	/*
 	if(vm->bc.cindex > 0) {
-		vm->bc.cindex--;
+		//vm->bc.cindex--;
+		vm->pc = vm->bc.cindex;
 	}
-	*/
-	vm->pc = vm->bc.cindex;
 	return vm->compiler(&vm->bc, s);
 }
 
@@ -2825,7 +2853,6 @@ void vm_close(vm_t* vm) {
 		it->func(it->data);
 	}
 	array_clean(&vm->close_natives, NULL);
-
 	//var_unref(vm->var_true);
 	//var_unref(vm->var_false);
 
@@ -2841,6 +2868,8 @@ void vm_close(vm_t* vm) {
 	array_free(vm->scopes, scope_free);
 	vm->scopes = NULL;
 	array_clean(&vm->init_natives, NULL);
+
+	array_clean(&vm->included, (free_func_t)str_free);	
 
 	var_unref(vm->root);
 	bc_release(&vm->bc);
@@ -3080,6 +3109,7 @@ vm_t* vm_new(bool compiler(bytecode_t *bc, const char* input)) {
 	vm->interrupted = false;
 	#endif
 
+	array_init(&vm->included);	
 	array_init(&vm->close_natives);	
 	array_init(&vm->init_natives);	
 	

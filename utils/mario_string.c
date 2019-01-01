@@ -56,6 +56,15 @@ str_t* str_new(const char* s) {
 	return ret;
 }
 
+str_t* str_new_by_size(uint32_t sz) {
+	str_t* ret = (str_t*)_malloc(sizeof(str_t));
+	ret->cstr = (char*)_malloc(sz);
+	ret->max = sz;
+	ret->cstr[0] = 0;
+	ret->len = 0;
+	return ret;
+}
+
 char* str_append(str_t* str, const char* src) {
 	if(src == NULL || src[0] == 0) {
 		return str->cstr;

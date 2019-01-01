@@ -250,6 +250,7 @@ const char* instr_str(opr_code_t ins) {
 		case  INSTR_THROW				: return "THROW";
 		case  INSTR_CATCH				: return "CATCH";
 		case  INSTR_INSTOF			: return "INSTOF";
+		case  INSTR_INCLUDE			: return "INCLUDE";
 		default									: return "";
 	}
 }

@@ -20,6 +20,7 @@ void str_reset(str_t* str);
 char* str_ncpy(str_t* str, const char* src, uint32_t l);
 char* str_cpy(str_t* str, const char* src);
 str_t* str_new(const char* s);
+str_t* str_new_by_size(uint32_t sz);
 char* str_append(str_t* str, const char* src);
 char* str_add(str_t* str, char c);
 char* str_add_int(str_t* str, int i, int base);
