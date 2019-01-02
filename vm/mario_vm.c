@@ -2062,8 +2062,12 @@ static void do_include(vm_t* vm, const char* jsname) {
 	}
 
 	str_t* js = _load_m_func(vm, jsname);
-	if(js == NULL)
+	if(js == NULL) {
+		_err("Error: include file '");
+		_err(jsname);
+		_err("' not found!\n");
 		return;
+	}
 	array_add(&vm->included, str_new(jsname));
 
 	PC pc = vm->pc;

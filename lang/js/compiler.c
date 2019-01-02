@@ -1,6 +1,6 @@
 /**
-very tiny js script compiler.
-*/
+	very tiny js script compiler.
+ */
 
 #include "mario_vm.h"
 #include "mario_lex.h"
@@ -14,59 +14,59 @@ const char* _mario_lang = "js";
 /** Script Lex. -----------------------------*/
 
 typedef enum {
-  LEX_EQUAL = LEX_BASIC_END,
-  LEX_TYPEEQUAL,
-  LEX_NEQUAL,
-  LEX_NTYPEEQUAL,
-  LEX_LEQUAL,
-  LEX_LSHIFT,
-  LEX_LSHIFTEQUAL,
-  LEX_GEQUAL,
-  LEX_RSHIFT,
-  LEX_RSHIFTUNSIGNED,
-  LEX_RSHIFTEQUAL,
-  LEX_PLUSEQUAL,
-  LEX_MINUSEQUAL,
-  LEX_MULTIEQUAL,
-  LEX_DIVEQUAL,
-  LEX_MODEQUAL,
-  LEX_PLUSPLUS,
-  LEX_MINUSMINUS,
-  LEX_ANDEQUAL,
-  LEX_ANDAND,
-  LEX_OREQUAL,
-  LEX_OROR,
-  LEX_XOREQUAL,
-  // reserved words
+	LEX_EQUAL = LEX_BASIC_END,
+	LEX_TYPEEQUAL,
+	LEX_NEQUAL,
+	LEX_NTYPEEQUAL,
+	LEX_LEQUAL,
+	LEX_LSHIFT,
+	LEX_LSHIFTEQUAL,
+	LEX_GEQUAL,
+	LEX_RSHIFT,
+	LEX_RSHIFTUNSIGNED,
+	LEX_RSHIFTEQUAL,
+	LEX_PLUSEQUAL,
+	LEX_MINUSEQUAL,
+	LEX_MULTIEQUAL,
+	LEX_DIVEQUAL,
+	LEX_MODEQUAL,
+	LEX_PLUSPLUS,
+	LEX_MINUSMINUS,
+	LEX_ANDEQUAL,
+	LEX_ANDAND,
+	LEX_OREQUAL,
+	LEX_OROR,
+	LEX_XOREQUAL,
+	// reserved words
 #define LEX_R_LIST_START LEX_R_IF
-  LEX_R_IF,
-  LEX_R_ELSE,
-  LEX_R_DO,
-  LEX_R_WHILE,
-  LEX_R_FOR,
-  LEX_R_BREAK,
-  LEX_R_CONTINUE,
-  LEX_R_STATIC,
-  LEX_R_FUNCTION,
-  LEX_R_AFUNCTION,
-  LEX_R_CLASS,
-  LEX_R_EXTENDS,
-  LEX_R_RETURN,
-  LEX_R_VAR,
-  LEX_R_LET,
-  LEX_R_CONST,
-  LEX_R_TRUE,
-  LEX_R_FALSE,
-  LEX_R_NULL,
-  LEX_R_UNDEFINED,
-  LEX_R_NEW,
-  LEX_R_TYPEOF,
-  LEX_R_INCLUDE,
-  LEX_R_THROW,
-  LEX_R_TRY,
-  LEX_R_CATCH,
-  LEX_R_INSTANCEOF,
-  LEX_R_LIST_END /* always the last entry */
+	LEX_R_IF,
+	LEX_R_ELSE,
+	LEX_R_DO,
+	LEX_R_WHILE,
+	LEX_R_FOR,
+	LEX_R_BREAK,
+	LEX_R_CONTINUE,
+	LEX_R_STATIC,
+	LEX_R_FUNCTION,
+	LEX_R_AFUNCTION,
+	LEX_R_CLASS,
+	LEX_R_EXTENDS,
+	LEX_R_RETURN,
+	LEX_R_VAR,
+	LEX_R_LET,
+	LEX_R_CONST,
+	LEX_R_TRUE,
+	LEX_R_FALSE,
+	LEX_R_NULL,
+	LEX_R_UNDEFINED,
+	LEX_R_NEW,
+	LEX_R_TYPEOF,
+	LEX_R_INCLUDE,
+	LEX_R_THROW,
+	LEX_R_TRY,
+	LEX_R_CATCH,
+	LEX_R_INSTANCEOF,
+	LEX_R_LIST_END /* always the last entry */
 } LEX_TYPES;
 
 void lex_get_op_token(lex_t* lex) {
@@ -422,7 +422,7 @@ bool stmt_block(lex_t* l, bytecode_t* bc, bool func) {
 
 	if(!func) 
 		doBlock = true;
-	
+
 	if(doBlock)
 		bc_gen(bc, INSTR_BLOCK);
 
@@ -493,7 +493,7 @@ bool factor_def_afunc(lex_t* l, bytecode_t* bc) {
 	lex_skip_empty(l);
 	PC pc = bc_reserve(bc);
 	statement(l, bc);
-	
+
 	opr_code_t op = bc->code_buf[bc->cindex - 1] >> 16;
 
 	if(op != INSTR_RETURN && op != INSTR_RETURNV)
@@ -514,7 +514,7 @@ bool factor_def_class(lex_t* l, bytecode_t* bc) {
 		if(!lex_chkread(l, LEX_ID)) return false;
 	}
 	bc_gen_str(bc, INSTR_CLASS, name->cstr);
-	
+
 	lex_skip_empty(l);
 	/*read extends*/
 	if (l->tk==LEX_R_EXTENDS) {
@@ -588,18 +588,18 @@ bool factor_json(lex_t*l, bytecode_t* bc) {
 }
 
 bool factor_array(lex_t*l, bytecode_t* bc) {
-		if(!lex_chkread(l, '[')) return false;
-		bc_gen(bc, INSTR_ARRAY);
-		while (l->tk != ']') {
-			base(l, bc);
-			bc_gen(bc, INSTR_MEMBER);
-			if (l->tk != ']') {
-				if(!lex_chkread(l, ',')) return false;
-			}
+	if(!lex_chkread(l, '[')) return false;
+	bc_gen(bc, INSTR_ARRAY);
+	while (l->tk != ']') {
+		base(l, bc);
+		bc_gen(bc, INSTR_MEMBER);
+		if (l->tk != ']') {
+			if(!lex_chkread(l, ',')) return false;
 		}
-		if(!lex_chkread(l, ']')) return false;
-		bc_gen(bc, INSTR_ARRAY_END);
-		return true;
+	}
+	if(!lex_chkread(l, ']')) return false;
+	bc_gen(bc, INSTR_ARRAY_END);
+	return true;
 }
 
 bool factor_call_func(lex_t* l, bytecode_t* bc, str_t* name, bool member) {
@@ -923,7 +923,7 @@ bool logic(lex_t* l, bytecode_t* bc) {
 bool ternary(lex_t *l, bytecode_t* bc) {
 	if(!logic(l, bc))
 		return false;
-	
+
 	if (l->tk=='?') {
 		PC pc1 = bc_reserve(bc); //keep for jump
 		if(!lex_chkread(l, '?')) return false;
@@ -1198,12 +1198,12 @@ bool statement(lex_t* l, bytecode_t* bc) {
 		pop = false;
 	}
 	else if (l->tk == LEX_STR || 
-				l->tk == LEX_INT || l->tk == LEX_FLOAT ||
-				l->tk == '[' ||
-				l->tk==LEX_ID ||
-				l->tk==LEX_PLUSPLUS ||
-				l->tk==LEX_MINUSMINUS ||
-				l->tk=='-') {
+			l->tk == LEX_INT || l->tk == LEX_FLOAT ||
+			l->tk == '[' ||
+			l->tk==LEX_ID ||
+			l->tk==LEX_PLUSPLUS ||
+			l->tk==LEX_MINUSMINUS ||
+			l->tk=='-') {
 		/* Execute a simple statement that only contains basic arithmetic... */
 		if(!base(l, bc)) return false;
 		if(is_stmt_end(l->tk))
@@ -1257,15 +1257,15 @@ bool statement(lex_t* l, bytecode_t* bc) {
 		pop = false;
 	}
 	else {
-			str_t* s = str_new("Error: don't understand '");
-			str_add(s, l->tk);
-			str_append(s, l->tk_str->cstr);
-			str_append(s, "', ");
-			lex_get_pos_str(l, -1, s);
-			str_append(s, "!\n");
-			_err(s->cstr);
-			str_free(s);
-			return false;
+		str_t* s = str_new("Error: don't understand '");
+		str_add(s, l->tk);
+		str_append(s, l->tk_str->cstr);
+		str_append(s, "', ");
+		lex_get_pos_str(l, -1, s);
+		str_append(s, "!\n");
+		_err(s->cstr);
+		str_free(s);
+		return false;
 	}
 
 	if(pop)
