@@ -1252,7 +1252,7 @@ inline node_t* vm_load_node(vm_t* vm, const char* name, bool create) {
 	return n;
 }
 
-static void var_clone_members(var_t* var, var_t* src) {
+/*static void var_clone_members(var_t* var, var_t* src) {
 	//clone member varibles.
 	uint32_t i;
 	for(i=0; i<src->children.size; i++) {
@@ -1266,6 +1266,7 @@ static void var_clone_members(var_t* var, var_t* src) {
 		}
 	}
 }
+*/
 
 void var_set_prototype(var_t* var, var_t* proto) {
 	if(var == NULL || proto == NULL)
@@ -1277,7 +1278,7 @@ void var_from_prototype(var_t* var, var_t* proto) {
 	if(var == NULL || proto == NULL)
 		return;
 	var_set_prototype(var, proto);
-	var_clone_members(var, proto);
+//	var_clone_members(var, proto);
 }
 
 void var_instance_from(var_t* var, var_t* src) {
