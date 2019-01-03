@@ -21,6 +21,7 @@ bool compile(bytecode_t *bc, const char* input);
 #define V_STRING 3
 #define V_OBJECT 4
 #define V_BOOL   5
+#define V_NULL   6
 
 #define V_ST_FREE      0
 #define V_ST_GC_FREE   1
@@ -136,6 +137,7 @@ typedef struct st_vm {
 	var_t* var_Array;
 	var_t* var_true;
 	var_t* var_false;
+	var_t* var_null;
 
 	//for gc
 	bool is_doing_gc;
@@ -187,6 +189,7 @@ var_t* var_new(vm_t* vm);
 var_t* var_new_block(vm_t* vm);
 var_t* var_new_array(vm_t* vm);
 var_t* var_new_int(vm_t* vm, int i);
+var_t* var_new_null(vm_t* vm);
 var_t* var_new_bool(vm_t* vm, bool b);
 var_t* var_new_obj(vm_t* vm, void*p, free_func_t fr);
 var_t* var_new_float(vm_t* vm, float i);

@@ -490,6 +490,8 @@ const char* get_typeof(var_t* var) {
 			return "boolean";
 		case V_STRING: 
 			return "string";
+		case V_NULL: 
+			return "null";
 		case V_OBJECT: 
 			return var->is_func ? "function": "object";
 	}
@@ -527,6 +529,12 @@ inline var_t* var_new_int(vm_t* vm, int i) {
 	var->type = V_INT;
 	var->value = _malloc(sizeof(int));
 	*((int*)var->value) = i;
+	return var;
+}
+
+inline var_t* var_new_null(vm_t* vm) {
+	var_t* var = var_new(vm);
+	var->type = V_NULL;
 	return var;
 }
 
@@ -690,6 +698,9 @@ void var_to_str(var_t* var, str_t* ret) {
 		break;
 	case V_BOOL:
 		str_cpy(ret, var_get_int(var) == 1 ? "true":"false");
+		break;
+	case V_NULL:
+		str_cpy(ret, "null");
 		break;
 	default:
 		str_cpy(ret, "undefined");
@@ -1126,8 +1137,10 @@ node_t* vm_find_in_class(var_t* var, const char* name) {
 	while(proto != NULL) {
 		node_t* ret = NULL;
 		ret = var_find(proto, name);
-		if(ret != NULL)
+		if(ret != NULL) {
+			ret = var_add(var, name, ret->var);
 			return ret;
+		}
 		proto = var_get_prototype(proto);
 	}
 	return NULL;
@@ -1695,6 +1708,18 @@ static inline void compare(vm_t* vm, opr_code_t op, var_t* v1, var_t* v2) {
 					break;
 			}
 		}
+		else if(v1->type == V_NULL) {
+			switch(op) {
+				case INSTR_EQ: 
+				case INSTR_TEQ:
+					i = (v2->type == V_NULL);
+					break; 
+				case INSTR_NEQ: 
+				case INSTR_NTEQ:
+					i = (v2->type != V_NULL);
+					break;
+			}
+		}
 		else if(v1->type == V_INT || v1->type == V_FLOAT) {
 			switch(op) {
 				case INSTR_EQ: 
@@ -2241,6 +2266,11 @@ bool vm_run(vm_t* vm) {
 			case INSTR_FALSE: 
 			{
 				vm_push(vm, vm->var_false);
+				break;
+			}
+			case INSTR_NULL: 
+			{
+				vm_push(vm, vm->var_null);
 				break;
 			}
 			case INSTR_UNDEF: 
@@ -3125,6 +3155,8 @@ vm_t* vm_new(bool compiler(bytecode_t *bc, const char* input)) {
 	vm->var_false = var_new_bool(vm, false);
 	var_add(vm->root, "", vm->var_false);
 //	var_ref(vm->var_false);
+	vm->var_null = var_new_null(vm);
+	var_add(vm->root, "", vm->var_null);
 
 	vm->var_Object = vm_new_class(vm, "Object");
 	vm_reg_static(vm, "", "yield()", native_yield, NULL);

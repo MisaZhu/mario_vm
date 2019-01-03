@@ -502,6 +502,18 @@ bool factor_def_afunc(lex_t* l, bytecode_t* bc) {
 	return true;	
 }
 
+static bool lex_chkread_stmt_end(lex_t* l) {
+	if(l->tk == 0)
+		return true;
+
+	if(l->tk == ';')
+		return lex_chkread(l, ';');
+	else if(l->tk == '\n')
+		return lex_chkread(l, '\n');
+	return false;
+	//return lex_chkread(l, ';');
+}
+
 bool factor_def_class(lex_t* l, bytecode_t* bc) {
 	// actually parse a class...
 	if(!lex_chkread(l, LEX_R_CLASS)) return false;
@@ -529,10 +541,22 @@ bool factor_def_class(lex_t* l, bytecode_t* bc) {
 	if(!lex_chkread(l, '{')) return false;
 	lex_skip_empty(l);
 	while (l->tk!='}') {
-		if(!factor_def_func(l, bc, name))
-			return false;
-		lex_skip_empty(l);
-		bc_gen_str(bc, INSTR_MEMBERN, name->cstr);
+		if(l->tk == LEX_ID && l->next_ch == '=') {
+			bc_gen_str(bc, INSTR_LOAD, l->tk_str->cstr);
+			if(!lex_chkread(l, LEX_ID)) return false;
+			if(!lex_chkread(l, '=')) return false;
+			if(!base(l, bc)) return false;
+			bc_gen(bc, INSTR_ASIGN);
+			bc_gen(bc, INSTR_POP);
+			lex_chkread_stmt_end(l);
+			lex_skip_empty(l);
+		}
+		else {
+			if(!factor_def_func(l, bc, name))
+				return false;
+			lex_skip_empty(l);
+			bc_gen_str(bc, INSTR_MEMBERN, name->cstr);
+		}
 	}
 	if(!lex_chkread(l, '}')) return false;
 	bc_gen(bc, INSTR_CLASS_END);
@@ -976,18 +1000,6 @@ bool base(lex_t* l, bytecode_t* bc) {
 static bool is_stmt_end(int tk) {
 	return (tk == ';' || tk == '\n' || tk == 0);
 	//return (tk == ';');
-}
-
-static bool lex_chkread_stmt_end(lex_t* l) {
-	if(l->tk == 0)
-		return true;
-
-	if(l->tk == ';')
-		return lex_chkread(l, ';');
-	else if(l->tk == '\n')
-		return lex_chkread(l, '\n');
-	return false;
-	//return lex_chkread(l, ';');
 }
 
 bool stmt_var(lex_t* l, bytecode_t* bc) {
