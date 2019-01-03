@@ -6,6 +6,16 @@ extern "C" {
 
 /** Array */
 
+var_t* native_Array_constructor(vm_t* vm, var_t* env, void* data) {
+    (void)vm; (void)data;
+    var_t* this_v = get_obj(env, THIS);
+    this_v->is_array = 1;
+    var_t* members = var_new_obj(vm, NULL, NULL);
+    var_add(this_v, "_ARRAY_", members);
+    return this_v;
+}
+    
+
 var_t* native_Array_toString(vm_t* vm, var_t* env, void* data) {
 	(void)vm; (void)data;
 	var_t* arr = get_obj(env, THIS);
@@ -186,6 +196,7 @@ var_t* native_Array_slice(vm_t* vm, var_t* env, void* data) {
 #define CLS_ARRAY "Array"
 
 void reg_native_array(vm_t* vm) {
+    vm_reg_native(vm, CLS_ARRAY, "constructor()", native_Array_constructor, NULL);
 	vm_reg_native(vm, CLS_ARRAY, "toString()", native_Array_toString, NULL); 
 	vm_reg_native(vm, CLS_ARRAY, "forEach(f)", native_Array_forEach, NULL); 
 	vm_reg_native(vm, CLS_ARRAY, "reverse()", native_Array_reverse, NULL); 
