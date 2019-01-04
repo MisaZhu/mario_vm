@@ -1458,7 +1458,7 @@ bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 	if(func->native != NULL) { //native function
 		ret = func->native(vm, env, func->data);
 		if(ret == NULL)
-			ret = var_new(vm);
+			ret = var_ref(var_new(vm));
 	}
 	else {
 		scope_t* sc = scope_new(env);
@@ -1470,10 +1470,10 @@ bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 		vm->pc = func->pc;
 		if(vm_run(vm)) { //with function return;
 			ret = vm_pop2(vm);
-			ret->refs--;
 		}
 	}
 	vm_pop(vm);
+	ret->refs--;
 	vm_push(vm, ret);
 	return true;
 }
