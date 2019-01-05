@@ -2912,8 +2912,9 @@ void vm_close(vm_t* vm) {
 		it->func(it->data);
 	}
 	array_clean(&vm->close_natives, NULL);
-	//var_unref(vm->var_true);
-	//var_unref(vm->var_false);
+	var_unref(vm->var_true);
+	var_unref(vm->var_false);
+	var_unref(vm->var_null);
 
 
 	#ifdef MARIO_THREAD
@@ -3175,13 +3176,14 @@ vm_t* vm_new(bool compiler(bytecode_t *bc, const char* input)) {
 	vm->root = var_new_obj(vm, NULL, NULL);
 	var_ref(vm->root);
 	vm->var_true = var_new_bool(vm, true);
-	var_add(vm->root, "", vm->var_true);
-//	vm->var_ref(vm->var_true);
+	//var_add(vm->root, "", vm->var_true);
+	var_ref(vm->var_true);
 	vm->var_false = var_new_bool(vm, false);
-	var_add(vm->root, "", vm->var_false);
-//	var_ref(vm->var_false);
+	//var_add(vm->root, "", vm->var_false);
+	var_ref(vm->var_false);
 	vm->var_null = var_new_null(vm);
-	var_add(vm->root, "", vm->var_null);
+	//var_add(vm->root, "", vm->var_null);
+	var_ref(vm->var_null);
 
 	vm->var_Object = vm_new_class(vm, "Object");
 	vm_reg_static(vm, "", "yield()", native_yield, NULL);
