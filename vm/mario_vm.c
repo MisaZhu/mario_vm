@@ -51,9 +51,32 @@ static inline bool node_empty(node_t* node) {
 
 inline var_t* node_replace(node_t* node, var_t* v) {
 	var_t* old = node->var;
-	node->var = var_ref(v);
+    switch(v->type) {
+        case V_INT:
+            node->var = var_new_int(v->vm, var_get_int(v));
+            break;
+        case V_FLOAT:
+            node->var = var_new_float(v->vm, var_get_int(v));
+            break;
+        case V_STRING:
+            node->var = var_new_str(v->vm, var_get_str(v));
+            break;
+        case V_BOOL:
+            node->var = var_new_bool(v->vm, var_get_bool(v));
+            break;
+        case V_NULL:
+            node->var = var_new_null(v->vm);
+            break;
+        case V_UNDEF:
+            node->var = var_new(v->vm);
+            break;
+        default:
+            node->var = v;
+            break;
+    }
+    var_ref(node->var);
 	var_unref(old);
-	return node->var;
+    return node->var;
 }
 
 inline void var_remove_all(var_t* var) {
@@ -1458,7 +1481,7 @@ bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 	if(func->native != NULL) { //native function
 		ret = func->native(vm, env, func->data);
 		if(ret == NULL)
-			ret = var_ref(var_new(vm));
+			ret = var_new(vm);
 	}
 	else {
 		scope_t* sc = scope_new(env);
@@ -1470,8 +1493,10 @@ bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
 		vm->pc = func->pc;
 		if(vm_run(vm)) { //with function return;
 			ret = vm_pop2(vm);
+			ret->refs--;
 		}
 	}
+	var_ref(ret);
 	vm_pop(vm);
 	ret->refs--;
 	vm_push(vm, ret);
@@ -1836,9 +1861,7 @@ var_t* new_obj(vm_t* vm, const char* name, int arg_num) {
 	}
 
 	if(constructor != NULL) {
-		var_ref(obj);
 		func_call(vm, obj, constructor, arg_num);
-		obj->refs--;
 		obj = vm_pop2(vm);
 		obj->refs--;
 	}
@@ -2370,7 +2393,6 @@ bool vm_run(vm_t* vm) {
 					else { //skip the nil if cached
 						vm->pc++;
 					}
-					vm_push(vm, v);
 				}
 				else {
 					vm_push(vm, v);
@@ -2423,7 +2445,6 @@ bool vm_run(vm_t* vm) {
 					else { //skip the nil if cached
 						vm->pc++;
 					}
-					vm_push(vm, v);
 				}
 				else {
 					vm_push(vm, v);
@@ -2525,29 +2546,32 @@ bool vm_run(vm_t* vm) {
 			case INSTR_INT:
 			{
 				var_t* v = var_new_int(vm, (int)code[vm->pc++]);
-				#ifdef MARIO_CACHE
+				/*#ifdef MARIO_CACHE
 				if(try_cache(vm, &code[vm->pc-2], v))
 					code[vm->pc-1] = INSTR_NIL;
 				#endif
+				*/
 				vm_push(vm, v);
 				break;
 			}
 			case INSTR_INT_S:
 			{
 				var_t* v = var_new_int(vm, offset);
-				#ifdef MARIO_CACHE
+				/*#ifdef MARIO_CACHE
 				try_cache(vm, &code[vm->pc-1], v);
 				#endif
+				*/
 				vm_push(vm, v);
 				break;
 			}
 			case INSTR_FLOAT: 
 			{
 				var_t* v = var_new_float(vm, *(float*)(&code[vm->pc++]));
-				#ifdef MARIO_CACHE
+				/*#ifdef MARIO_CACHE
 				if(try_cache(vm, &code[vm->pc-2], v))
 					code[vm->pc-1] = INSTR_NIL;
 				#endif
+				*/
 				vm_push(vm, v);
 				break;
 			}
