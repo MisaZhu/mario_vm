@@ -49,34 +49,32 @@ static inline bool node_empty(node_t* node) {
 	return false;
 }
 
+static var_t* var_clone(var_t* v) {
+	switch(v->type) { //basic types
+		case V_INT:
+			return var_new_int(v->vm, var_get_int(v));
+		case V_FLOAT:
+			return var_new_float(v->vm, var_get_int(v));
+		case V_STRING:
+			return var_new_str(v->vm, var_get_str(v));
+		case V_BOOL:
+			return var_new_bool(v->vm, var_get_bool(v));
+		case V_NULL:
+			return var_new_null(v->vm);
+		case V_UNDEF:
+			return var_new(v->vm);
+		default:
+			break;
+	}
+	//object types
+	return v; 
+}
+
 inline var_t* node_replace(node_t* node, var_t* v) {
 	var_t* old = node->var;
-    switch(v->type) {
-        case V_INT:
-            node->var = var_new_int(v->vm, var_get_int(v));
-            break;
-        case V_FLOAT:
-            node->var = var_new_float(v->vm, var_get_int(v));
-            break;
-        case V_STRING:
-            node->var = var_new_str(v->vm, var_get_str(v));
-            break;
-        case V_BOOL:
-            node->var = var_new_bool(v->vm, var_get_bool(v));
-            break;
-        case V_NULL:
-            node->var = var_new_null(v->vm);
-            break;
-        case V_UNDEF:
-            node->var = var_new(v->vm);
-            break;
-        default:
-            node->var = v;
-            break;
-    }
-    var_ref(node->var);
+  node->var = var_ref(v);
 	var_unref(old);
-    return node->var;
+	return v;
 }
 
 inline void var_remove_all(var_t* var) {
@@ -1161,8 +1159,7 @@ node_t* vm_find_in_class(var_t* var, const char* name) {
 		node_t* ret = NULL;
 		ret = var_find(proto, name);
 		if(ret != NULL) {
-			if(!ret->var->is_func)
-				ret = var_add(var, name, var_new_null(var->vm));
+			ret = var_add(var, name, var_clone(ret->var));
 			return ret;
 		}
 		proto = var_get_prototype(proto);
