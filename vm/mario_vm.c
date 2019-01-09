@@ -1161,7 +1161,8 @@ node_t* vm_find_in_class(var_t* var, const char* name) {
 		node_t* ret = NULL;
 		ret = var_find(proto, name);
 		if(ret != NULL) {
-			ret = var_add(var, name, ret->var);
+			if(!ret->var->is_func)
+				ret = var_add(var, name, var_new_null(var->vm));
 			return ret;
 		}
 		proto = var_get_prototype(proto);
@@ -1430,7 +1431,7 @@ void func_mark_closure(vm_t* vm, var_t* func) { //try mark function closure
 }
 
 bool func_call(vm_t* vm, var_t* obj, var_t* func_var, int arg_num) {
-	var_t *env = var_new(vm);
+	var_t *env = var_new_obj(vm, NULL, NULL);
 	var_t* args = var_new_array(vm);
 	var_add(env, "arguments", args);
 	func_t* func = var_get_func(func_var);
