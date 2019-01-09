@@ -764,16 +764,18 @@ void var_to_json_str(var_t* var, str_t* ret, int level) {
 		}
 		array_remove_all(&done);
 	}
-	uint32_t sz = done.size;
-	for(i=0; i<sz; ++i) {
-		if(done.items[i] == var) { //already done before.
-			str_cpy(ret, "{}");
-			if(level == 0)
-				array_remove_all(&done);
-			return;
+	if(var->type == V_OBJECT) {
+		uint32_t sz = done.size;
+		for(i=0; i<sz; ++i) {
+			if(done.items[i] == var) { //already done before.
+				str_cpy(ret, "{}");
+				if(level == 0)
+					array_remove_all(&done);
+				return;
+			}
 		}
+		array_add(&done, var);
 	}
-	array_add(&done, var);
 
 	if (var->is_array) {
 		str_add(ret, '[');
