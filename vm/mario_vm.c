@@ -72,7 +72,8 @@ static var_t* var_clone(var_t* v) {
 
 inline var_t* node_replace(node_t* node, var_t* v) {
 	var_t* old = node->var;
-    node->var = var_ref(var_clone(v));
+	node->var = var_ref(var_clone(v));
+	//node->var = var_ref((v));
 	var_unref(old);
 	return v;
 }
@@ -1929,7 +1930,10 @@ var_t* call_m_func(vm_t* vm, var_t* obj, var_t* func, var_t* args) {
 		}
 	}
 
+	while(vm->is_doing_gc);
+	vm->is_doing_gc = true;
 	func_call(vm, obj, func, arg_num);
+	vm->is_doing_gc = false;
 	return vm_pop2(vm);
 }
 
