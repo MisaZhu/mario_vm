@@ -57,12 +57,12 @@ static var_t* var_clone(var_t* v) {
 			return var_new_float(v->vm, var_get_int(v));
 		case V_STRING:
 			return var_new_str(v->vm, var_get_str(v));
-		case V_BOOL:
+		/*case V_BOOL:
 			return var_new_bool(v->vm, var_get_bool(v));
 		case V_NULL:
 			return var_new_null(v->vm);
 		case V_UNDEF:
-			return var_new(v->vm);
+			return var_new(v->vm);*/
 		default:
 			break;
 	}
@@ -72,7 +72,7 @@ static var_t* var_clone(var_t* v) {
 
 inline var_t* node_replace(node_t* node, var_t* v) {
 	var_t* old = node->var;
-  node->var = var_ref(var_clone(v));
+    node->var = var_ref(var_clone(v));
 	var_unref(old);
 	return v;
 }
@@ -522,7 +522,8 @@ const char* get_typeof(var_t* var) {
 inline var_t* var_new(vm_t* vm) {
 	var_t* var = get_from_free(vm);
 	if(var == NULL) {
-		var = (var_t*)_malloc(sizeof(var_t));
+        uint32_t sz = sizeof(var_t);
+		var = (var_t*)_malloc(sz);
 	}
 
 	memset(var, 0, sizeof(var_t));
@@ -1666,6 +1667,25 @@ static inline void math_op(vm_t* vm, opr_code_t op, var_t* v1, var_t* v2) {
 }
 
 static inline void compare(vm_t* vm, opr_code_t op, var_t* v1, var_t* v2) {
+    if(v1->type == V_OBJECT) {
+        bool i = false;
+        switch(op) {
+        case INSTR_EQ:
+        case INSTR_TEQ:
+            i = (v1 == v2);
+            break;
+        case INSTR_NEQ:
+        case INSTR_NTEQ:
+            i = (v1 != v2);
+            break;
+        }
+        if(i)
+            vm_push(vm, vm->var_true);
+        else
+            vm_push(vm, vm->var_false);
+        return;
+    }
+    
 	//do int
 	if(v1->type == V_INT && v2->type == V_INT) {
 		register int i1, i2;
