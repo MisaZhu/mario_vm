@@ -1,4 +1,4 @@
-#include "mario_vm.h"
+#include "mario.h"
 #include "native_builtin.h"
 
 #include <unistd.h>
