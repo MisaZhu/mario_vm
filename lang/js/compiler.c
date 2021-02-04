@@ -343,16 +343,16 @@ bool lex_skip_empty(lex_t* l) {
 bool lex_chkread(lex_t* lex, uint32_t expected_tk) { //check read with empty line.
 	if (lex->tk != expected_tk) {
 #ifdef MARIO_DEBUG
-		_err("Got ");
-		_err(lex_get_token_str(lex->tk));
-		_err(" expected ");
-		_err(lex_get_token_str(expected_tk));
+		mario_debug("Got ");
+		mario_debug(lex_get_token_str(lex->tk));
+		mario_debug(" expected ");
+		mario_debug(lex_get_token_str(expected_tk));
 #endif
 		str_t* s = str_new("");
 		lex_get_pos_str(lex, -1, s);
-		_err(s->cstr);
+		mario_debug(s->cstr);
 		str_free(s);
-		_err("!\n");
+		mario_debug("!\n");
 		return false;
 	}
 	lex_get_next_token(lex);
@@ -1274,7 +1274,7 @@ bool statement(lex_t* l, bytecode_t* bc) {
 		str_append(s, "', ");
 		lex_get_pos_str(l, -1, s);
 		str_append(s, "!\n");
-		_err(s->cstr);
+		mario_debug(s->cstr);
 		str_free(s);
 		return false;
 	}

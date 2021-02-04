@@ -23,7 +23,7 @@ int libs_num = 0;
 
 bool load_extra(const char* n) {
 	if(libs_num >= MAX_EXTRA) {
-		_err("Too many extended module loaded!\n");
+		mario_debug("Too many extended module loaded!\n");
 		return false;
 	}
 
@@ -31,7 +31,7 @@ bool load_extra(const char* n) {
 	if(h == NULL) {
 		const char* e = dlerror();
 		snprintf(_err_info, ERR_MAX, "Extended module load error(%s)!%s\n", n, e != NULL? e:"");
-		_err(_err_info);
+		mario_debug(_err_info);
 		return false;
 	}
 
@@ -69,7 +69,7 @@ bool load_natives() {
 	DIR* dir = opendir(fpath);
 	if(dir == NULL) {
 		snprintf(_err_info, ERR_MAX, "Warning: MARIO_LIBS does't exist('%s'), skip loading extra natives!\n", path);
-		_debug(_err_info);
+		mario_debug(_err_info);
 		return true;
 	}
 
@@ -87,14 +87,14 @@ bool load_natives() {
 		
 		snprintf(_err_info, ERR_MAX, "Loading native lib %s ......", fname);
 		if(!load_extra(fname)) {
-			_err(_err_info);
-			_err(" failed!\n");
+			mario_debug(_err_info);
+			mario_debug(" failed!\n");
 			ret = false;
 			break;
 		}
 
-		_debug(_err_info);
-		_debug(" ok.\n");
+		mario_debug(_err_info);
+		mario_debug(" ok.\n");
 	}
 	
 	closedir(dir);
@@ -158,7 +158,7 @@ bool load_js(vm_t* vm, const char* fname, bool verify) {
 	str_t* s = load_script_content(fname);
 	if(s == NULL) {
 		snprintf(_err_info, ERR_MAX, "Can not open file '%s'\n", fname);
-		_err(_err_info);
+		mario_debug(_err_info);
 		return false;
 	}
 	
@@ -175,7 +175,7 @@ void run_shell(vm_t* vm);
 
 int main(int argc, char** argv) {
 	/*if(argc < 2) {
-		_err("Usage: mario (-v) <js-filename>\n");
+		mario_debug("Usage: mario (-v) <js-filename>\n");
 	}
 	*/
 
@@ -191,10 +191,9 @@ int main(int argc, char** argv) {
 		}
 		else if(strcmp(argv[1], "-d") == 0) {
 #ifndef MARIO_DEBUG
-			_err("Error: Can't run debug mode, try rebuild with 'export MARIO_DEBUG=yes'.\n");
+			mario_debug("Error: Can't run debug mode, try rebuild with 'export MARIO_DEBUG=yes'.\n");
 			return 1;
 #endif
-			_debug_mode = true;
 			if(argc == 3)
 				fname = argv[2];
 		}
@@ -210,7 +209,7 @@ int main(int argc, char** argv) {
 	}
 	_load_m_func = include_script;
 
-	_mem_init();
+	mario_mem_init();
 	vm_t* vm = vm_new(compile);
 	vm->gc_buffer_size = 1024;
 
@@ -220,7 +219,7 @@ int main(int argc, char** argv) {
 		vm_init(vm, reg_natives, NULL);
 
 		if(fname[0] != 0) {
-			_debug("-------- run script --------\n");
+			mario_debug("-------- run script --------\n");
 			if(load_js(vm, fname, verify)) {
 				if(verify)
 					vm_dump(vm);
@@ -232,6 +231,6 @@ int main(int argc, char** argv) {
 	}
 	
 	vm_close(vm);
-	_mem_close();
+	mario_mem_close();
 	return 0;
 }
