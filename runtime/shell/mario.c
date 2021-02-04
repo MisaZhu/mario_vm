@@ -154,7 +154,7 @@ void init_args(vm_t* vm, int argc, char** argv) {
 	var_add(vm->root, "_args", args);
 }
 
-bool load_js(vm_t* vm, const char* fname, bool verify) {
+bool load_js(vm_t* vm, const char* fname) {
 	str_t* s = load_script_content(fname);
 	if(s == NULL) {
 		snprintf(_err_info, ERR_MAX, "Can not open file '%s'\n", fname);
@@ -162,11 +162,7 @@ bool load_js(vm_t* vm, const char* fname, bool verify) {
 		return false;
 	}
 	
-	bool ret;
-	if(verify)
-		ret = vm_load(vm, s->cstr);
-	else
-		ret = vm_load_run(vm, s->cstr);
+	bool ret = vm_load(vm, s->cstr);
 	str_free(s);
 	return ret;
 }
@@ -188,14 +184,6 @@ int main(int argc, char** argv) {
 				return 1;
 			verify = true;
 			fname = argv[2];
-		}
-		else if(strcmp(argv[1], "-d") == 0) {
-#ifndef MARIO_DEBUG
-			mario_debug("Error: Can't run debug mode, try rebuild with 'export MARIO_DEBUG=yes'.\n");
-			return 1;
-#endif
-			if(argc == 3)
-				fname = argv[2];
 		}
 		else {
 			fname = argv[1];
@@ -220,9 +208,11 @@ int main(int argc, char** argv) {
 
 		if(fname[0] != 0) {
 			mario_debug("-------- run script --------\n");
-			if(load_js(vm, fname, verify)) {
+			if(load_js(vm, fname)) {
 				if(verify)
 					vm_dump(vm);
+				else
+					vm_run(vm);
 			}
 		}
 		else {
