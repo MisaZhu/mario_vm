@@ -148,7 +148,9 @@ void init_args(vm_t* vm, int argc, char** argv) {
 	var_t* args = var_new_array(vm);
 	int i;
 	for(i=0; i<argc; i++) {
-		var_array_add(args, var_new_str(vm, argv[i]));
+		var_t* v = var_new_str(vm, argv[i]);
+		var_array_add(args, v);
+		var_unref(v);
 	}
 
 	var_add(vm->root, "_args", args);
@@ -200,7 +202,6 @@ int main(int argc, char** argv) {
 	mario_mem_init();
 	vm_t* vm = vm_new(compile);
 	vm->gc_buffer_size = 1024;
-
 	init_args(vm, argc, argv);
 
 	if(loaded) {
