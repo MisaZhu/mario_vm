@@ -1,7 +1,7 @@
 #ifndef MARIO_HAI_NATIVE_BUILTIN_H
 #define MARIO_HAI_NATIVE_BUILTIN_H 
 
-#include "mario_vm.h"
+#include "mario.h"
 
 #ifdef __cplusplus /* __cplusplus */
 extern "C" {

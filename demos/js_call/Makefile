@@ -7,19 +7,13 @@ CXX := $(CROSS_COMPILE)g++
 AR := $(CROSS_COMPILE)ar
 LD := $(CROSS_COMPILE)gcc
 
-MARIO_VM = ../../vm
-MARIO_UTILS = ../../utils
+MARIO_VM = ../..
 
-mario_OBJS= $(MARIO_UTILS)/mario_basic.o \
-						$(MARIO_UTILS)/mario_string.o \
-						$(MARIO_UTILS)/mario_array.o \
-						$(MARIO_VM)/mario_bc.o \
-						$(MARIO_VM)/mario_vm.o \
-						$(MARIO_VM)/mario_lex.o
+mario_OBJS= $(MARIO_VM)/mario/mario.o
 
 demo_OBJS = demo.o ../../lang/js/compiler.o 
 
-CFLAGS = -I$(MARIO_VM) -I$(MARIO_UTILS) -I../.. -g -Wall -DMARIO_CACHE -DMARIO_DEBUG -DMARIO_THREAD
+CFLAGS = -I$(MARIO_VM)/mario -I../.. -g -Wall -DMARIO_CACHE -DMARIO_DEBUG -DMARIO_THREAD
 LDFLAGS = -lpthread
 
 all: $(demo_OBJS) $(mario_OBJS)

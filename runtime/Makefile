@@ -5,7 +5,7 @@ endif
 MARIO_LANG = js
 
 ifeq ($(MARIO_VM),)
-MARIO_VM = ../mario
+MARIO_VM = ..
 endif
 MARIO_COMP = $(MARIO_VM)/lang/$(MARIO_LANG)
 
@@ -26,13 +26,13 @@ NATIVE_OBJS= $(NATIVE_PATH)/native_builtin.o  \
 	$(NATIVE_PATH)/math/native_math.o \
 	$(NATIVE_PATH)/json/native_json.o
 
-mario_OBJS= $(MARIO_VM)/mario.o
+mario_OBJS= $(MARIO_VM)/mario/mario.o
 
 lang_OBJS = $(MARIO_COMP)/compiler.o 
 OBJS = shell/mario.o shell/shell.o $(mario_OBJS) $(lang_OBJS) \
 		$(NATIVE_OBJS)
 
-CFLAGS = -I$(NATIVE_PATH) -I$(MARIO_VM) -I$(MARIO_COMP) -Wall -fPIC
+CFLAGS = -I$(NATIVE_PATH) -I$(MARIO_VM)/mario -I$(MARIO_COMP) -Wall -fPIC
 
 ifneq ($(MARIO_DEBUG), no)
 CFLAGS += -g -DMARIO_DEBUG

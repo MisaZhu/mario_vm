@@ -1,4 +1,4 @@
-#include "mario_utils.h"
+#include "mario.h"
 #include <stdio.h>
 
 int main(int argc, char** argv) {

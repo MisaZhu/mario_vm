@@ -1,4 +1,4 @@
-#include "mario_vm.h"
+#include "mario.h"
 
 #include <unistd.h>
 #include <stdlib.h>

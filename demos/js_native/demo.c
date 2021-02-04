@@ -1,4 +1,4 @@
-#include "mario_vm.h"
+#include "mario.h"
 
 const char* js = " \
 	out(\"Hello, global native.\n\"); \

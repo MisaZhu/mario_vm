@@ -1,7 +1,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "mario_json.h"
 #include "native_json.h"
 #include <stdlib.h>
 

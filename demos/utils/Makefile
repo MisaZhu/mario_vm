@@ -7,27 +7,18 @@ CXX := $(CROSS_COMPILE)g++
 AR := $(CROSS_COMPILE)ar
 LD := $(CROSS_COMPILE)gcc
 
-MARIO_UTILS = ../../utils
+MARIO_VM = ../..
 
-mario_OBJS= $(MARIO_UTILS)/mario_basic.o \
-						$(MARIO_UTILS)/mario_string.o \
-						$(MARIO_UTILS)/mario_array.o \
-						$(MARIO_UTILS)/mario_utf8.o
+mario_OBJS= $(MARIO_VM)/mario/mario.o
 
-demo_OBJS = demo.o
+demo_OBJS = demo.o ../../lang/js/compiler.o 
 
-CFLAGS = -I$(MARIO_UTILS) -I../.. -g -Wall -DMARIO_CACHE -DMARIO_DEBUG -DMARIO_THREAD
+CFLAGS = -I$(MARIO_VM)/mario -I../.. -g -Wall -DMARIO_CACHE -DMARIO_DEBUG -DMARIO_THREAD
 LDFLAGS = -lpthread
 
-TARGET=demo
-INST_DST=/usr/local/mario
-
 all: $(demo_OBJS) $(mario_OBJS)
-	$(LD) -o $(TARGET) $(demo_OBJS) $(mario_OBJS) $(LDFLAGS)
+	$(LD) -o demo $(demo_OBJS) $(mario_OBJS) $(LDFLAGS) 
+
 
 clean:
-	rm -fr $(TARGET) $(demo_OBJS) $(mario_OBJS) *.dSYM
-
-install:
-	mkdir -p $(INST_DST)/bin
-	cp $(TARGET) $(INST_DST)/bin
+	rm -fr demo $(demo_OBJS) $(mario_OBJS)  *.dSYM

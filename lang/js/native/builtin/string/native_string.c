@@ -2,7 +2,6 @@
 extern "C" {
 #endif
 
-#include "mario_utf8.h"
 #include "native_string.h"
 
 /** String */
