@@ -37,7 +37,6 @@ typedef enum {
 	LEX_OROR,
 	LEX_XOREQUAL,
 	// reserved words
-#define LEX_R_LIST_START LEX_R_IF
 	LEX_R_IF,
 	LEX_R_ELSE,
 	LEX_R_DO,
