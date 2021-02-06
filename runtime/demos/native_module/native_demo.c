@@ -13,7 +13,8 @@ var_t* native_demo_test(vm_t* vm, var_t* env, void* data) {
 }
 
 void reg_natives(vm_t* vm) {
-	vm_reg_native(vm, "Demo", "test(str)", native_demo_test, NULL);
+	var_t* cls = vm_new_class(vm, "Demo");
+	vm_reg_native(vm, cls, "test(str)", native_demo_test, NULL);
 }
 
 #ifdef __cplusplus
