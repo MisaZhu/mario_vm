@@ -152,20 +152,23 @@ var_t* native_UTF8ReaderRead(vm_t* vm, var_t* env, void* data) {
 #define CLS_UTF8_READER "UTF8Reader"
 
 void reg_native_string(vm_t* vm) {
-	vm_reg_native(vm, CLS_STRING, "constructor(str)", native_StringConstructor, NULL); 
-	vm_reg_native(vm, CLS_STRING, "length()", native_StringLength, NULL); 
-	vm_reg_native(vm, CLS_STRING, "toString()", native_StringToString, NULL); 
-	vm_reg_native(vm, CLS_STRING, "substr(start, length)", native_StringSubstr, NULL); 
+	var_t* cls = vm_new_class(vm, CLS_STRING);
+	vm_reg_native(vm, cls, "constructor(str)", native_StringConstructor, NULL); 
+	vm_reg_native(vm, cls, "length()", native_StringLength, NULL); 
+	vm_reg_native(vm, cls, "toString()", native_StringToString, NULL); 
+	vm_reg_native(vm, cls, "substr(start, length)", native_StringSubstr, NULL); 
 
-	vm_reg_native(vm, CLS_UTF8, "constructor(str)", native_UTF8Constructor, NULL); 
-	vm_reg_native(vm, CLS_UTF8, "length()", native_UTF8Length, NULL); 
-	vm_reg_native(vm, CLS_UTF8, "toString()", native_UTF8ToString, NULL); 
-	vm_reg_native(vm, CLS_UTF8, "at(index)", native_UTF8At, NULL); 
-	vm_reg_native(vm, CLS_UTF8, "set(index, s)", native_UTF8Set, NULL); 
-	vm_reg_native(vm, CLS_UTF8, "substr(start, length)", native_UTF8Substr, NULL); 
+	cls = vm_new_class(vm, CLS_UTF8);
+	vm_reg_native(vm, cls, "constructor(str)", native_UTF8Constructor, NULL); 
+	vm_reg_native(vm, cls, "length()", native_UTF8Length, NULL); 
+	vm_reg_native(vm, cls, "toString()", native_UTF8ToString, NULL); 
+	vm_reg_native(vm, cls, "at(index)", native_UTF8At, NULL); 
+	vm_reg_native(vm, cls, "set(index, s)", native_UTF8Set, NULL); 
+	vm_reg_native(vm, cls, "substr(start, length)", native_UTF8Substr, NULL); 
 
-	vm_reg_native(vm, CLS_UTF8_READER, "constructor(str)", native_UTF8ReaderConstructor, NULL); 
-	vm_reg_native(vm, CLS_UTF8_READER, "read()", native_UTF8ReaderRead, NULL); 
+	cls = vm_new_class(vm, CLS_UTF8_READER);
+	vm_reg_native(vm, cls, "constructor(str)", native_UTF8ReaderConstructor, NULL); 
+	vm_reg_native(vm, cls, "read()", native_UTF8ReaderRead, NULL); 
 }
 
 #ifdef __cplusplus

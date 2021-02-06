@@ -46,8 +46,9 @@ var_t* native_Number_toString(vm_t* vm, var_t* env, void* data) {
 #define CLS_NUMBER "Number"
 
 void reg_native_number(vm_t* vm) {
-	vm_reg_native(vm, CLS_NUMBER, "toString(radix)", native_Number_toString, NULL); 
-	vm_reg_native(vm, CLS_NUMBER, "constructor(value)", native_Number_constructor, NULL); 
+	var_t* cls = vm_new_class(vm, CLS_NUMBER);
+	vm_reg_native(vm, cls, "toString(radix)", native_Number_toString, NULL); 
+	vm_reg_native(vm, cls, "constructor(value)", native_Number_constructor, NULL); 
 }
 
 #ifdef __cplusplus

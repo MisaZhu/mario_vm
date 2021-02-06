@@ -196,17 +196,18 @@ var_t* native_Array_slice(vm_t* vm, var_t* env, void* data) {
 #define CLS_ARRAY "Array"
 
 void reg_native_array(vm_t* vm) {
-    vm_reg_native(vm, CLS_ARRAY, "constructor()", native_Array_constructor, NULL);
-	vm_reg_native(vm, CLS_ARRAY, "toString()", native_Array_toString, NULL); 
-	vm_reg_native(vm, CLS_ARRAY, "forEach(f)", native_Array_forEach, NULL); 
-	vm_reg_native(vm, CLS_ARRAY, "reverse()", native_Array_reverse, NULL); 
-	vm_reg_native(vm, CLS_ARRAY, "concat()", native_Array_concat, NULL); 
-	vm_reg_native(vm, CLS_ARRAY, "join(c)", native_Array_join, NULL); 
-	vm_reg_native(vm, CLS_ARRAY, "push()", native_Array_push, NULL); 
-	vm_reg_native(vm, CLS_ARRAY, "pop()", native_Array_pop, NULL); 
-	vm_reg_native(vm, CLS_ARRAY, "shift()", native_Array_shift, NULL); 
-	vm_reg_native(vm, CLS_ARRAY, "unshift()", native_Array_unshift, NULL); 
-	vm_reg_native(vm, CLS_ARRAY, "slice(start, end)", native_Array_slice, NULL); 
+  var_t* cls = vm_new_class(vm, CLS_ARRAY);
+	vm_reg_native(vm, cls, "constructor()", native_Array_constructor, NULL);
+	vm_reg_native(vm, cls, "toString()", native_Array_toString, NULL); 
+	vm_reg_native(vm, cls, "forEach(f)", native_Array_forEach, NULL); 
+	vm_reg_native(vm, cls, "reverse()", native_Array_reverse, NULL); 
+	vm_reg_native(vm, cls, "concat()", native_Array_concat, NULL); 
+	vm_reg_native(vm, cls, "join(c)", native_Array_join, NULL); 
+	vm_reg_native(vm, cls, "push()", native_Array_push, NULL); 
+	vm_reg_native(vm, cls, "pop()", native_Array_pop, NULL); 
+	vm_reg_native(vm, cls, "shift()", native_Array_shift, NULL); 
+	vm_reg_native(vm, cls, "unshift()", native_Array_unshift, NULL); 
+	vm_reg_native(vm, cls, "slice(start, end)", native_Array_slice, NULL); 
 }
 
 #ifdef __cplusplus

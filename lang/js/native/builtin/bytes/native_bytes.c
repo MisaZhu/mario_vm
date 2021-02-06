@@ -89,12 +89,13 @@ var_t* native_Bytes_fromString(vm_t* vm, var_t* env, void* data) {
 #define CLS_BYTES "Bytes"
 
 void reg_native_bytes(vm_t* vm) {
-	vm_reg_native(vm, CLS_BYTES, "constructor(size)", native_Bytes_constructor, NULL); 
-	vm_reg_native(vm, CLS_BYTES, "size()", native_Bytes_size, NULL); 
-	vm_reg_native(vm, CLS_BYTES, "toString()", native_Bytes_toString, NULL); 
-	vm_reg_native(vm, CLS_BYTES, "fromString(str)", native_Bytes_fromString, NULL); 
-	vm_reg_native(vm, CLS_BYTES, "set(index, i)", native_Bytes_set, NULL); 
-	vm_reg_native(vm, CLS_BYTES, "at(index)", native_Bytes_at, NULL); 
+	var_t* cls = vm_new_class(vm, CLS_BYTES);
+	vm_reg_native(vm, cls, "constructor(size)", native_Bytes_constructor, NULL); 
+	vm_reg_native(vm, cls, "size()", native_Bytes_size, NULL); 
+	vm_reg_native(vm, cls, "toString()", native_Bytes_toString, NULL); 
+	vm_reg_native(vm, cls, "fromString(str)", native_Bytes_fromString, NULL); 
+	vm_reg_native(vm, cls, "set(index, i)", native_Bytes_set, NULL); 
+	vm_reg_native(vm, cls, "at(index)", native_Bytes_at, NULL); 
 }
 
 #ifdef __cplusplus

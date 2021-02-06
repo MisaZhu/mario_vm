@@ -293,39 +293,40 @@ var_t* native_math_randInt(vm_t* vm, var_t* env, void *data) {
 #define CLS_MATH "Math"
 
 void reg_native_math(vm_t* vm) {
-	vm_reg_static(vm, CLS_MATH, "abs(a)", native_math_abs, NULL);
-	vm_reg_static(vm, CLS_MATH, "round(a)", native_math_round, NULL);
-	vm_reg_static(vm, CLS_MATH, "min(a,b)", native_math_min, NULL);
-	vm_reg_static(vm, CLS_MATH, "max(a,b)", native_math_max, NULL);
-	vm_reg_static(vm, CLS_MATH, "range(x,a,b)", native_math_range, NULL);
-	vm_reg_static(vm, CLS_MATH, "sign(a)", native_math_sign, NULL);
+	var_t* cls = vm_new_class(vm, CLS_MATH);
+	vm_reg_static(vm, cls, "abs(a)", native_math_abs, NULL);
+	vm_reg_static(vm, cls, "round(a)", native_math_round, NULL);
+	vm_reg_static(vm, cls, "min(a,b)", native_math_min, NULL);
+	vm_reg_static(vm, cls, "max(a,b)", native_math_max, NULL);
+	vm_reg_static(vm, cls, "range(x,a,b)", native_math_range, NULL);
+	vm_reg_static(vm, cls, "sign(a)", native_math_sign, NULL);
 
-	vm_reg_static(vm, CLS_MATH, "PI()", native_math_PI, NULL);
-	vm_reg_static(vm, CLS_MATH, "toDegrees(a)", native_math_toDegrees, NULL);
-	vm_reg_static(vm, CLS_MATH, "toRadians(a)", native_math_toRadians, NULL);
-	vm_reg_static(vm, CLS_MATH, "sin(a)", native_math_sin, NULL);
-	vm_reg_static(vm, CLS_MATH, "asin(a)", native_math_asin, NULL);
-	vm_reg_static(vm, CLS_MATH, "cos(a)", native_math_cos, NULL);
-	vm_reg_static(vm, CLS_MATH, "acos(a)", native_math_acos, NULL);
-	vm_reg_static(vm, CLS_MATH, "tan(a)", native_math_tan, NULL);
-	vm_reg_static(vm, CLS_MATH, "atan(a)", native_math_atan, NULL);
-	vm_reg_static(vm, CLS_MATH, "sinh(a)", native_math_sinh, NULL);
-	vm_reg_static(vm, CLS_MATH, "asinh(a)", native_math_asinh, NULL);
-	vm_reg_static(vm, CLS_MATH, "cosh(a)", native_math_cosh, NULL);
-	vm_reg_static(vm, CLS_MATH, "acosh(a)", native_math_acosh, NULL);
-	vm_reg_static(vm, CLS_MATH, "tanh(a)", native_math_tanh, NULL);
-	vm_reg_static(vm, CLS_MATH, "atanh(a)", native_math_atanh, NULL);
+	vm_reg_static(vm, cls, "PI()", native_math_PI, NULL);
+	vm_reg_static(vm, cls, "toDegrees(a)", native_math_toDegrees, NULL);
+	vm_reg_static(vm, cls, "toRadians(a)", native_math_toRadians, NULL);
+	vm_reg_static(vm, cls, "sin(a)", native_math_sin, NULL);
+	vm_reg_static(vm, cls, "asin(a)", native_math_asin, NULL);
+	vm_reg_static(vm, cls, "cos(a)", native_math_cos, NULL);
+	vm_reg_static(vm, cls, "acos(a)", native_math_acos, NULL);
+	vm_reg_static(vm, cls, "tan(a)", native_math_tan, NULL);
+	vm_reg_static(vm, cls, "atan(a)", native_math_atan, NULL);
+	vm_reg_static(vm, cls, "sinh(a)", native_math_sinh, NULL);
+	vm_reg_static(vm, cls, "asinh(a)", native_math_asinh, NULL);
+	vm_reg_static(vm, cls, "cosh(a)", native_math_cosh, NULL);
+	vm_reg_static(vm, cls, "acosh(a)", native_math_acosh, NULL);
+	vm_reg_static(vm, cls, "tanh(a)", native_math_tanh, NULL);
+	vm_reg_static(vm, cls, "atanh(a)", native_math_atanh, NULL);
 
-	vm_reg_static(vm, CLS_MATH, "E()", native_math_E, NULL);
-	vm_reg_static(vm, CLS_MATH, "log(a)", native_math_log, NULL);
-	vm_reg_static(vm, CLS_MATH, "log10(a)", native_math_log10, NULL);
-	vm_reg_static(vm, CLS_MATH, "exp(a)", native_math_exp, NULL);
-	vm_reg_static(vm, CLS_MATH, "pow(a,b)", native_math_pow, NULL);
+	vm_reg_static(vm, cls, "E()", native_math_E, NULL);
+	vm_reg_static(vm, cls, "log(a)", native_math_log, NULL);
+	vm_reg_static(vm, cls, "log10(a)", native_math_log10, NULL);
+	vm_reg_static(vm, cls, "exp(a)", native_math_exp, NULL);
+	vm_reg_static(vm, cls, "pow(a,b)", native_math_pow, NULL);
 
-	vm_reg_static(vm, CLS_MATH, "sqr(a)", native_math_sqr, NULL);
-	vm_reg_static(vm, CLS_MATH, "sqrt(a)", native_math_sqrt, NULL);    
-	vm_reg_static(vm, CLS_MATH, "rand()", native_math_rand, NULL);
-	vm_reg_static(vm, CLS_MATH, "randInt(min, max)", native_math_randInt, NULL); 
+	vm_reg_static(vm, cls, "sqr(a)", native_math_sqr, NULL);
+	vm_reg_static(vm, cls, "sqrt(a)", native_math_sqrt, NULL);    
+	vm_reg_static(vm, cls, "rand()", native_math_rand, NULL);
+	vm_reg_static(vm, cls, "randInt(min, max)", native_math_randInt, NULL); 
 }
 
 #ifdef __cplusplus

@@ -46,8 +46,9 @@ var_t* native_println(vm_t* vm, var_t* env, void* data) {
 #define CLS_CONSOLE "console"
 
 void reg_native_console(vm_t* vm) {
-	vm_reg_static(vm, CLS_CONSOLE, "write(v)", native_print, NULL); 
-	vm_reg_static(vm, CLS_CONSOLE, "log(v)", native_println, NULL); 
+	var_t* cls = vm_new_class(vm, CLS_CONSOLE);
+	vm_reg_static(vm, cls, "write(v)", native_print, NULL); 
+	vm_reg_static(vm, cls, "log(v)", native_println, NULL); 
 }
 
 #ifdef __cplusplus

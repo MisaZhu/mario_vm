@@ -23,8 +23,9 @@ var_t* native_Object_getPrototypeOf(vm_t* vm, var_t* env, void* data) {
 #define CLS_OBJECT "Object"
 
 void reg_native_object(vm_t* vm) {
-	vm_reg_static(vm, CLS_OBJECT, "create(proto)", native_Object_create, NULL); 
-	vm_reg_static(vm, CLS_OBJECT, "getPrototypeOf(obj)", native_Object_getPrototypeOf, NULL); 
+	var_t* cls = vm_new_class(vm, CLS_OBJECT);
+	vm_reg_static(vm, cls, "create(proto)", native_Object_create, NULL); 
+	vm_reg_static(vm, cls, "getPrototypeOf(obj)", native_Object_getPrototypeOf, NULL); 
 }
 
 #ifdef __cplusplus
