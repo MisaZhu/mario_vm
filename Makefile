@@ -15,7 +15,7 @@ include $(MARIO_VM)/lang/js/lang.mk
 
 mario_OBJS= $(MARIO_VM)/mario/mario.o
 
-OBJS = shell/mario.o shell/shell.o $(mario_OBJS) $(lang_OBJS) \
+OBJS = shell/mariovm.o shell/shell.o $(mario_OBJS) $(lang_OBJS) \
 		$(NATIVE_OBJS)
 
 CFLAGS = -I$(NATIVE_PATH) -I$(MARIO_VM)/mario -Wall -fPIC
