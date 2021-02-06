@@ -3,7 +3,7 @@ $(info CROSS_COMPILE=$(CROSS_COMPILE))
 endif
 
 ifeq ($(MARIO_VM),)
-MARIO_VM = ..
+MARIO_VM = .
 endif
 
 CC := $(CROSS_COMPILE)gcc
@@ -38,7 +38,7 @@ endif
 LDFLAGS += -lm -ldl
 
 TARGET_PATH=lang/$(MARIO_LANG)
-TARGET=mario
+TARGET=mariovm
 INST_DST=/usr/local/mario
 
 all: $(OBJS)
