@@ -6,6 +6,7 @@ function f( ) {
 		function f1() {
 			debug(x + y);
 			y++;
+			return y;
 		}
 		return f1;
 	}
@@ -14,5 +15,6 @@ function f( ) {
 
 fc = f();
 while(true) {
-	fc();
+	if(fc() >= 10000)
+		break;
 }
