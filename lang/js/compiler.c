@@ -222,8 +222,8 @@ void lex_get_next_token(lex_t* lex) {
 	lex->tk = LEX_EOF;
 	str_reset(lex->tk_str);
 
-	//lex_skip_whitespace(lex);
-	lex_skip_space(lex);
+	lex_skip_whitespace(lex);
+	//lex_skip_space(lex);
 	if(lex_skip_comments_line(lex, "//")) {
 		lex_get_next_token(lex);
 		return;

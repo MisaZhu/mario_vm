@@ -48,7 +48,6 @@ clean:
 	rm -fr $(TARGET) $(OBJS) *.dSYM
 
 install:
-	mkdir -p $(INST_DST)/bin
-	cp $(TARGET) $(INST_DST)/bin
+	cp $(TARGET) /usr/local/bin
 	mkdir -p $(INST_DST)/test/$(MARIO_LANG)
-	cp $(TARGET_PATH)/test/* $(INST_DST)/test/$(MARIO_LANG)
+	cp test/$(MARIO_LANG)/* $(INST_DST)/test/$(MARIO_LANG)
