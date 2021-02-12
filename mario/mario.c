@@ -1458,8 +1458,8 @@ static inline bool node_empty(node_t* node) {
 
 inline var_t* node_replace(node_t* node, var_t* v) {
 	var_t* old = node->var;
-	node->var = var_ref(var_clone(v));
-	//node->var = var_ref((v));
+	//node->var = var_ref(var_clone(v));
+	node->var = var_ref(v);
 	var_unref(old);
 	return v;
 }
