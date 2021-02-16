@@ -18,7 +18,9 @@ static inline void default_out(const char* s) {
 void (*_out_func)(const char*) = default_out;
 
 inline void mario_debug(const char* s) {
+#ifdef MARIO_DEBUG
 	_out_func(s);
+#endif
 }
 
 #ifdef MARIO_DEBUG
@@ -1654,6 +1656,8 @@ static inline void add_to_free(var_t* var) {
 	vm->free_vars_num++;
 }
 
+#define GC_BUFFER 128
+static void gc(vm_t* vm, bool force);
 static inline void add_to_gc(var_t* var) {
 	vm_t* vm = var->vm;
 	var->prev = vm->gc_vars_tail;
@@ -1666,6 +1670,9 @@ static inline void add_to_gc(var_t* var) {
 	vm->gc_vars_tail = var;
 	var->status = V_ST_GC;
 	vm->gc_vars_num++;
+
+	if(vm->gc_vars_num > GC_BUFFER)
+		gc(vm, false);
 }
 
 static inline var_t* get_from_free(vm_t* vm) {
@@ -1860,13 +1867,17 @@ static inline void gc_free_vars(vm_t* vm, uint32_t buffer_size) {
 	}
 }
 
-static inline void gc(vm_t* vm) {
-	if(vm->is_doing_gc || vm->gc_vars_num < vm->gc_buffer_size)
+static inline void gc(vm_t* vm, bool force) {
+	if(vm->is_doing_gc)
 		return;
+	if(!force && vm->gc_vars_num < vm->gc_buffer_size)
+		return;
+	mario_debug("do gc ......");
 	vm->is_doing_gc = true;
 	gc_vars(vm);
-	gc_free_vars(vm, vm->gc_free_buffer_size);
+	gc_free_vars(vm, force ? 0:vm->gc_free_buffer_size);
 	vm->is_doing_gc = false;
+	mario_debug(" gc done.\n");
 }
 
 static const char* get_typeof(var_t* var) {
@@ -2504,7 +2515,7 @@ static PC vm_pop_scope(vm_t* vm) {
 	if(sc->is_func)
 		pc = sc->pc;
 	array_del(vm->scopes, vm->scopes->size-1, scope_free);
-	gc(vm);
+	gc(vm, false);
 	return pc;
 }
 
@@ -4232,7 +4243,7 @@ bool vm_run(vm_t* vm) {
 				break;
 			}
 		}
-		//gc(vm);
+		//gc(vm, false);
 	}
 	while(vm->pc < code_size && !vm->terminated);
 	return false;
@@ -4316,8 +4327,7 @@ void vm_close(vm_t* vm) {
 	bc_release(&vm->bc);
 	vm->stack_top = 0;
 
-	gc_vars(vm); //try gc
-	gc_free_vars(vm, 0);
+	gc(vm, true);
 	_free(vm);
 }	
 
@@ -4515,7 +4525,7 @@ static var_t* native_yield(vm_t* vm, var_t* env, void* data) {
 	(void)vm; (void)data; (void)env;
 	return NULL;
 }
-#define GC_BUFFER 128
+
 #define GC_FREE_BUFFER 128
 vm_t* vm_new(bool compiler(bytecode_t *bc, const char* input)) {
 	vm_t* vm = (vm_t*)_malloc(sizeof(vm_t));
