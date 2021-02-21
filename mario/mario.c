@@ -125,6 +125,9 @@ void mario_mem_close() {
 			block = block->next;
 		}
 	}
+	else {
+		mario_debug("memory is clean.\n");
+	}
 	mem_unlock();
 	mem_lock_destroy();
 }
@@ -1428,7 +1431,8 @@ node_t* node_new(vm_t* vm, const char* name, var_t* var) {
 	node->name = (char*)_malloc(len+1);
 	memcpy(node->name, name, len+1);
 	if(var != NULL)
-		node->var = var_ref(var_clone(var));
+		//node->var = var_ref(var_clone(var));
+		node->var = var_ref(var);
 	else
 		node->var = var_ref(var_new(vm));
 	return node;
@@ -2194,7 +2198,7 @@ void var_to_json_str(var_t* var, str_t* ret, int level) {
 		}
 		// add function body
 		str_append(ret, ") {}");
-		return;
+		//return;
 	}
 	else if (var->type == V_OBJECT) {
 		// children - handle with bracketed list
@@ -4582,6 +4586,7 @@ vm_t* vm_new(bool compiler(bytecode_t *bc, const char* input)) {
 void vm_init(vm_t* vm,
 		void (*on_init)(struct st_vm* vm),
 		void (*on_close)(struct st_vm* vm)) {
+	_done_arr_inited = false;
 	vm->on_init = on_init;
 	vm->on_close = on_close;
 	
