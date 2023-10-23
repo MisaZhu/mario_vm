@@ -1,0 +1,3 @@
+[submodule "mario"]
+	path = mario
+	url = https://github.com/misazhu/mario
