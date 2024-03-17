@@ -154,19 +154,19 @@ void lex_get_js_str(lex_t* lex) {
 		if (lex->curr_ch == '\\') {
 			lex_get_nextch(lex);
 			switch (lex->curr_ch) {
-				case 'n' : str_add(lex->tk_str, '\n'); break;
-				case 'a' : str_add(lex->tk_str, '\a'); break;
-				case 'r' : str_add(lex->tk_str, '\r'); break;
-				case 't' : str_add(lex->tk_str, '\t'); break;
-				case '\'' : str_add(lex->tk_str, '\''); break;
-				case '\\' : str_add(lex->tk_str, '\\'); break;
+				case 'n' : mstr_add(lex->tk_str, '\n'); break;
+				case 'a' : mstr_add(lex->tk_str, '\a'); break;
+				case 'r' : mstr_add(lex->tk_str, '\r'); break;
+				case 't' : mstr_add(lex->tk_str, '\t'); break;
+				case '\'' : mstr_add(lex->tk_str, '\''); break;
+				case '\\' : mstr_add(lex->tk_str, '\\'); break;
 				case 'x' : { // hex digits
 										 char buf[3] = "??";
 										 lex_get_nextch(lex);
 										 buf[0] = lex->curr_ch;
 										 lex_get_nextch(lex);
 										 buf[1] = lex->curr_ch;
-										 str_add(lex->tk_str, (char)strtol(buf,0,16));
+										 mstr_add(lex->tk_str, (char)strtol(buf,0,16));
 									 } break;
 				default: if (lex->curr_ch>='0' && lex->curr_ch<='7') {
 									 // octal digits
@@ -176,12 +176,12 @@ void lex_get_js_str(lex_t* lex) {
 									 buf[1] = lex->curr_ch;
 									 lex_get_nextch(lex);
 									 buf[2] = lex->curr_ch;
-									 str_add(lex->tk_str, (char)strtol(buf,0,8));
+									 mstr_add(lex->tk_str, (char)strtol(buf,0,8));
 								 } else
-									 str_add(lex->tk_str, lex->curr_ch);
+									 mstr_add(lex->tk_str, lex->curr_ch);
 			}
 		} else {
-			str_add(lex->tk_str, lex->curr_ch);
+			mstr_add(lex->tk_str, lex->curr_ch);
 		}
 		lex_get_nextch(lex);
 	}
@@ -220,7 +220,7 @@ void lex_get_reserved_word(lex_t *lex) {
 
 void lex_get_next_token(lex_t* lex) {
 	lex->tk = LEX_EOF;
-	str_reset(lex->tk_str);
+	mstr_reset(lex->tk_str);
 
 	lex_skip_whitespace(lex);
 	//lex_skip_space(lex);
@@ -318,16 +318,16 @@ const char* lex_get_token_str(int token) {
 
 #endif
 
-void lex_get_pos_str(lex_t* l, int pos, str_t* ret) {
+void lex_get_pos_str(lex_t* l, int pos, mstr_t* ret) {
 	int line = 1;
 	int col;
 
 	lex_get_pos(l, &line, &col, pos);
-	str_append(ret, "(line: ");
-	str_append(ret, str_from_int(line, 10));
-	str_append(ret, ", col: ");
-	str_append(ret, str_from_int(col, 10));
-	str_append(ret, ")");
+	mstr_append(ret, "(line: ");
+	mstr_append(ret, mstr_from_int(line, 10));
+	mstr_append(ret, ", col: ");
+	mstr_append(ret, mstr_from_int(col, 10));
+	mstr_append(ret, ")");
 }
 
 bool lex_chkread(lex_t* lex, uint32_t expected_tk);
@@ -347,10 +347,10 @@ bool lex_chkread(lex_t* lex, uint32_t expected_tk) { //check read with empty lin
 		mario_debug(" expected ");
 		mario_debug(lex_get_token_str(expected_tk));
 #endif
-		str_t* s = str_new("");
+		mstr_t* s = mstr_new("");
 		lex_get_pos_str(lex, -1, s);
 		mario_debug(s->cstr);
-		str_free(s);
+		mstr_free(s);
 		mario_debug("!\n");
 		return false;
 	}
@@ -364,12 +364,12 @@ bool statement(lex_t*, bytecode_t*);
 bool factor(lex_t*, bytecode_t*, bool member);
 bool base(lex_t*, bytecode_t*);
 
-void gen_func_name(const char* name, int arg_num, str_t* full) {
-	str_reset(full);
-	str_cpy(full, name);
+void gen_func_name(const char* name, int arg_num, mstr_t* full) {
+	mstr_reset(full);
+	mstr_cpy(full, name);
 	if(arg_num > 0) {
-		str_append(full, "$");
-		str_append(full, str_from_int(arg_num, 10));
+		mstr_append(full, "$");
+		mstr_append(full, mstr_from_int(arg_num, 10));
 	}
 }
 
@@ -435,7 +435,7 @@ bool stmt_block(lex_t* l, bytecode_t* bc, bool func) {
 	return true;
 }
 
-bool factor_def_func(lex_t* l, bytecode_t* bc, str_t* name) {
+bool factor_def_func(lex_t* l, bytecode_t* bc, mstr_t* name) {
 	bool is_static = false;
 	lex_skip_empty(l);
 
@@ -446,17 +446,17 @@ bool factor_def_func(lex_t* l, bytecode_t* bc, str_t* name) {
 
 	/* we can have functions without names */
 	if (l->tk == LEX_ID) {
-		str_cpy(name, l->tk_str->cstr);
+		mstr_cpy(name, l->tk_str->cstr);
 		if(!lex_chkread(l, LEX_ID)) return false;
 	}
 	if(l->tk == LEX_ID) { //class get/set token
 		if(strcmp(name->cstr, "get") == 0) {
-			str_cpy(name, l->tk_str->cstr);
+			mstr_cpy(name, l->tk_str->cstr);
 			if(!lex_chkread(l, LEX_ID)) return false;
 			bc_gen(bc, INSTR_FUNC_GET);
 		}
 		if(strcmp(name->cstr, "set") == 0) {
-			str_cpy(name, l->tk_str->cstr);
+			mstr_cpy(name, l->tk_str->cstr);
 			if(!lex_chkread(l, LEX_ID)) return false;
 			bc_gen(bc, INSTR_FUNC_SET);
 		}
@@ -515,12 +515,12 @@ static bool lex_chkread_stmt_end(lex_t* l) {
 bool factor_def_class(lex_t* l, bytecode_t* bc) {
 	// actually parse a class...
 	if(!lex_chkread(l, LEX_R_CLASS)) return false;
-	str_t* name = str_new("");
+	mstr_t* name = mstr_new("");
 
 	lex_skip_empty(l);
 	/* we can have classes without names */
 	if (l->tk==LEX_ID) {
-		str_cpy(name, l->tk_str->cstr);
+		mstr_cpy(name, l->tk_str->cstr);
 		if(!lex_chkread(l, LEX_ID)) return false;
 	}
 	bc_gen_str(bc, INSTR_CLASS, name->cstr);
@@ -530,7 +530,7 @@ bool factor_def_class(lex_t* l, bytecode_t* bc) {
 	if (l->tk==LEX_R_EXTENDS) {
 		if(!lex_chkread(l, LEX_R_EXTENDS)) return false;
 		lex_skip_empty(l);
-		str_cpy(name, l->tk_str->cstr);
+		mstr_cpy(name, l->tk_str->cstr);
 		if(!lex_chkread(l, LEX_ID)) return false;
 		bc_gen_str(bc, INSTR_EXTENDS, name->cstr);
 	}
@@ -559,25 +559,25 @@ bool factor_def_class(lex_t* l, bytecode_t* bc) {
 	if(!lex_chkread(l, '}')) return false;
 	bc_gen(bc, INSTR_CLASS_END);
 
-	str_free(name);
+	mstr_free(name);
 	return true;
 }
 
 bool factor_new(lex_t*l, bytecode_t* bc) {
 	// new -> create a new object
 	if(!lex_chkread(l, LEX_R_NEW)) return false;
-	str_t* class_name = str_new("");
-	str_cpy(class_name, l->tk_str->cstr);
+	mstr_t* class_name = mstr_new("");
+	mstr_cpy(class_name, l->tk_str->cstr);
 
 	if(!lex_chkread(l, LEX_ID)) return false;
 	if (l->tk == '(') {
 		int arg_num = call_func(l, bc);
-		str_t* s = str_new("");
+		mstr_t* s = mstr_new("");
 		gen_func_name(class_name->cstr, arg_num, s);
 		bc_gen_str(bc, INSTR_NEW, s->cstr);
-		str_free(s);
+		mstr_free(s);
 	}
-	str_free(class_name);
+	mstr_free(class_name);
 	return true;
 }
 
@@ -586,7 +586,7 @@ bool factor_json(lex_t*l, bytecode_t* bc) {
 	bc_gen(bc, INSTR_OBJ);
 	while (l->tk != '}') {
 		lex_skip_empty(l);
-		str_t* id = str_new(l->tk_str->cstr);
+		mstr_t* id = mstr_new(l->tk_str->cstr);
 		// we only allow strings or IDs on the left hand side of an initialisation
 		if (l->tk==LEX_STR) {
 			if(!lex_chkread(l, LEX_STR)) return false;
@@ -603,7 +603,7 @@ bool factor_json(lex_t*l, bytecode_t* bc) {
 		if (l->tk != '}') {
 			if(!lex_chkread(l, ',')) return false;
 		}
-		str_free(id);
+		mstr_free(id);
 	}
 	bc_gen(bc, INSTR_OBJ_END);
 	return lex_chkread(l, '}');
@@ -624,17 +624,17 @@ bool factor_array(lex_t*l, bytecode_t* bc) {
 	return true;
 }
 
-bool factor_call_func(lex_t* l, bytecode_t* bc, str_t* name, bool member) {
-	str_t* s = str_new("");
+bool factor_call_func(lex_t* l, bytecode_t* bc, mstr_t* name, bool member) {
+	mstr_t* s = mstr_new("");
 
 	int arg_num = call_func(l, bc);
 	gen_func_name(name->cstr, arg_num, s);
 	bc_gen_str(bc, member ? INSTR_CALLO:INSTR_CALL, s->cstr);	
-	str_free(s);
+	mstr_free(s);
 	return true;
 }
 
-bool factor_array_access(lex_t* l, bytecode_t* bc, str_t* name, bool member) {
+bool factor_array_access(lex_t* l, bytecode_t* bc, mstr_t* name, bool member) {
 	bc_gen_str(bc, member ? INSTR_GET:INSTR_LOAD, name->cstr);
 
 	if(!lex_chkread(l, '[')) return false;
@@ -697,9 +697,9 @@ bool factor(lex_t* l, bytecode_t* bc, bool member) {
 	}
 	else if(l->tk==LEX_R_FUNCTION) { //define function
 		if(!lex_chkread(l, LEX_R_FUNCTION)) return false;
-		str_t *fname = str_new("");
+		mstr_t *fname = mstr_new("");
 		factor_def_func(l, bc, fname);
-		str_free(fname);
+		mstr_free(fname);
 	}
 	else if(l->tk==LEX_R_CLASS) { //define class
 		factor_def_class(l, bc);
@@ -714,7 +714,7 @@ bool factor(lex_t* l, bytecode_t* bc, bool member) {
 		factor_array(l, bc);
 	}
 	else if(l->tk==LEX_ID) {
-		str_t* name = str_new(l->tk_str->cstr);
+		mstr_t* name = mstr_new(l->tk_str->cstr);
 		if(!lex_chkread(l, LEX_ID)) return false;
 
 		if (l->tk=='(') { // function call
@@ -740,7 +740,7 @@ bool factor(lex_t* l, bytecode_t* bc, bool member) {
 				bc_gen_str(bc, INSTR_LOAD, name->cstr);	
 			}
 		}
-		str_free(name);
+		mstr_free(name);
 	}
 
 	if(l->tk == '.')  { // followed by member fetch
@@ -1017,7 +1017,7 @@ bool stmt_var(lex_t* l, bytecode_t* bc) {
 	}
 
 	while (!is_stmt_end(l->tk)) {
-		str_t* vname = str_new(l->tk_str->cstr);
+		mstr_t* vname = mstr_new(l->tk_str->cstr);
 		if(!lex_chkread(l, LEX_ID)) return false;
 		bc_gen_str(bc, op, vname->cstr);
 		// sort out initialiser
@@ -1030,7 +1030,7 @@ bool stmt_var(lex_t* l, bytecode_t* bc) {
 		}
 		if (!is_stmt_end(l->tk))
 			if(!lex_chkread(l, ',')) return false;
-		str_free(vname);
+		mstr_free(vname);
 	}
 	return lex_chkread_stmt_end(l);
 }
@@ -1135,10 +1135,10 @@ bool stmt_continue(lex_t* l, bytecode_t* bc) {
 
 bool stmt_function(lex_t* l, bytecode_t* bc) {
 	if(!lex_chkread(l, LEX_R_FUNCTION)) return false;
-	str_t* fname = str_new("");
+	mstr_t* fname = mstr_new("");
 	factor_def_func(l, bc, fname);
 	bc_gen_str(bc, INSTR_MEMBERN, fname->cstr);
-	str_free(fname);
+	mstr_free(fname);
 	return true;
 }
 
@@ -1267,14 +1267,14 @@ bool statement(lex_t* l, bytecode_t* bc) {
 		pop = false;
 	}
 	else {
-		str_t* s = str_new("Error: don't understand '");
-		str_add(s, l->tk);
-		str_append(s, l->tk_str->cstr);
-		str_append(s, "', ");
+		mstr_t* s = mstr_new("Error: don't understand '");
+		mstr_add(s, l->tk);
+		mstr_append(s, l->tk_str->cstr);
+		mstr_append(s, "', ");
 		lex_get_pos_str(l, -1, s);
-		str_append(s, "!\n");
+		mstr_append(s, "!\n");
 		mario_debug(s->cstr);
-		str_free(s);
+		mstr_free(s);
 		return false;
 	}
 

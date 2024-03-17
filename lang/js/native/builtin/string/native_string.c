@@ -67,10 +67,10 @@ var_t* native_UTF8ToString(vm_t* vm, var_t* env, void* data) {
 	(void)vm; (void)data;
 
 	utf8_t* u = (utf8_t*)get_raw(env, THIS);
-	str_t *s = str_new("");
+	mstr_t *s = mstr_new("");
 	utf8_to_str(u, s);
 	var_t* v = var_new_str(vm, s->cstr);
-	str_free(s);
+	mstr_free(s);
 	return v;
 }
 
@@ -80,7 +80,7 @@ var_t* native_UTF8At(vm_t* vm, var_t* env, void* data) {
 	utf8_t* u = (utf8_t*)get_raw(env, THIS);
 	int32_t at = get_int(env, "index");
 
-	str_t *s = utf8_at(u, at);
+	mstr_t *s = utf8_at(u, at);
 	var_t* v = var_new_str(vm, s->cstr);
 	return v;
 }
@@ -112,7 +112,7 @@ var_t* native_UTF8Substr(vm_t* vm, var_t* env, void* data) {
 			length = sl;
 		int i;
 		for(i=0; i<length; ++i) {
-			str_t* s = utf8_at(u, i+start);
+			mstr_t* s = utf8_at(u, i+start);
 			utf8_append(sub, s->cstr);	
 		}
 	}
@@ -136,13 +136,13 @@ var_t* native_UTF8ReaderRead(vm_t* vm, var_t* env, void* data) {
 	(void)vm; (void)data;
 
 	utf8_reader_t* ur = (utf8_reader_t*)get_raw(env, THIS);
-	str_t* s = str_new("");
+	mstr_t* s = mstr_new("");
 	var_t* v;
 	if(utf8_read(ur, s)) 
 		v = var_new_str(vm, s->cstr);
 	else
 		v = var_new_str(vm, "");
-	str_free(s);
+	mstr_free(s);
 	return v;
 }
 

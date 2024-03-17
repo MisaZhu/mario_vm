@@ -11,14 +11,14 @@ void print(const char* msg) {
 }
 
 void line_number(int l) {
-	print(str_from_int(l, 10));
+	print(mstr_from_int(l, 10));
 	print("  ");
 }
 
 void show_code(m_array_t* lines) {
 	int i;
 	for(i=0; i<lines->size; ++i) {
-		str_t* l = (str_t*)array_get(lines, i);
+		mstr_t* l = (mstr_t*)array_get(lines, i);
 		line_number(i);
 		print(l->cstr);
 	}
@@ -31,26 +31,26 @@ void run(vm_t* vm, m_array_t* lines) {
 	}
 
 	int i;
-	str_t* src = str_new("");
+	mstr_t* src = mstr_new("");
 	for(i=0; i<lines->size; ++i) {
-		str_t* l = (str_t*)array_get(lines, i);
-		str_append(src, l->cstr);
+		mstr_t* l = (mstr_t*)array_get(lines, i);
+		mstr_append(src, l->cstr);
 	}
 	vm_t* vmr = vm_from(vm);
 	if(vm_load(vmr, src->cstr)) {
 		vm_run(vmr);
 	}
 	vm_close(vmr);
-	str_free(src);
+	mstr_free(src);
 }
 
-bool read_line(str_t* line) {
+bool read_line(mstr_t* line) {
 	while(true) { //read line.
 		char c[1];
 		if(read(0, c, 1) <= 0) {
 			return false;
 		}
-		str_add(line, c[0]);
+		mstr_add(line, c[0]);
 		if(c[0] == '\n')
 			break;
 	}
@@ -67,14 +67,14 @@ void run_shell(vm_t* vm) {
 	const char* hint = "(source input, empty line enter switch edit/command mode)\n";
 
 	m_array_t* lines = array_new();
-	str_t* line = str_new("");
+	mstr_t* line = mstr_new("");
 
 	print(usage);
 	print(hint);
 	bool cmd_mode = false;
 	int ln = 0;
 	while(!vm->terminated) {
-		str_reset(line);
+		mstr_reset(line);
 		if(cmd_mode)
 			print("cmd:> ");
 		else
@@ -103,7 +103,7 @@ void run_shell(vm_t* vm) {
 				print(usage);
 			}
 			else if(strncmp(line->cstr, "clear\n", 6) == 0) {
-				array_clean(lines, (free_func_t)str_free);
+				array_clean(lines, (free_func_t)mstr_free);
 				ln = 0;
 			}
 			else if(strncmp(line->cstr, "run\n", 4) == 0) {
@@ -114,11 +114,11 @@ void run_shell(vm_t* vm) {
 			}
 		}
 		else {
-			array_add(lines, str_new(line->cstr));
+			array_add(lines, mstr_new(line->cstr));
 			ln++;
 		}
 	}
-	array_free(lines, (free_func_t)str_free);
-	str_free(line);
+	array_free(lines, (free_func_t)mstr_free);
+	mstr_free(line);
 }
 

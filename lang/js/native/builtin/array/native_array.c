@@ -19,9 +19,9 @@ var_t* native_Array_constructor(vm_t* vm, var_t* env, void* data) {
 var_t* native_Array_toString(vm_t* vm, var_t* env, void* data) {
 	(void)vm; (void)data;
 	var_t* arr = get_obj(env, THIS);
-	str_t* ret = str_new("");
+	mstr_t* ret = mstr_new("");
 
-	str_t* str = str_new("");
+	mstr_t* str = mstr_new("");
 	uint32_t sz = var_array_size(arr);
 	uint32_t i;
 	for(i=0; i<sz; ++i) {
@@ -29,14 +29,14 @@ var_t* native_Array_toString(vm_t* vm, var_t* env, void* data) {
 		if(n != NULL) {
 			var_to_str(n->var, str);
 			if(i > 0)
-				str_add(ret, ',');
-			str_append(ret, str->cstr);
+				mstr_add(ret, ',');
+			mstr_append(ret, str->cstr);
 		}
 	}
-	str_free(str);
+	mstr_free(str);
 
 	var_t* v = var_new_str(vm, ret->cstr);
-	str_free(ret);
+	mstr_free(ret);
 	return v;
 }
 
@@ -44,9 +44,9 @@ var_t* native_Array_join(vm_t* vm, var_t* env, void* data) {
 	(void)vm; (void)data;
 	var_t* arr = get_obj(env, THIS);
 	const char* j = get_str(env, "c");
-	str_t* ret = str_new("");
+	mstr_t* ret = mstr_new("");
 
-	str_t* str = str_new("");
+	mstr_t* str = mstr_new("");
 	uint32_t sz = var_array_size(arr);
 	uint32_t i;
 	for(i=0; i<sz; ++i) {
@@ -54,14 +54,14 @@ var_t* native_Array_join(vm_t* vm, var_t* env, void* data) {
 		if(n != NULL) {
 			var_to_str(n->var, str);
 			if(i > 0)
-				str_append(ret, j);
-			str_append(ret, str->cstr);
+				mstr_append(ret, j);
+			mstr_append(ret, str->cstr);
 		}
 	}
-	str_free(str);
+	mstr_free(str);
 
 	var_t* v = var_new_str(vm, ret->cstr);
-	str_free(ret);
+	mstr_free(ret);
 	return v;
 }
 

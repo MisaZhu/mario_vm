@@ -34,10 +34,10 @@ var_t* native_Number_toString(vm_t* vm, var_t* env, void* data) {
 		int radix = get_int(env, "radix");
 		if(radix < 2 || radix > 36)
 			radix = 10;
-		s = str_from_int(var_get_int(v), radix);
+		s = mstr_from_int(var_get_int(v), radix);
 	}
 	else {
-		s = str_from_float(var_get_float(v));
+		s = mstr_from_float(var_get_float(v));
 	}
 	var_t* ret = var_new_str(vm, s);
 	return ret;

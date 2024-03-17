@@ -101,7 +101,7 @@ bool load_natives() {
 	return ret;
 }
 
-str_t* load_script_content(const char* fname) {
+mstr_t* load_script_content(const char* fname) {
 	int fd = open(fname, O_RDONLY);
 	if(fd < 0) {
 		return NULL;
@@ -110,12 +110,12 @@ str_t* load_script_content(const char* fname) {
 	struct stat st;
 	fstat(fd, &st);
 
-	str_t* ret = str_new_by_size(st.st_size+1);
+	mstr_t* ret = mstr_new_by_size(st.st_size+1);
 	int sz = read(fd, ret->cstr, st.st_size);
 	close(fd);
 	
 	if(sz != st.st_size) {
-		str_free(ret);
+		mstr_free(ret);
 		return NULL;
 	}
 	ret->cstr[sz] = 0;
@@ -123,24 +123,24 @@ str_t* load_script_content(const char* fname) {
 	return ret;
 }
 
-str_t* include_script(vm_t* vm, const char* name) {
+mstr_t* include_script(vm_t* vm, const char* name) {
 	const char* path = getenv("MARIO_PATH");
 	if(path == NULL)
 		path = DEF_LIBS;
 
-	str_t* ret = load_script_content(name);
+	mstr_t* ret = load_script_content(name);
 	if(ret != NULL) {
 		return ret;
 	}
 
-	str_t* fname = str_new(path);
-	str_append(fname, "/libs/");
-	str_append(fname, _mario_lang);
-	str_add(fname, '/');
-	str_append(fname, name);
+	mstr_t* fname = mstr_new(path);
+	mstr_append(fname, "/libs/");
+	mstr_append(fname, _mario_lang);
+	mstr_add(fname, '/');
+	mstr_append(fname, name);
 	
 	ret = load_script_content(name);
-	str_free(fname);
+	mstr_free(fname);
 	return ret;
 }
 
@@ -157,7 +157,7 @@ void init_args(vm_t* vm, int argc, char** argv) {
 }
 
 bool load_js(vm_t* vm, const char* fname) {
-	str_t* s = load_script_content(fname);
+	mstr_t* s = load_script_content(fname);
 	if(s == NULL) {
 		snprintf(_err_info, ERR_MAX, "Can not open file '%s'\n", fname);
 		mario_debug(_err_info);
@@ -165,7 +165,7 @@ bool load_js(vm_t* vm, const char* fname) {
 	}
 	
 	bool ret = vm_load(vm, s->cstr);
-	str_free(s);
+	mstr_free(s);
 	return ret;
 }
 

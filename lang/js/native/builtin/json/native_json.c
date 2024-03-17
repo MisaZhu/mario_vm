@@ -9,12 +9,12 @@ var_t* native_json_stringify(vm_t* vm, var_t* env, void* data) {
 	(void)vm; (void)data;
 
 	node_t* n = var_find(env, "var");
-	str_t* s = str_new("");
+	mstr_t* s = mstr_new("");
 	if(n != NULL)
 		var_to_json_str(n->var, s, 0);
 
 	var_t* var = var_new_str(vm, s->cstr);
-	str_free(s);
+	mstr_free(s);
 	return var;
 }
 
