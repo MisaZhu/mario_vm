@@ -1,12 +1,9 @@
 #include "mario.h"
-#include "native_builtin.h"
 
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <dlfcn.h>
-#include <dirent.h>
 #include <stdio.h>
 
 #define ERR_MAX 1023
@@ -15,91 +12,8 @@ char _err_info[ERR_MAX+1];
 /**
 load extra native libs.
 */
-typedef void (*reg_natives_t)(vm_t* vm);
 
-#define MAX_EXTRA 8
-void* libs[MAX_EXTRA];
-int libs_num = 0;
-
-bool load_extra(const char* n) {
-	if(libs_num >= MAX_EXTRA) {
-		mario_debug("Too many extended module loaded!\n");
-		return false;
-	}
-
-	void* h = dlopen(n, RTLD_LAZY|RTLD_GLOBAL);
-	if(h == NULL) {
-		const char* e = dlerror();
-		snprintf(_err_info, ERR_MAX, "Extended module load error(%s)!%s\n", n, e != NULL? e:"");
-		mario_debug(_err_info);
-		return false;
-	}
-
-	libs[libs_num++] = h;
-	return true;
-}
-
-void reg_natives(vm_t* vm) {
-	reg_basic_natives(vm);
-	int i;
-	for(i=0; i<libs_num; i++) {
-		void* h = libs[i];
-		reg_natives_t loader = (reg_natives_t)dlsym(h, "reg_natives");
-		loader(vm);
-	}
-}
-
-void unload_extra(vm_t* vm) {
-	int i;
-	for(i=0; i<libs_num; i++) {
-		dlclose(libs[i]);
-	}
-}
-
-#define DEF_LIBS "/usr/local/mario"
-
-bool load_natives() {
-	const char* path = getenv("MARIO_PATH");
-	if(path == NULL)
-		path = DEF_LIBS;
-	
-	char fpath[1024];
-	snprintf(fpath, 1023, "%s/natives", path);
-
-	DIR* dir = opendir(fpath);
-	if(dir == NULL) {
-		snprintf(_err_info, ERR_MAX, "Warning: MARIO_LIBS does't exist('%s'), skip loading extra natives!\n", path);
-		mario_debug(_err_info);
-		return true;
-	}
-
-	bool ret = true;
-	char fname[1024];
-	while(true) {
-		struct dirent* dp = readdir(dir);
-		if(dp == NULL)
-			break;
-		
-		if(strstr(dp->d_name, ".so") == NULL)
-			continue;
-	
-		snprintf(fname, 1023, "%s/%s", fpath, dp->d_name);
-		
-		snprintf(_err_info, ERR_MAX, "Loading native lib %s ......", fname);
-		if(!load_extra(fname)) {
-			mario_debug(_err_info);
-			mario_debug(" failed!\n");
-			ret = false;
-			break;
-		}
-
-		mario_debug(_err_info);
-		mario_debug(" ok.\n");
-	}
-	
-	closedir(dir);
-	return ret;
-}
+void reg_natives(vm_t* vm);
 
 mstr_t* load_script_content(const char* fname) {
 	int fd = open(fname, O_RDONLY);
@@ -111,17 +25,28 @@ mstr_t* load_script_content(const char* fname) {
 	fstat(fd, &st);
 
 	mstr_t* ret = mstr_new_by_size(st.st_size+1);
-	int sz = read(fd, ret->cstr, st.st_size);
+
+	char* p = ret->cstr;
+	uint32_t sz = st.st_size;
+	while(sz > 0) {
+		int rd = read(fd, p, sz);
+		if(rd <= 0 || sz < rd)
+			break;
+		p += rd;
+		sz -= rd; 
+	}
 	close(fd);
 	
-	if(sz != st.st_size) {
+	if(sz > 0) {
 		mstr_free(ret);
 		return NULL;
 	}
-	ret->cstr[sz] = 0;
-	ret->len = sz;
+	ret->cstr[st.st_size] = 0;
+	ret->len = st.st_size;
 	return ret;
 }
+
+#define DEF_LIBS "/usr/local/mario"
 
 mstr_t* include_script(vm_t* vm, const char* name) {
 	const char* path = getenv("MARIO_PATH");
@@ -169,23 +94,34 @@ bool load_js(vm_t* vm, const char* fname) {
 	return ret;
 }
 
-void run_shell(vm_t* vm);
+void vm_gen_mbc(vm_t* vm, const char* fname_out);
+bool vm_load_mbc(vm_t* vm, const char* fname);
 
 int main(int argc, char** argv) {
-	/*if(argc < 2) {
+	setbuf(stdin, NULL);
+	setbuf(stdout, NULL);
+	if(argc < 2) {
 		mario_debug("Usage: mario (-v) <js-filename>\n");
 	}
-	*/
 
-	bool verify = false;
+	uint8_t mode = 0; //0 for run, 1 for verify, 2 for generate mbc file
 	const char* fname = "";
+	const char* fname_out = "";
 
 	if(argc > 1) {
 		if(strcmp(argv[1], "-v") == 0) {
 			if(argc != 3)
 				return 1;
-			verify = true;
+			mode = 1;
 			fname = argv[2];
+		}
+		else if(strcmp(argv[1], "-c") == 0) {
+			if(argc < 3)
+				return 1;
+			mode = 2;
+			fname = argv[2];
+			if(argc == 4)
+				fname_out = argv[3];
 		}
 		else {
 			fname = argv[1];
@@ -193,10 +129,6 @@ int main(int argc, char** argv) {
 	}
 	
 	bool loaded = true;
-	//load extra native so files.
-	if(!load_natives()) {
-		loaded = false;
-	}
 	_load_m_func = include_script;
 
 	mario_mem_init();
@@ -208,16 +140,22 @@ int main(int argc, char** argv) {
 		vm_init(vm, reg_natives, NULL);
 
 		if(fname[0] != 0) {
-			mario_debug("-------- run script --------\n");
-			if(load_js(vm, fname)) {
-				if(verify)
+			bool res = false;
+			if(strstr(fname, ".js") != NULL)
+				res = load_js(vm, fname);
+			else if(strstr(fname, ".mbc") != NULL && mode != 2) {
+				bc_release(&vm->bc);
+				res = vm_load_mbc(vm, fname);
+			}
+			
+			if(res) {
+				if(mode == 1)
 					vm_dump(vm);
+				else if(mode == 2)
+					vm_gen_mbc(vm, fname_out);
 				else
 					vm_run(vm);
 			}
-		}
-		else {
-			run_shell(vm);
 		}
 	}
 	

@@ -15,10 +15,10 @@ include $(MARIO_VM)/lang/js/lang.mk
 
 mario_OBJS= $(MARIO_VM)/mario/mario.o
 
-OBJS = shell/mariovm.o shell/shell.o $(mario_OBJS) $(lang_OBJS) \
+OBJS = shell/mariovm.o shell/mbc.o $(mario_OBJS) $(lang_OBJS) \
 		$(NATIVE_OBJS)
 
-CFLAGS = -I$(NATIVE_PATH) -I$(MARIO_VM)/mario -Wall -fPIC
+CFLAGS = -I$(NATIVE_PATH_BUILTIN) -I$(MARIO_VM)/mario -Wall -fPIC
 
 ifneq ($(MARIO_DEBUG), no)
 CFLAGS += -g -DMARIO_DEBUG
