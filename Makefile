@@ -1,19 +1,24 @@
-ifeq ($(MARIO_VM),)
-MARIO_VM = .
-endif
-
 CC := $(CROSS_COMPILE)gcc
 CXX := $(CROSS_COMPILE)g++
 AR := $(CROSS_COMPILE)ar
 LD := $(CROSS_COMPILE)gcc
 
+ifeq ($(MARIO_VM),)
+MARIO_VM = .
+endif
+
 include $(MARIO_VM)/lang/js/lang.mk
 
 mario_OBJS = $(MARIO_VM)/mario/mario.o
-shell_OBJS = shell/main.o shell/mbc.o shell/js.o shell/dump.o shell/platform.o
+platform_OBJS = $(MARIO_VM)/platform/platform.o \
+		$(MARIO_VM)/platform/mem.o
+mvm_OBJS = bin/mario/main.o bin/lib/mbc.o bin/lib/js.o 
+bcasm_OBJS = bin/bcasm/main.o bin/bcasm/dump.o bin/lib/mbc.o bin/lib/js.o 
 
-MARIO_OBJS = $(mario_OBJS) $(shell_OBJS) $(lang_OBJS) \
+MARIO_OBJS = $(mario_OBJS) $(mvm_OBJS) $(lang_OBJS) $(platform_OBJS) \
 		$(NATIVE_OBJS)
+
+BCASM_OBJS = $(mario_OBJS) $(bcasm_OBJS) $(lang_OBJS) $(platform_OBJS)
 
 ifneq ($(MARIO_DEBUG), no)
 CFLAGS += -g -DMARIO_DEBUG
@@ -29,31 +34,29 @@ ifneq ($(MARIO_THREAD), no)
 CFLAGS += -DMARIO_THREAD
 endif
 
-BUILD_DIR = ../../../build
-TARGET_DIR = $(BUILD_DIR)/extra
 
-LDFLAGS = -L$(BUILD_DIR)/lib
-HEADS = -I $(BUILD_DIR)/include \
-	-I$(NATIVE_PATH_BUILTIN) \
-	-I$(NATIVE_PATH_GRAPH) \
-	-I$(NATIVE_PATH_X) \
-	-I$(MARIO_VM)/mario
+HEADS = -I$(NATIVE_PATH_BUILTIN) \
+	-I$(MARIO_VM)/mario \
+	-I$(MARIO_VM)/bin/lib \
+	-I$(MARIO_VM)/platform
 
 CFLAGS += $(HEADS)
 CXXFLAGS += $(HEADS)
 
-MARIO = $(TARGET_DIR)/bin/mario
+MARIO = build/mario
+BCASM = build/bcasm
 
-$(MARIO): $(MARIO_OBJS) \
-		$(BUILD_DIR)/lib/libx.a \
-		$(BUILD_DIR)/lib/libx++.a \
-		$(BUILD_DIR)/lib/libupng.a \
-		$(BUILD_DIR)/lib/libttf.a \
-		$(BUILD_DIR)/lib/libfont.a \
-		$(BUILD_DIR)/lib/libgraph.a \
-		$(EWOK_LIBC_A) 
-	mkdir -p $(TARGET_DIR)/bin
-	$(LD) -Ttext=100 $(MARIO_OBJS) -o $(MARIO) $(LDFLAGS) -lttf -lfont  -lgraph -lbsp -lupng -lx++ -lx -lsconf  $(EWOK_LIBC) -lcxx
+all: $(MARIO) $(BCASM)
+	@echo "done"
+
+
+$(MARIO): $(MARIO_OBJS)
+	mkdir -p build
+	$(LD) -o $(MARIO) $(MARIO_OBJS) $(LDFLAGS)
+
+$(BCASM): $(BCASM_OBJS)
+	mkdir -p build
+	$(LD) -o $(BCASM) $(BCASM_OBJS) $(LDFLAGS)
 
 clean:
-	rm -f $(MARIO_OBJS) $(MARIO)
+	rm -f $(MARIO_OBJS) $(MARIO) $(BCASM_OBJS) $(BCASM)
