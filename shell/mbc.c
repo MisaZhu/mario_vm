@@ -1,4 +1,4 @@
-#include "mario.h"
+#include "mbc.h"
 
 #include <unistd.h>
 #include <stdlib.h>
@@ -52,7 +52,7 @@ void vm_gen_mbc(vm_t* vm, const char* fname_out) {
 	if(fname_out[0] == 0)
 		fname_out = "out.mbc";
 
-	int fd = open(fname_out, O_WRONLY | O_CREAT | O_TRUNC);
+	int fd = open(fname_out, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 	if(fd < 0)
 		return;
 
@@ -80,21 +80,21 @@ static bool load_mbc(int fd, vm_t* vm) {
 		uint32_t len;
 		if(read(fd, &len, 4) != 4)
 			return false;
-		char* s = (char*)malloc(len+1);
+		char* s = (char*)_malloc(len+1);
 		if(s == NULL)
 			return false;
 		if(read(fd, s, len) != len) {
-			free(s);
+			_free(s);
 			return false;
 		}		
 		s[len] = 0;
 		array_add(&vm->bc.mstr_table, s);
-		//free(s);
+		//_free(s);
 	}
 
 	if(read(fd, &sz, 4) != 4)
 		return false;
-	vm->bc.code_buf = (PC*)malloc(sz);
+	vm->bc.code_buf = (PC*)_malloc(sz);
 	if(vm->bc.code_buf == NULL)
 		return false;
 

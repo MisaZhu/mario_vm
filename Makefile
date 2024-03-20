@@ -1,7 +1,3 @@
-ifneq ($(CROSS_COMPILE),)
-$(info CROSS_COMPILE=$(CROSS_COMPILE))
-endif
-
 ifeq ($(MARIO_VM),)
 MARIO_VM = .
 endif
@@ -13,12 +9,11 @@ LD := $(CROSS_COMPILE)gcc
 
 include $(MARIO_VM)/lang/js/lang.mk
 
-mario_OBJS= $(MARIO_VM)/mario/mario.o
+mario_OBJS = $(MARIO_VM)/mario/mario.o
+shell_OBJS = shell/main.o shell/mbc.o shell/js.o shell/dump.o shell/platform.o
 
-OBJS = shell/mariovm.o shell/mbc.o $(mario_OBJS) $(lang_OBJS) \
+MARIO_OBJS = $(mario_OBJS) $(shell_OBJS) $(lang_OBJS) \
 		$(NATIVE_OBJS)
-
-CFLAGS = -I$(NATIVE_PATH_BUILTIN) -I$(MARIO_VM)/mario -Wall -fPIC
 
 ifneq ($(MARIO_DEBUG), no)
 CFLAGS += -g -DMARIO_DEBUG
@@ -32,22 +27,33 @@ endif
 
 ifneq ($(MARIO_THREAD), no)
 CFLAGS += -DMARIO_THREAD
-LDFLAGS +=  -lpthread
 endif
 
-LDFLAGS += -lm -ldl
+BUILD_DIR = ../../../build
+TARGET_DIR = $(BUILD_DIR)/extra
 
-TARGET_PATH=lang/$(MARIO_LANG)
-TARGET=mariovm
-INST_DST=/usr/local/mario
+LDFLAGS = -L$(BUILD_DIR)/lib
+HEADS = -I $(BUILD_DIR)/include \
+	-I$(NATIVE_PATH_BUILTIN) \
+	-I$(NATIVE_PATH_GRAPH) \
+	-I$(NATIVE_PATH_X) \
+	-I$(MARIO_VM)/mario
 
-all: $(OBJS)
-	$(LD) -o $(TARGET) $(OBJS) $(LDFLAGS)
+CFLAGS += $(HEADS)
+CXXFLAGS += $(HEADS)
+
+MARIO = $(TARGET_DIR)/bin/mario
+
+$(MARIO): $(MARIO_OBJS) \
+		$(BUILD_DIR)/lib/libx.a \
+		$(BUILD_DIR)/lib/libx++.a \
+		$(BUILD_DIR)/lib/libupng.a \
+		$(BUILD_DIR)/lib/libttf.a \
+		$(BUILD_DIR)/lib/libfont.a \
+		$(BUILD_DIR)/lib/libgraph.a \
+		$(EWOK_LIBC_A) 
+	mkdir -p $(TARGET_DIR)/bin
+	$(LD) -Ttext=100 $(MARIO_OBJS) -o $(MARIO) $(LDFLAGS) -lttf -lfont  -lgraph -lbsp -lupng -lx++ -lx -lsconf  $(EWOK_LIBC) -lcxx
 
 clean:
-	rm -fr $(TARGET) $(OBJS) *.dSYM
-
-install:
-	cp $(TARGET) /usr/local/bin
-	mkdir -p $(INST_DST)/test/$(MARIO_LANG)
-	cp test/$(MARIO_LANG)/* $(INST_DST)/test/$(MARIO_LANG)
+	rm -f $(MARIO_OBJS) $(MARIO)
