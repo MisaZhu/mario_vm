@@ -9,16 +9,13 @@ endif
 
 include $(MARIO_VM)/lang/js/lang.mk
 
-mario_OBJS = $(MARIO_VM)/mario/mario.o
+mario_OBJS = $(MARIO_VM)/mario/mario.o $(MARIO_VM)/mario/bcdump/bcdump.o
 platform_OBJS = $(MARIO_VM)/platform/platform.o \
 		$(MARIO_VM)/platform/mem.o
 mvm_OBJS = bin/mario/main.o bin/lib/mbc.o bin/lib/js.o 
-bcasm_OBJS = bin/bcasm/main.o $(MARIO_VM)/mario/bcdump/bcdump.o bin/lib/mbc.o bin/lib/js.o 
 
 MARIO_OBJS = $(mario_OBJS) $(mvm_OBJS) $(lang_OBJS) $(platform_OBJS) \
 		$(NATIVE_OBJS)
-
-BCASM_OBJS = $(mario_OBJS) $(bcasm_OBJS) $(lang_OBJS) $(platform_OBJS)
 
 ifneq ($(MARIO_DEBUG), no)
 CFLAGS += -g -DMARIO_DEBUG
@@ -47,9 +44,8 @@ CFLAGS += -Wno-incompatible-function-pointer-types
 CXXFLAGS += -Wno-incompatible-function-pointer-types
 
 MARIO = build/mario
-BCASM = build/bcasm
 
-all: $(MARIO) $(BCASM)
+all: $(MARIO)
 	@echo "done"
 
 
@@ -57,9 +53,5 @@ $(MARIO): $(MARIO_OBJS)
 	mkdir -p build
 	$(LD) -o $(MARIO) $(MARIO_OBJS) $(LDFLAGS)
 
-$(BCASM): $(BCASM_OBJS)
-	mkdir -p build
-	$(LD) -o $(BCASM) $(BCASM_OBJS) $(LDFLAGS)
-
 clean:
-	rm -f $(MARIO_OBJS) $(MARIO) $(BCASM_OBJS) $(BCASM)
+	rm -f $(MARIO_OBJS) $(MARIO)

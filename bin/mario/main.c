@@ -1,6 +1,7 @@
 #include "js.h"
 #include "mbc.h"
 #include "platform.h"
+#include "bcdump/bcdump.h"
 #include "mem.h"
 
 #include <unistd.h>
@@ -33,13 +34,14 @@ enum {
 };
 
 static uint8_t _mode = MODE_RUN; //0 for run, 1 for verify, 2 for generate mbc file
+static bool _dump = false;
 static const char* _fname = "";
 static const char* _fname_out = "";
 
 static int doargs(int argc, char* argv[]) {
 	int c = 0;
 	while (c != -1) {
-		c = getopt (argc, argv, "cvd");
+		c = getopt (argc, argv, "cda");
 		if(c == -1)
 			break;
 
@@ -49,6 +51,9 @@ static int doargs(int argc, char* argv[]) {
 			break;
 		case 'd':
 			_m_debug = true;
+			break;
+		case 'a':
+			_dump = true;
 			break;
 		case '?':
 			return -1;
@@ -77,7 +82,7 @@ int main(int argc, char** argv) {
 	platform_init();
 
 	if(doargs(argc, argv) != 0) {
-		printf("Usage: mario (-c/d) <filename>\n");
+		printf("Usage: mario (-c/d/a) <filename>\n");
 		return -1;
 	}
 
@@ -103,8 +108,17 @@ int main(int argc, char** argv) {
 			if(res) {
 				if(_mode == MODE_CMPL) 
 					vm_gen_mbc(vm, _fname_out);
-				else
-					vm_run(vm);
+				else {
+					if(_dump) {
+						mstr_t* dump = bc_dump(&vm->bc);
+						if(dump != NULL) {
+							_out_func(dump->cstr);
+							mstr_free(dump);
+						}
+					}
+					else 
+						vm_run(vm);
+				}
 			}
 		}
 	}
