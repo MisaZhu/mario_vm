@@ -61,6 +61,7 @@ f(function(x) { debug(x); }, "callback test");
 
 const x = "aaa";
 x = "bbb";
+debug(x);
 
 try {
 	throw "throw message.";
