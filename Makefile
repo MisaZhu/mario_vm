@@ -13,7 +13,7 @@ mario_OBJS = $(MARIO_VM)/mario/mario.o
 platform_OBJS = $(MARIO_VM)/platform/platform.o \
 		$(MARIO_VM)/platform/mem.o
 mvm_OBJS = bin/mario/main.o bin/lib/mbc.o bin/lib/js.o 
-bcasm_OBJS = bin/bcasm/main.o bin/bcasm/dump.o bin/lib/mbc.o bin/lib/js.o 
+bcasm_OBJS = bin/bcasm/main.o $(MARIO_VM)/mario/bcdump/bcdump.o bin/lib/mbc.o bin/lib/js.o 
 
 MARIO_OBJS = $(mario_OBJS) $(mvm_OBJS) $(lang_OBJS) $(platform_OBJS) \
 		$(NATIVE_OBJS)
