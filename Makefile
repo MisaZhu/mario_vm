@@ -43,6 +43,9 @@ HEADS = -I$(NATIVE_PATH_BUILTIN) \
 CFLAGS += $(HEADS)
 CXXFLAGS += $(HEADS)
 
+CFLAGS += -Wno-incompatible-function-pointer-types
+CXXFLAGS += -Wno-incompatible-function-pointer-types
+
 MARIO = build/mario
 BCASM = build/bcasm
 
