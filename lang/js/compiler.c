@@ -318,16 +318,12 @@ const char* lex_get_token_str(int token) {
 
 #endif
 
-void lex_get_pos_str(lex_t* l, int pos, mstr_t* ret) {
+void mario_debug_pos(lex_t* l, int pos) {
 	int line = 1;
 	int col;
 
 	lex_get_pos(l, &line, &col, pos);
-	mstr_append(ret, "(line: ");
-	mstr_append(ret, mstr_from_int(line, 10));
-	mstr_append(ret, ", col: ");
-	mstr_append(ret, mstr_from_int(col, 10));
-	mstr_append(ret, ")");
+	mario_debug("(line: %d, col: %d)\n",  mstr_from_int(line, 10), mstr_from_int(col, 10));
 }
 
 bool lex_chkread(lex_t* lex, uint32_t expected_tk);
@@ -342,16 +338,9 @@ bool lex_skip_empty(lex_t* l) {
 bool lex_chkread(lex_t* lex, uint32_t expected_tk) { //check read with empty line.
 	if (lex->tk != expected_tk) {
 #ifdef MARIO_DEBUG
-		mario_debug("Got ");
-		mario_debug(lex_get_token_str(lex->tk));
-		mario_debug(" expected ");
-		mario_debug(lex_get_token_str(expected_tk));
+		mario_debug("Got %s expected %s", lex_get_token_str(lex->tk), lex_get_token_str(expected_tk));
 #endif
-		mstr_t* s = mstr_new("");
-		lex_get_pos_str(lex, -1, s);
-		mario_debug(s->cstr);
-		mstr_free(s);
-		mario_debug("!\n");
+		mario_debug_pos(lex, -1);
 		return false;
 	}
 	lex_get_next_token(lex);
@@ -1267,14 +1256,8 @@ bool statement(lex_t* l, bytecode_t* bc) {
 		pop = false;
 	}
 	else {
-		mstr_t* s = mstr_new("Error: don't understand '");
-		mstr_add(s, l->tk);
-		mstr_append(s, l->tk_str->cstr);
-		mstr_append(s, "', ");
-		lex_get_pos_str(l, -1, s);
-		mstr_append(s, "!\n");
-		mario_debug(s->cstr);
-		mstr_free(s);
+		mario_debug("Error: don't understand '%s' ", l->tk_str->cstr);
+		mario_debug_pos(l, -1);
 		return false;
 	}
 

@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "atomic": "c",
+        "mutex": "c",
+        "typeinfo": "c"
+    }
+}

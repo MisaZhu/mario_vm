@@ -104,13 +104,7 @@ static void raw_mem_quit() {
 	if(block != NULL) { // mem clean
 		mario_debug("[debug]memory is leaking!!!\n");
 		while(block != NULL) {
-			mario_debug(" ");
-			mario_debug(block->file);
-			mario_debug(", ");
-			mario_debug(mstr_from_int(block->line, 10));
-			mario_debug(", size=");
-			mario_debug(mstr_from_int(block->size, 10));
-			mario_debug("\n");
+			mario_debug(" %s, %d, size=%d\n", block->file, block->line, block->size);
 			block = block->next;
 		}
 	}
