@@ -51,7 +51,7 @@ typedef enum {
 	LEX_R_EXTENDS,
 	LEX_R_RETURN,
 	LEX_R_VAR,
-	LEX_R_LET,
+	LEX_R_SAFE_VAR,
 	LEX_R_CONST,
 	LEX_R_TRUE,
 	LEX_R_FALSE,
@@ -204,7 +204,7 @@ void lex_get_reserved_word(lex_t *lex) {
 	else if (strcmp(lex->tk_str->cstr, "extends") == 0) 	 lex->tk = LEX_R_EXTENDS;
 	else if (strcmp(lex->tk_str->cstr, "return") == 0)   lex->tk = LEX_R_RETURN;
 	else if (strcmp(lex->tk_str->cstr, "var")  == 0)      lex->tk = LEX_R_VAR;
-	else if (strcmp(lex->tk_str->cstr, "let")  == 0)      lex->tk = LEX_R_LET;
+	else if (strcmp(lex->tk_str->cstr, "let")  == 0)      lex->tk = LEX_R_SAFE_VAR;
 	else if (strcmp(lex->tk_str->cstr, "const") == 0)     lex->tk = LEX_R_CONST;
 	else if (strcmp(lex->tk_str->cstr, "true") == 0)      lex->tk = LEX_R_TRUE;
 	else if (strcmp(lex->tk_str->cstr, "false") == 0)     lex->tk = LEX_R_FALSE;
@@ -305,7 +305,7 @@ const char* lex_get_token_str(int token) {
 		case LEX_R_RETURN       : return "return";
 		case LEX_R_CONST        : return "CONST";
 		case LEX_R_VAR          : return "var";
-		case LEX_R_LET          : return "let";
+		case LEX_R_SAFE_VAR          : return "let";
 		case LEX_R_TRUE         : return "true";
 		case LEX_R_FALSE        : return "false";
 		case LEX_R_NULL         : return "null";
@@ -996,9 +996,9 @@ bool stmt_var(lex_t* l, bytecode_t* bc) {
 		if(!lex_chkread(l, LEX_R_VAR)) return false;
 		op = INSTR_VAR;
 	}
-	else if(l->tk == LEX_R_LET) {
-		if(!lex_chkread(l, LEX_R_LET)) return false;
-		op = INSTR_LET;
+	else if(l->tk == LEX_R_SAFE_VAR) {
+		if(!lex_chkread(l, LEX_R_SAFE_VAR)) return false;
+		op = INSTR_SAFE_VAR;
 	}
 	else {
 		if(!lex_chkread(l, LEX_R_CONST)) return false;
@@ -1208,7 +1208,7 @@ bool statement(lex_t* l, bytecode_t* bc) {
 		if(is_stmt_end(l->tk))
 			if(!lex_chkread_stmt_end(l)) return false;
 	}
-	else if (l->tk==LEX_R_VAR || l->tk == LEX_R_CONST || l->tk == LEX_R_LET) {
+	else if (l->tk==LEX_R_VAR || l->tk == LEX_R_CONST || l->tk == LEX_R_SAFE_VAR) {
 		if(!stmt_var(l, bc)) return false; 
 		pop = false;
 	}

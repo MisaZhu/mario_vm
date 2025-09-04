@@ -12,7 +12,7 @@ const char* inmstr_str(opr_code_t ins) {
 		case  INSTR_MEMBERN			: return "MEMBERN";
 		case  INSTR_POP					: return "POP";
 		case  INSTR_VAR					: return "VAR";
-		case  INSTR_LET					: return "LET";
+		case  INSTR_SAFE_VAR			: return "LET";
 		case  INSTR_CONST				: return "CONST";
 		case  INSTR_INT					: return "INT";
 		case  INSTR_INT_S				: return "INTS";
