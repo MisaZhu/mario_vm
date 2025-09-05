@@ -73,6 +73,19 @@ static int doargs(int argc, char* argv[]) {
 	return 0;
 }
 
+static inline var_t* vm_load_var(vm_t* vm, const char* name, bool create) {
+	node_t* n = vm_load_node(vm, name, create);
+	if(n != NULL)
+		return n->var;
+	return NULL;
+}
+
+static inline void vm_load_basic_classes(vm_t* vm) {
+	vm->var_String = vm_load_var(vm, "String", false);
+	vm->var_Array = vm_load_var(vm, "Array", false);
+	vm->var_Number = vm_load_var(vm, "Number", false);
+}
+
 bool js_compile(bytecode_t *bc, const char* input);
 
 int main(int argc, char** argv) {
@@ -95,6 +108,7 @@ int main(int argc, char** argv) {
 
 	if(loaded) {
 		vm_init(vm, reg_natives, NULL);
+		vm_load_basic_classes(vm);
 
 		if(_fname[0] != 0) {
 			bool res = false;
