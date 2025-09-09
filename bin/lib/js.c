@@ -6,6 +6,10 @@
 #include <fcntl.h>
 #include <stdio.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 static mstr_t* load_script_content(const char* fname) {
 	int fd = open(fname, O_RDONLY);
 	if(fd < 0) {
@@ -73,3 +77,7 @@ bool load_js(vm_t* vm, const char* fname) {
 	mstr_free(s);
 	return ret;
 }
+
+#ifdef __cplusplus
+}
+#endif

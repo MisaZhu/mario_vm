@@ -142,3 +142,7 @@ void mem_init(void) {
 void mem_quit(void) {
 	raw_mem_quit();
 }
+
+#ifdef __cplusplus
+}
+#endif

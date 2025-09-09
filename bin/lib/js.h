@@ -3,6 +3,14 @@
 
 #include "mario.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 bool load_js(vm_t* vm, const char* fname);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

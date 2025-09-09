@@ -9,6 +9,10 @@
 #define MAGIC_NO 0x19760427
 #define VERSION  0x00000001
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 static bool gen_mbc(int fd, vm_t* vm) {
 	PC i;
 
@@ -120,3 +124,6 @@ bool vm_load_mbc(vm_t* vm, const char* fname) {
 	return ret;
 }
 
+#ifdef __cplusplus
+}
+#endif
